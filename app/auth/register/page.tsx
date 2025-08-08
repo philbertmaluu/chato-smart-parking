@@ -1,20 +1,32 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAuth } from "@/components/auth-provider"
-import { useLanguage } from "@/components/language-provider"
-import { Car, Eye, EyeOff, Globe } from "lucide-react"
-import Link from "next/link"
-import { useTheme } from "next-themes"
-import { Moon, Sun } from "lucide-react"
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/components/auth-provider";
+import { useLanguage } from "@/components/language-provider";
+import { Car, Eye, EyeOff, Globe } from "lucide-react";
+import Link from "next/link";
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -23,28 +35,33 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
     role: "" as "operator" | "manager" | "",
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const { register } = useAuth()
-  const { t, language, setLanguage } = useLanguage()
-  const { theme, setTheme } = useTheme()
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { register } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match")
-      return
+      alert("Passwords do not match");
+      return;
     }
     if (!formData.role) {
-      alert("Please select a role")
-      return
+      alert("Please select a role");
+      return;
     }
 
-    setIsLoading(true)
-    await register(formData.email, formData.password, formData.role, formData.name)
-    setIsLoading(false)
-  }
+    setIsLoading(true);
+    await register(
+      formData.email,
+      formData.password,
+      formData.role,
+      formData.name
+    );
+    setIsLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
@@ -52,10 +69,10 @@ export default function RegisterPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md mx-auto"
       >
         {/* Header Controls */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-center items-center mb-8 space-x-4">
           <Button
             variant="outline"
             size="sm"
@@ -72,7 +89,11 @@ export default function RegisterPage() {
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="glass-effect"
           >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
           </Button>
         </div>
 
@@ -86,7 +107,9 @@ export default function RegisterPage() {
             >
               <Car className="w-8 h-8 text-white" />
             </motion.div>
-            <CardTitle className="text-2xl font-bold text-gradient">Smart Parking</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gradient">
+              Smart Parking
+            </CardTitle>
             <CardDescription>{t("auth.register")}</CardDescription>
           </CardHeader>
 
@@ -98,7 +121,9 @@ export default function RegisterPage() {
                   id="name"
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   required
                   className="glass-effect border-0"
                   placeholder="John Doe"
@@ -111,25 +136,33 @@ export default function RegisterPage() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   required
                   className="glass-effect border-0"
                   placeholder="john@example.com"
                 />
               </div>
 
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="role">{t("auth.role")}</Label>
-                <Select onValueChange={(value: "operator" | "manager") => setFormData({ ...formData, role: value })}>
+                <Select
+                  onValueChange={(value: "operator" | "manager") =>
+                    setFormData({ ...formData, role: value })
+                  }
+                >
                   <SelectTrigger className="glass-effect border-0">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="operator">{t("auth.operator")}</SelectItem>
+                    <SelectItem value="operator">
+                      {t("auth.operator")}
+                    </SelectItem>
                     <SelectItem value="manager">{t("auth.manager")}</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </div> */}
 
               <div className="space-y-2">
                 <Label htmlFor="password">{t("auth.password")}</Label>
@@ -138,7 +171,9 @@ export default function RegisterPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
                     required
                     className="glass-effect border-0 pr-10"
                     placeholder="••••••••"
@@ -150,18 +185,29 @@ export default function RegisterPage() {
                     className="absolute right-0 top-0 h-full px-3"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
+                <Label htmlFor="confirmPassword">
+                  {t("auth.confirmPassword")}
+                </Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
                   required
                   className="glass-effect border-0"
                   placeholder="••••••••"
@@ -180,7 +226,10 @@ export default function RegisterPage() {
             <div className="mt-6 text-center">
               <div className="text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="text-primary hover:underline">
+                <Link
+                  href="/auth/login"
+                  className="text-primary hover:underline"
+                >
                   {t("auth.login")}
                 </Link>
               </div>
@@ -189,5 +238,5 @@ export default function RegisterPage() {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }

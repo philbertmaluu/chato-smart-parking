@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -121,13 +121,18 @@ export default function SettingsPage() {
   const [systemSettings, setSystemSettings] = useState(mockSystemSettings);
   const [isEditingVehicle, setIsEditingVehicle] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // User profile state
   const [userProfile, setUserProfile] = useState({
-    name: user?.name || "John Doe",
-    email: user?.email || "john.doe@smartparking.com",
+    name: mounted && user?.username ? user.username : "John Doe",
+    email: mounted && user?.email ? user.email : "john.doe@smartparking.com",
     phone: "+255 123 456 789",
-    role: user?.role || "manager",
+    role: mounted && user?.role?.name ? user.role.name : "manager",
     avatar: "/placeholder-user.jpg",
     preferences: {
       language: "en",

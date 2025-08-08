@@ -1,35 +1,62 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { useAuth } from "@/components/auth-provider"
-import { useLanguage } from "@/components/language-provider"
-import { Car, Eye, EyeOff, Globe } from "lucide-react"
-import Link from "next/link"
-import { useTheme } from "next-themes"
-import { Moon, Sun } from "lucide-react"
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/components/auth-provider";
+import { useLanguage } from "@/components/language-provider";
+import { Car, Eye, EyeOff, Globe, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const { login } = useAuth()
-  const { t, language, setLanguage } = useLanguage()
-  const { theme, setTheme } = useTheme()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { login } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    await login(email, password)
-    setIsLoading(false)
-  }
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const success = await login(email, password);
+      if (success) {
+        toast.success("Login successful!");
+        // Let the user navigate manually or add navigation here if needed
+      } else {
+        setError("Invalid email or password. Please try again.");
+        toast.error("Login failed. Please check your credentials.");
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred. Please try again.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
@@ -37,10 +64,10 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md mx-auto"
       >
         {/* Header Controls */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-center items-center mb-8 space-x-4">
           <Button
             variant="outline"
             size="sm"
@@ -57,7 +84,11 @@ export default function LoginPage() {
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="glass-effect"
           >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
           </Button>
         </div>
 
@@ -71,12 +102,15 @@ export default function LoginPage() {
             >
               <Car className="w-8 h-8 text-white" />
             </motion.div>
-            <CardTitle className="text-2xl font-bold text-gradient">Smart Parking</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gradient">
+              Smart Parking
+            </CardTitle>
             <CardDescription>{t("auth.login")}</CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.email")}</Label>
                 <Input
@@ -87,6 +121,7 @@ export default function LoginPage() {
                   required
                   className="glass-effect border-0"
                   placeholder="manager@example.com"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -101,6 +136,7 @@ export default function LoginPage() {
                     required
                     className="glass-effect border-0 pr-10"
                     placeholder="••••••••"
+                    disabled={isLoading}
                   />
                   <Button
                     type="button"
@@ -108,8 +144,13 @@ export default function LoginPage() {
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -124,31 +165,26 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 text-center space-y-2">
-              <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+              <Link
+                href="/auth/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
                 {t("auth.forgotPassword")}
               </Link>
 
               <div className="text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link href="/auth/register" className="text-primary hover:underline">
+                <Link
+                  href="/auth/register"
+                  className="text-primary hover:underline"
+                >
                   {t("auth.register")}
                 </Link>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-6 text-center text-sm text-muted-foreground"
-        >
-          <p>Demo accounts:</p>
-          <p>Manager: manager@example.com</p>
-          <p>Operator: operator@example.com</p>
-        </motion.div>
       </motion.div>
     </div>
-  )
+  );
 }

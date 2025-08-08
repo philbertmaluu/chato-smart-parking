@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -95,6 +95,11 @@ export default function Analytics() {
   const { t } = useLanguage();
   const [timeRange, setTimeRange] = useState("7d");
   const [selectedChart, setSelectedChart] = useState("revenue");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const analytics = useMemo(() => {
     const data = mockAnalyticsData.dailyRevenue;
@@ -103,8 +108,12 @@ export default function Analytics() {
     const avgRevenue = totalRevenue / data.length;
     const avgVehicles = totalVehicles / data.length;
 
-    const revenueChange = ((data[data.length - 1].revenue - data[0].revenue) / data[0].revenue) * 100;
-    const vehicleChange = ((data[data.length - 1].vehicles - data[0].vehicles) / data[0].vehicles) * 100;
+    const revenueChange =
+      ((data[data.length - 1].revenue - data[0].revenue) / data[0].revenue) *
+      100;
+    const vehicleChange =
+      ((data[data.length - 1].vehicles - data[0].vehicles) / data[0].vehicles) *
+      100;
 
     return {
       totalRevenue,
@@ -117,12 +126,16 @@ export default function Analytics() {
   }, []);
 
   const exportAnalytics = () => {
+    if (!mounted) return;
+
     const data = JSON.stringify(mockAnalyticsData, null, 2);
     const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `parking_analytics_${new Date().toISOString().split("T")[0]}.json`;
+    link.download = `parking_analytics_${
+      mounted ? new Date().toISOString().split("T")[0] : "data"
+    }.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -140,7 +153,9 @@ export default function Analytics() {
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
-            <h1 className="text-3xl font-bold text-gradient">Analytics Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gradient">
+              Analytics Dashboard
+            </h1>
             <p className="text-muted-foreground mt-2">
               Comprehensive parking analytics and insights
             </p>
@@ -394,9 +409,7 @@ export default function Analytics() {
             <Card className="glass-effect border-0 shadow-lg">
               <CardHeader>
                 <CardTitle>Vehicle Type Distribution</CardTitle>
-                <CardDescription>
-                  Breakdown by vehicle type
-                </CardDescription>
+                <CardDescription>Breakdown by vehicle type</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -415,10 +428,7 @@ export default function Analytics() {
                     >
                       {mockAnalyticsData.vehicleTypeDistribution.map(
                         (entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.color}
-                          />
+                          <Cell key={`cell-${index}`} fill={entry.color} />
                         )
                       )}
                     </Pie>
@@ -452,7 +462,10 @@ export default function Analytics() {
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip
-                      formatter={(value) => [`Tsh. ${value.toLocaleString()}`, "Revenue"]}
+                      formatter={(value) => [
+                        `Tsh. ${value.toLocaleString()}`,
+                        "Revenue",
+                      ]}
                     />
                     <Bar dataKey="revenue" fill="#8B5CF6" />
                   </BarChart>
@@ -476,32 +489,34 @@ export default function Analytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockAnalyticsData.operatorPerformance.map((operator, index) => (
-                    <div
-                      key={operator.name}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                          <Users className="w-4 h-4 text-white" />
+                  {mockAnalyticsData.operatorPerformance.map(
+                    (operator, index) => (
+                      <div
+                        key={operator.name}
+                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                            <Users className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{operator.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {operator.vehicles} vehicles
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{operator.name}</p>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">
+                            Tsh. {operator.revenue}
+                          </p>
                           <p className="text-sm text-muted-foreground">
-                            {operator.vehicles} vehicles
+                            {operator.efficiency}% efficiency
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          Tsh. {operator.revenue}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {operator.efficiency}% efficiency
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -510,4 +525,4 @@ export default function Analytics() {
       </div>
     </MainLayout>
   );
-} 
+}

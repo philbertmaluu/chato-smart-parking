@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -45,13 +45,20 @@ export default function VehicleEntry() {
   const [vehicleType, setVehicleType] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleStartCamera = async () => {
     const success = await startCamera();
     if (success) {
       // Simulate plate detection after 3 seconds
       setTimeout(() => {
+        if (!mounted) return;
+
         const mockPlates = [
           "ABC-123",
           "XYZ-789",
@@ -73,12 +80,13 @@ export default function VehicleEntry() {
       return;
     }
 
+    // Use a stable receipt ID and date to prevent hydration issues
     const receipt = {
       plateNumber: scannedPlate,
       vehicleType,
-      entryTime: new Date().toLocaleString(),
+      entryTime: mounted ? new Date().toLocaleString() : "",
       rate: vehicleType === "car" ? 5 : vehicleType === "motorcycle" ? 3 : 8,
-      receiptId: `RCP-${Date.now()}`,
+      receiptId: mounted ? `RCP-${Date.now()}` : "",
     };
 
     setReceiptData(receipt);

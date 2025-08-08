@@ -23,6 +23,10 @@ import {
   Building2,
   Maximize2,
   Minimize2,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,6 +42,26 @@ export function Sidebar({ className }: SidebarProps) {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth < 768) {
+        setIsCollapsed(true);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -130,7 +154,12 @@ export function Sidebar({ className }: SidebarProps) {
   ];
 
   const navItems =
-    user?.role === "manager" ? managerNavItems : operatorNavItems;
+    user?.role?.name === "System Administrator" ||
+    user?.role?.name === "Stations Manager" ||
+    user?.role?.name === "manager" ||
+    (user?.role?.level && user.role.level <= 2)
+      ? managerNavItems
+      : operatorNavItems;
 
   return (
     <motion.div
@@ -152,7 +181,11 @@ export function Sidebar({ className }: SidebarProps) {
             <div>
               <h2 className="font-bold text-lg text-gradient">Smart Parking</h2>
               <p className="text-sm text-muted-foreground capitalize">
-                {user?.role} Panel
+                {user?.role?.name === "System Administrator"
+                  ? "Admin Panel"
+                  : user?.role?.name === "Stations Manager"
+                  ? "Manager Panel"
+                  : `${user?.role?.name} Panel`}
               </p>
             </div>
           </div>
@@ -161,7 +194,13 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item, index) => {
-            const isActive = pathname === item.href;
+            // Improved active state detection
+            const isActive =
+              pathname === item.href ||
+              pathname === item.href + "/" ||
+              pathname.startsWith(item.href + "/") ||
+              (item.href !== "/" && pathname.startsWith(item.href));
+
             return (
               <motion.div
                 key={item.href}
@@ -231,7 +270,7 @@ export function Sidebar({ className }: SidebarProps) {
 
           {/* User Info */}
           <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <p className="font-medium text-sm">{user?.name}</p>
+            <p className="font-medium text-sm">{user?.username}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
 
