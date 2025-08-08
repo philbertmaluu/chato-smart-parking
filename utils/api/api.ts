@@ -63,6 +63,19 @@ function handleApiError(error: AxiosError): never {
   throw new Error('Network error. Please check your connection and try again.');
 }
 
+export const API_ENDPOINTS = {
+  AUTH: {
+    LOGIN: "/login",
+    REGISTER: "/register",
+    LOGOUT: "/logout",
+    USER: "/user",
+    UPDATE_PROFILE: "/profile",
+    CHANGE_PASSWORD: "/change-password",
+    REFRESH_TOKEN: "/refresh-token",
+  },
+
+};
+
 export async function get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response: AxiosResponse<T> = await api.get(url, config);

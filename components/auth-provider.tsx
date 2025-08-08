@@ -15,6 +15,7 @@ import { getAuthToken } from "@/utils/auth/auth";
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  setUser: (user: User | null) => void;
   login: (email: string, password: string) => Promise<boolean>;
   register: (
     email: string,
@@ -216,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         token,
+        setUser,
         login,
         register,
         logout,

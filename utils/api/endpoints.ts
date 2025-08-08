@@ -6,18 +6,15 @@ export const API_ENDPOINTS = {
     REGISTER: "/register",
     LOGOUT: "/logout",
     REFRESH: "/refresh",
+    USER: "/user",
+    UPDATE_PROFILE: "/profile",
+    CHANGE_PASSWORD: "/change-password",
+    REFRESH_TOKEN: "/refresh-token",
     FORGOT_PASSWORD: "/forgot-password",
-    RESET_PASSWORD: "/reset-password",
-    VERIFY_EMAIL: "/verify-email",
+   
   },
 
-  // User management endpoints
-  USER: {
-    PROFILE: "/user/profile",
-    UPDATE_PROFILE: "/user/profile",
-    CHANGE_PASSWORD: "/user/change-password",
-    UPLOAD_AVATAR: "/user/avatar",
-  },
+  
 
   // Parking management endpoints
   PARKING: {
