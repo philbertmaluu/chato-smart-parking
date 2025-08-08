@@ -19,6 +19,12 @@ interface ChangePasswordData {
   new_password_confirmation: string;
 }
 
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
+
 export function useProfile() {
   const { user, setUser } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -28,9 +34,9 @@ export function useProfile() {
     try {
       setIsUpdating(true);
       
-      const response = await put(API_ENDPOINTS.AUTH.UPDATE_PROFILE, data);
+      const response = await put<ApiResponse>(API_ENDPOINTS.AUTH.UPDATE_PROFILE, data);
       
-      if (response.success && response.data) {
+      if (response?.success && response.data) {
         // Update the user in auth context
         setUser(response.data);
         
@@ -44,7 +50,7 @@ export function useProfile() {
         toast.success("Profile updated successfully!");
         return true;
       } else {
-        toast.error(response.message || "Failed to update profile");
+        toast.error(response?.message || "Failed to update profile");
         return false;
       }
     } catch (error) {
@@ -60,9 +66,9 @@ export function useProfile() {
     try {
       setIsChangingPassword(true);
       
-      const response = await post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
+      const response = await post<ApiResponse>(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
       
-      if (response.success) {
+      if (response?.success) {
         toast.success("Password changed successfully! Please log in again.");
         
         // Clear auth data since password change revokes all tokens
@@ -77,7 +83,7 @@ export function useProfile() {
         window.location.href = "/auth/login";
         return true;
       } else {
-        toast.error(response.message || "Failed to change password");
+        toast.error(response?.message || "Failed to change password");
         return false;
       }
     } catch (error) {
