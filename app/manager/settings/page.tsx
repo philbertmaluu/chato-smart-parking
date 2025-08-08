@@ -336,108 +336,6 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
 
-              {/* Operating Hours */}
-              <Card className="glass-effect border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Clock className="w-5 h-5" />
-                    <span>Operating Hours</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Set parking facility operating hours for each day
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {daysOfWeek.map((day) => (
-                      <div
-                        key={day.key}
-                        className="flex items-center justify-between p-4 border rounded-lg"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-20">
-                            <span className="font-medium">{day.label}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              checked={
-                                operatingHours[
-                                  day.key as keyof typeof operatingHours
-                                ].isOpen
-                              }
-                              onCheckedChange={(checked) =>
-                                setOperatingHours((prev) => ({
-                                  ...prev,
-                                  [day.key]: {
-                                    ...prev[
-                                      day.key as keyof typeof operatingHours
-                                    ],
-                                    isOpen: checked,
-                                  },
-                                }))
-                              }
-                            />
-                            <span className="text-sm text-muted-foreground">
-                              {operatingHours[
-                                day.key as keyof typeof operatingHours
-                              ].isOpen
-                                ? "Open"
-                                : "Closed"}
-                            </span>
-                          </div>
-                        </div>
-                        {operatingHours[day.key as keyof typeof operatingHours]
-                          .isOpen && (
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              type="time"
-                              value={
-                                operatingHours[
-                                  day.key as keyof typeof operatingHours
-                                ].open
-                              }
-                              onChange={(e) =>
-                                setOperatingHours((prev) => ({
-                                  ...prev,
-                                  [day.key]: {
-                                    ...prev[
-                                      day.key as keyof typeof operatingHours
-                                    ],
-                                    open: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-24"
-                            />
-                            <span className="text-muted-foreground">to</span>
-                            <Input
-                              type="time"
-                              value={
-                                operatingHours[
-                                  day.key as keyof typeof operatingHours
-                                ].close
-                              }
-                              onChange={(e) =>
-                                setOperatingHours((prev) => ({
-                                  ...prev,
-                                  [day.key]: {
-                                    ...prev[
-                                      day.key as keyof typeof operatingHours
-                                    ],
-                                    close: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="w-24"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* System Configuration */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardHeader>
@@ -792,6 +690,7 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+            
           </Tabs>
         </motion.div>
       </div>
