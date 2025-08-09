@@ -27,7 +27,27 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useLanguage } from "@/components/language-provider";
+import { VehicleBodyTypes } from "./components/vehicle-body-types";
+import { PaymentTypes } from "./components/payment-types";
+import { BundleTypes } from "./components/bandle-types";
+import { StationGates } from "./components/station-gates";
 import {
   Settings,
   Car,
@@ -50,53 +70,89 @@ import {
   CreditCard,
   AlertCircle,
   CheckCircle,
+  CarIcon,
+  Settings2Icon,
 } from "lucide-react";
 
-// Mock data for system settings
-const mockVehicleTypes = [
+// Mock data for payment types
+const mockPaymentTypes = [
   {
     id: "1",
-    name: "Car",
-    icon: "🚗",
-    baseRate: 5.0,
-    description: "Standard passenger vehicles",
+    name: "Cash",
+    icon: "💵",
+    description: "Cash payment",
     isActive: true,
+    createdAt: "2024-01-01",
   },
   {
     id: "2",
-    name: "Motorcycle",
-    icon: "🏍️",
-    baseRate: 3.0,
-    description: "Two-wheeled vehicles",
+    name: "Card",
+    icon: "💳",
+    description: "Credit/Debit card payment",
     isActive: true,
+    createdAt: "2024-01-01",
   },
   {
     id: "3",
-    name: "Truck",
-    icon: "🚛",
-    baseRate: 8.0,
-    description: "Commercial vehicles and trucks",
+    name: "Mobile Money",
+    icon: "📱",
+    description: "Mobile money payment (M-Pesa, Airtel Money, etc.)",
     isActive: true,
+    createdAt: "2024-01-01",
   },
   {
     id: "4",
-    name: "Bus",
-    icon: "🚌",
-    baseRate: 12.0,
-    description: "Public transport and large vehicles",
+    name: "Bank Transfer",
+    icon: "🏦",
+    description: "Direct bank transfer",
     isActive: false,
+    createdAt: "2024-01-01",
   },
 ];
 
-const mockOperatingHours = {
-  monday: { open: "06:00", close: "22:00", isOpen: true },
-  tuesday: { open: "06:00", close: "22:00", isOpen: true },
-  wednesday: { open: "06:00", close: "22:00", isOpen: true },
-  thursday: { open: "06:00", close: "22:00", isOpen: true },
-  friday: { open: "06:00", close: "23:00", isOpen: true },
-  saturday: { open: "07:00", close: "23:00", isOpen: true },
-  sunday: { open: "08:00", close: "20:00", isOpen: true },
-};
+// Mock data for bundle types
+const mockBundleTypes = [
+  {
+    id: "1",
+    name: "Daily",
+    icon: "📅",
+    duration: "24 hours",
+    discount: 10,
+    description: "Daily parking bundle",
+    isActive: true,
+    createdAt: "2024-01-01",
+  },
+  {
+    id: "2",
+    name: "Weekly",
+    icon: "📆",
+    duration: "7 days",
+    discount: 20,
+    description: "Weekly parking bundle",
+    isActive: true,
+    createdAt: "2024-01-01",
+  },
+  {
+    id: "3",
+    name: "Monthly",
+    icon: "🗓️",
+    duration: "30 days",
+    discount: 30,
+    description: "Monthly parking bundle",
+    isActive: true,
+    createdAt: "2024-01-01",
+  },
+  {
+    id: "4",
+    name: "Yearly",
+    icon: "📊",
+    duration: "365 days",
+    discount: 40,
+    description: "Yearly parking bundle",
+    isActive: false,
+    createdAt: "2024-01-01",
+  },
+];
 
 const mockSystemSettings = {
   currency: "Tsh.",
@@ -123,11 +179,8 @@ export default function SettingsPage() {
     isUpdating,
     isChangingPassword,
   } = useProfile();
-  const [activeTab, setActiveTab] = useState("system");
-  const [vehicleTypes, setVehicleTypes] = useState(mockVehicleTypes);
-  const [operatingHours, setOperatingHours] = useState(mockOperatingHours);
+  const [activeTab, setActiveTab] = useState("vehicle-types");
   const [systemSettings, setSystemSettings] = useState(mockSystemSettings);
-  const [isEditingVehicle, setIsEditingVehicle] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -199,44 +252,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleVehicleTypeEdit = (id: string) => {
-    setIsEditingVehicle(id);
-  };
-
-  const handleVehicleTypeSave = (id: string, updatedData: any) => {
-    setVehicleTypes((prev) =>
-      prev.map((vt) => (vt.id === id ? { ...vt, ...updatedData } : vt))
-    );
-    setIsEditingVehicle(null);
-  };
-
-  const handleVehicleTypeDelete = (id: string) => {
-    setVehicleTypes((prev) => prev.filter((vt) => vt.id !== id));
-  };
-
-  const handleAddVehicleType = () => {
-    const newVehicleType = {
-      id: Date.now().toString(),
-      name: "New Vehicle Type",
-      icon: "🚗",
-      baseRate: 5.0,
-      description: "New vehicle type description",
-      isActive: true,
-    };
-    setVehicleTypes((prev) => [...prev, newVehicleType]);
-    setIsEditingVehicle(newVehicleType.id);
-  };
-
-  const daysOfWeek = [
-    { key: "monday", label: "Monday" },
-    { key: "tuesday", label: "Tuesday" },
-    { key: "wednesday", label: "Wednesday" },
-    { key: "thursday", label: "Thursday" },
-    { key: "friday", label: "Friday" },
-    { key: "saturday", label: "Saturday" },
-    { key: "sunday", label: "Sunday" },
-  ];
-
   return (
     <RouteGuard>
       <MainLayout>
@@ -254,29 +269,7 @@ export default function SettingsPage() {
                 Manage system configuration and user preferences
               </p>
             </div>
-            <Button
-              onClick={handleSaveSettings}
-              className="gradient-maroon hover:opacity-90"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save All Changes
-            </Button>
           </motion.div>
-
-          {/* Success Message */}
-          {showSaveSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center space-x-2"
-            >
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <span className="text-green-800 dark:text-green-200 font-medium">
-                Settings saved successfully!
-              </span>
-            </motion.div>
-          )}
 
           {/* Settings Tabs */}
           <motion.div
@@ -289,272 +282,82 @@ export default function SettingsPage() {
               onValueChange={setActiveTab}
               className="space-y-6"
             >
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="flex w-full justify-start space-x-2">
                 <TabsTrigger
-                  value="system"
+                  value="vehicle-types"
                   className="flex items-center space-x-2"
                 >
-                  <Settings className="w-4 h-4" />
-                  <span>System Settings</span>
+                  <CarIcon className="w-4 h-4" />
+                  <span>Vehicle Types</span>
                 </TabsTrigger>
+
+                <TabsTrigger
+                  value="payment-types"
+                  className="flex items-center space-x-2"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Payment Types</span>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="bundle-types"
+                  className="flex items-center space-x-2"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Bundle Types</span>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="gates-and-stations"
+                  className="flex items-center space-x-2"
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>Gates and Stations</span>
+                </TabsTrigger>
+
                 <TabsTrigger
                   value="profile"
                   className="flex items-center space-x-2"
                 >
                   <User className="w-4 h-4" />
-                  <span>Profile Settings</span>
+                  <span>Profile</span>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="system-configuration"
+                  className="flex items-center space-x-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>System Configuration</span>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="integration"
+                  className="flex items-center space-x-2"
+                >
+                  <Settings2Icon className="w-4 h-4" />
+                  <span>Hardware Integrations</span>
                 </TabsTrigger>
               </TabsList>
 
-              {/* System Settings Tab */}
-              <TabsContent value="system" className="space-y-6">
-                {/* Vehicle Types */}
-                <Card className="glass-effect border-0 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Car className="w-5 h-5" />
-                      <span>Vehicle Types & Pricing</span>
-                    </CardTitle>
-                    <CardDescription>
-                      Configure vehicle types and their base parking rates
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-lg font-semibold">Vehicle Types</h3>
-                      <Button
-                        onClick={handleAddVehicleType}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Vehicle Type
-                      </Button>
-                    </div>
+              {/* Vehicle Types Tab */}
+              <TabsContent value="vehicle-types" className="space-y-6">
+                <VehicleBodyTypes />
+              </TabsContent>
 
-                    <div className="grid gap-4">
-                      {vehicleTypes.map((vehicleType) => (
-                        <div
-                          key={vehicleType.id}
-                          className="border rounded-lg p-4 flex items-center justify-between"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="text-2xl">{vehicleType.icon}</div>
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-medium">
-                                  {vehicleType.name}
-                                </h4>
-                                <Badge
-                                  variant={
-                                    vehicleType.isActive
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                >
-                                  {vehicleType.isActive ? "Active" : "Inactive"}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {vehicleType.description}
-                              </p>
-                              <p className="text-sm font-medium text-green-600">
-                                Base Rate: Tsh.{" "}
-                                {vehicleType.baseRate.toFixed(2)}
-                                /hour
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                handleVehicleTypeEdit(vehicleType.id)
-                              }
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                handleVehicleTypeDelete(vehicleType.id)
-                              }
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Payment Types Tab */}
+              <TabsContent value="payment-types" className="space-y-6">
+                <PaymentTypes />
+              </TabsContent>
 
-                {/* System Configuration */}
-                <Card className="glass-effect border-0 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Settings className="w-5 h-5" />
-                      <span>System Configuration</span>
-                    </CardTitle>
-                    <CardDescription>
-                      General system settings and preferences
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label>Currency</Label>
-                        <Select
-                          value={systemSettings.currency}
-                          onValueChange={(value) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              currency: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Tsh.">
-                              Tanzanian Shilling (Tsh.)
-                            </SelectItem>
-                            <SelectItem value="$">US Dollar ($)</SelectItem>
-                            <SelectItem value="€">Euro (€)</SelectItem>
-                            <SelectItem value="£">British Pound (£)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              {/* Bundle Types Tab */}
+              <TabsContent value="bundle-types" className="space-y-6">
+                <BundleTypes />
+              </TabsContent>
 
-                      <div className="space-y-2">
-                        <Label>Timezone</Label>
-                        <Select
-                          value={systemSettings.timezone}
-                          onValueChange={(value) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              timezone: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Africa/Dar_es_Salaam">
-                              Dar es Salaam (GMT+3)
-                            </SelectItem>
-                            <SelectItem value="Africa/Nairobi">
-                              Nairobi (GMT+3)
-                            </SelectItem>
-                            <SelectItem value="UTC">UTC (GMT+0)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Auto Logout (minutes)</Label>
-                        <Input
-                          type="number"
-                          value={systemSettings.autoLogout}
-                          onChange={(e) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              autoLogout: parseInt(e.target.value),
-                            }))
-                          }
-                          min="5"
-                          max="120"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Session Timeout (minutes)</Label>
-                        <Input
-                          type="number"
-                          value={systemSettings.security.sessionTimeout}
-                          onChange={(e) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              security: {
-                                ...prev.security,
-                                sessionTimeout: parseInt(e.target.value),
-                              },
-                            }))
-                          }
-                          min="5"
-                          max="60"
-                        />
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                      <h4 className="font-semibold">Notifications</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Mail className="w-4 h-4" />
-                            <span>Email Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.email}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  email: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Smartphone className="w-4 h-4" />
-                            <span>SMS Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.sms}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  sms: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Bell className="w-4 h-4" />
-                            <span>Push Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.push}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  push: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Gates and Stations Tab */}
+              <TabsContent value="gates-and-stations" className="space-y-6">
+                <StationGates />
               </TabsContent>
 
               {/* Profile Settings Tab */}
@@ -623,7 +426,7 @@ export default function SettingsPage() {
                             }))
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select gender" />
                           </SelectTrigger>
                           <SelectContent>
@@ -761,6 +564,183 @@ export default function SettingsPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="system-configuration" className="space-y-6">
+                {/* System Configuration */}
+                <Card className="glass-effect border-0 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Settings className="w-5 h-5" />
+                      <span>System Configuration</span>
+                    </CardTitle>
+                    <CardDescription>
+                      General system settings and preferences
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label>Currency</Label>
+                        <Select
+                          value={systemSettings.currency}
+                          onValueChange={(value) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              currency: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Tsh.">
+                              Tanzanian Shilling (Tsh.)
+                            </SelectItem>
+                            <SelectItem value="$">US Dollar ($)</SelectItem>
+                            <SelectItem value="€">Euro (€)</SelectItem>
+                            <SelectItem value="£">British Pound (£)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Timezone</Label>
+                        <Select
+                          value={systemSettings.timezone}
+                          onValueChange={(value) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              timezone: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Africa/Dar_es_Salaam">
+                              Dar es Salaam (GMT+3)
+                            </SelectItem>
+                            <SelectItem value="Africa/Nairobi">
+                              Nairobi (GMT+3)
+                            </SelectItem>
+                            <SelectItem value="UTC">UTC (GMT+0)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Auto Logout (minutes)</Label>
+                        <Input
+                          type="number"
+                          value={systemSettings.autoLogout}
+                          onChange={(e) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              autoLogout: parseInt(e.target.value),
+                            }))
+                          }
+                          min="5"
+                          max="120"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Session Timeout (minutes)</Label>
+                        <Input
+                          type="number"
+                          value={systemSettings.security.sessionTimeout}
+                          onChange={(e) =>
+                            setSystemSettings((prev) => ({
+                              ...prev,
+                              security: {
+                                ...prev.security,
+                                sessionTimeout: parseInt(e.target.value),
+                              },
+                            }))
+                          }
+                          min="5"
+                          max="60"
+                        />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="font-semibold">Notifications</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Mail className="w-4 h-4" />
+                            <span>Email Notifications</span>
+                          </div>
+                          <Switch
+                            checked={systemSettings.notifications.email}
+                            onCheckedChange={(checked) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                notifications: {
+                                  ...prev.notifications,
+                                  email: checked,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Smartphone className="w-4 h-4" />
+                            <span>SMS Notifications</span>
+                          </div>
+                          <Switch
+                            checked={systemSettings.notifications.sms}
+                            onCheckedChange={(checked) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                notifications: {
+                                  ...prev.notifications,
+                                  sms: checked,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Bell className="w-4 h-4" />
+                            <span>Push Notifications</span>
+                          </div>
+                          <Switch
+                            checked={systemSettings.notifications.push}
+                            onCheckedChange={(checked) =>
+                              setSystemSettings((prev) => ({
+                                ...prev,
+                                notifications: {
+                                  ...prev.notifications,
+                                  push: checked,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Hardware Integrations Tab */}
+              <TabsContent value="integration" className="space-y-6">
+                <div className="flex flex-col gap-4">
+                  <h1 className="text-2xl font-bold">Hardware Integrations</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Manage hardware integrations for the parking system is under
+                    development.
+                  </p>
+                </div>
               </TabsContent>
             </Tabs>
           </motion.div>

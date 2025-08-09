@@ -19,8 +19,10 @@ const translations = {
     "nav.entry": "Entry",
     "nav.parked": "Parked",
     "nav.history": "History",
+    "nav.bundles": "Bundles",
     "nav.analytics": "Analytics",
     "nav.operators": "Operators",
+    "nav.customers": "Customers",
     "nav.settings": "Settings",
     "nav.logout": "Logout",
 
@@ -75,6 +77,9 @@ const translations = {
     "nav.history": "Historia",
     "nav.analytics": "Uchambuzi",
     "nav.operators": "Waendeshaji",
+    "nav.customers": "Wateja",
+    "nav.bundles": "Vifurushi",
+    "nav.stations": "Kijiji",
     "nav.settings": "Mipangilio",
     "nav.logout": "Toka",
 

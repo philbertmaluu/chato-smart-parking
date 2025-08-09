@@ -21,12 +21,14 @@ import {
   ScanLine,
   MapPin,
   Building2,
+  User,
   Maximize2,
   Minimize2,
   Menu,
   X,
   ChevronLeft,
   ChevronRight,
+  Package,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -113,6 +115,11 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/operator/parked",
       icon: ParkingCircle,
     },
+    {
+      title: "Profile",
+      href: "/operator/profile",
+      icon: User,
+    },
   ];
 
   const managerNavItems = [
@@ -121,6 +128,23 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/manager/dashboard",
       icon: LayoutDashboard,
     },
+    {
+      title: t("nav.customers"),
+      href: "/manager/customers",
+      icon: Users,
+    },
+    {
+      title: t("nav.bundles"),
+      href: "/manager/bundles",
+      icon: Package,  
+    },
+    {
+      title: t("nav.vehicles"),
+      href: "/manager/vehicles",
+      icon: Car,
+    },
+
+
     {
       title: t("nav.history"),
       href: "/manager/history",
