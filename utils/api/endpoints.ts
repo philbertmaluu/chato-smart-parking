@@ -14,7 +14,55 @@ export const API_ENDPOINTS = {
    
   },
 
-  
+  // Vehicle passage endpoints
+  VEHICLE_PASSAGES: {
+    LIST: "/vehicle-passages",
+    CREATE: "/vehicle-passages",
+    DETAILS: (id: string | number) => `/vehicle-passages/${id}`,
+    UPDATE: (id: string | number) => `/vehicle-passages/${id}`,
+    DELETE: (id: string | number) => `/vehicle-passages/${id}`,
+    ENTRY: "/vehicle-passages/entry",
+    EXIT: "/vehicle-passages/exit",
+    QUICK_LOOKUP: "/vehicle-passages/quick-lookup",
+    BY_PASSAGE_NUMBER: (number: string) => `/vehicle-passages/passage/${number}`,
+    BY_VEHICLE: (vehicleId: string | number) => `/vehicle-passages/vehicle/${vehicleId}`,
+    BY_STATION: (stationId: string | number) => `/vehicle-passages/station/${stationId}`,
+    ACTIVE_LIST: "/vehicle-passages/active/list",
+    COMPLETED_LIST: "/vehicle-passages/completed/list",
+    STATISTICS: "/vehicle-passages/statistics",
+    UPDATE_STATUS: (id: string | number) => `/vehicle-passages/${id}/status`,
+    SEARCH: "/vehicle-passages/search",
+  },
+
+  // Gate control endpoints
+  GATE_CONTROL: {
+    PLATE_DETECTION: "/gate-control/plate-detection",
+    QUICK_LOOKUP: "/gate-control/quick-lookup",
+    MANUAL: "/gate-control/manual",
+    EMERGENCY: "/gate-control/emergency",
+    GATE_STATUS: (gateId: string | number) => `/gate-control/gates/${gateId}/status`,
+    ACTIVE_GATES: "/gate-control/gates/active",
+    GATE_HISTORY: (gateId: string | number) => `/gate-control/gates/${gateId}/history`,
+    TEST_CONNECTION: (gateId: string | number) => `/gate-control/gates/${gateId}/test-connection`,
+    MONITORING_DASHBOARD: "/gate-control/monitoring-dashboard",
+  },
+
+  // Receipt endpoints
+  RECEIPTS: {
+    LIST: "/receipts",
+    DETAILS: (id: string | number) => `/receipts/${id}`,
+    UPDATE: (id: string | number) => `/receipts/${id}`,
+    DELETE: (id: string | number) => `/receipts/${id}`,
+    BY_NUMBER: (number: string) => `/receipts/number/${number}`,
+    BY_VEHICLE_PASSAGE: (passageId: string | number) => `/receipts/vehicle-passage/${passageId}`,
+    STATISTICS: "/receipts/statistics",
+    RECENT: "/receipts/recent",
+    TOTAL_REVENUE: "/receipts/total-revenue",
+    SEARCH: "/receipts/search",
+    PRINT: (id: string | number) => `/receipts/print/${id}`,
+    BY_DATE_RANGE: "/receipts/by-date-range",
+    BY_PAYMENT_METHOD: "/receipts/by-payment-method",
+  },
 
   // Parking management endpoints
   PARKING: {
@@ -78,6 +126,21 @@ export const API_ENDPOINTS = {
     PARKING_RATES: "/settings/parking-rates",
     NOTIFICATIONS: "/settings/notifications",
     SYSTEM: "/settings/system",
+  },
+
+  // Vehicle management endpoints
+  VEHICLES: {
+    LIST: "/vehicles",
+    CREATE: "/vehicles",
+    DETAILS: (id: string | number) => `/vehicles/${id}`,
+    UPDATE: (id: string | number) => `/vehicles/${id}`,
+    DELETE: (id: string | number) => `/vehicles/${id}`,
+    SEARCH_BY_PLATE: (plateNumber: string) => `/vehicles/search/plate/${plateNumber}`,
+    LOOKUP_BY_PLATE: (plateNumber: string) => `/vehicles/lookup/${plateNumber}`,
+    ACTIVE_LIST: "/vehicles/active/list",
+    BY_BODY_TYPE: (bodyTypeId: string | number) => `/vehicles/body-type/${bodyTypeId}`,
+    REGISTERED_LIST: "/vehicles/registered/list",
+    UNREGISTERED_LIST: "/vehicles/unregistered/list",
   },
 
   // Vehicle body types endpoints

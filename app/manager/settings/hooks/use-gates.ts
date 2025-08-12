@@ -168,8 +168,12 @@ export const useGates = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<Gate[]>(API_ENDPOINTS.GATES.ACTIVE_LIST);
-      setGates(response || []);
+      const response = await get<any>(API_ENDPOINTS.GATES.ACTIVE_LIST);
+      if (response?.success && response?.data) {
+        setGates(response.data || []);
+      } else {
+        setGates([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch active gates');
       setGates([]);
