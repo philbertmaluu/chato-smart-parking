@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { get, post, put, del } from '@/utils/api/api';
 import { API_ENDPOINTS } from '@/utils/api/endpoints';
 import type { Station } from './use-stations';
@@ -58,7 +58,7 @@ export const useGates = () => {
     lastPage: 1,
   });
 
-  const fetchGates = async (page: number = 1) => {
+  const fetchGates = useCallback(async (page: number = 1) => {
     setLoading(true);
     setError(null);
     try {
@@ -83,7 +83,7 @@ export const useGates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const createGate = async (data: CreateGateData) => {
     setLoading(true);
@@ -164,7 +164,7 @@ export const useGates = () => {
     }
   };
 
-  const fetchActive = async () => {
+  const fetchActive = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -180,15 +180,15 @@ export const useGates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handlePageChange = async (page: number) => {
+  const handlePageChange = useCallback(async (page: number) => {
     await fetchGates(page);
-  };
+  }, [fetchGates]);
 
   useEffect(() => {
     fetchGates();
-  }, []);
+  }, [fetchGates]);
 
   return {
     gates,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sheet,
@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -27,11 +28,16 @@ import {
 } from "@/hooks/use-vehicles";
 import { useVehicleBodyTypes } from "@/app/manager/settings/hooks/use-vehicle-body-types";
 import { usePaymentTypes } from "@/app/manager/settings/hooks/use-payment-types";
+import { usePricing } from "@/hooks/use-pricing";
+import { useVehicleBodyTypePrices } from "@/app/manager/settings/hooks/use-vehicle-body-type-prices";
+import { useAuth } from "@/components/auth-provider";
+import { PricingDisplay } from "./pricing-display";
 import {
   VehiclePassageService,
   type VehiclePassageData,
   type VehiclePassageResponse,
 } from "@/utils/api/vehicle-passage-service";
+import { getVehicleTypeIcon } from "@/utils/utils";
 import {
   Search,
   CheckCircle,
@@ -44,6 +50,9 @@ import {
   Receipt,
   Shield,
   Zap,
+  Camera,
+  Keyboard,
+  DollarSign,
 } from "lucide-react";
 
 interface VehicleEntryDrawerProps {
@@ -55,6 +64,9 @@ interface VehicleEntryDrawerProps {
     receiptData?: any
   ) => void;
   selectedGateId?: number;
+  // For future plate detection integration
+  detectedPlateNumber?: string;
+  isPlateDetectionEnabled?: boolean;
 }
 
 export function VehicleEntryDrawer({
@@ -62,7 +74,10 @@ export function VehicleEntryDrawer({
   onOpenChange,
   onVehicleRegistered,
   selectedGateId,
+  detectedPlateNumber,
+  isPlateDetectionEnabled = false,
 }: VehicleEntryDrawerProps) {
+  const { user } = useAuth();
   const {
     lookupVehicleByPlate,
     createVehicle,
@@ -70,6 +85,17 @@ export function VehicleEntryDrawer({
   } = useVehicles();
   const { vehicleBodyTypes, loading: bodyTypesLoading } = useVehicleBodyTypes();
   const { paymentTypes, loading: paymentTypesLoading } = usePaymentTypes();
+  const { getCurrentPrice } = useVehicleBodyTypePrices();
+  const {
+    pricing,
+    gateAction,
+    vehicle: detectedVehicle,
+    receipt,
+    isLoading: pricingLoading,
+    error: pricingError,
+    processPlateDetection,
+    resetPricing,
+  } = usePricing();
 
   const [manualPlateNumber, setManualPlateNumber] = useState("");
   const [foundVehicle, setFoundVehicle] = useState<Vehicle | null>(null);
@@ -86,7 +112,8 @@ export function VehicleEntryDrawer({
     is_registered: false,
   });
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("");
+  const [actualPricing, setActualPricing] = useState<any>(null);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
   const [paymentTypeId, setPaymentTypeId] = useState<number | undefined>();
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [isProcessingEntry, setIsProcessingEntry] = useState(false);
@@ -96,43 +123,107 @@ export function VehicleEntryDrawer({
   const [isExempted, setIsExempted] = useState(false);
   const [exemptionReason, setExemptionReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [showPricingDisplay, setShowPricingDisplay] = useState(false);
 
-  const handleSearchVehicle = async () => {
-    if (!manualPlateNumber.trim()) {
+  // Initialize plate number from detection or manual input
+  const currentPlateNumber = detectedPlateNumber || manualPlateNumber;
+
+  const fetchVehiclePricing = useCallback(
+    async (vehicle: Vehicle) => {
+      if (!selectedGateId || !vehicle.body_type_id) return;
+
+      setIsLoadingPricing(true);
+      try {
+        // Get the station ID from the gate (you might need to adjust this based on your gate structure)
+        const stationId = selectedGateId; // Assuming gate ID can be used as station ID for now
+
+        const pricing = await getCurrentPrice(vehicle.body_type_id, stationId);
+
+        if (pricing) {
+          setActualPricing(pricing);
+          setPaymentAmount(pricing.base_price);
+        } else {
+          // No pricing configured - set to 0 and show appropriate message
+          setPaymentAmount(0);
+          setActualPricing(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch pricing:", error);
+        // On error, set to 0 and show appropriate message
+        setPaymentAmount(0);
+        setActualPricing(null);
+      } finally {
+        setIsLoadingPricing(false);
+      }
+    },
+    [selectedGateId, getCurrentPrice]
+  );
+
+  const handleSearchVehicle = useCallback(async () => {
+    const plateToSearch = currentPlateNumber.trim();
+
+    if (!plateToSearch) {
       toast.error("Please enter a plate number");
       return;
     }
 
-    if (!selectedGateId) {
+    if (!selectedGateId || !user) {
       toast.error("Please select a gate first");
       return;
     }
 
     setIsSearching(true);
     try {
-      const result = await lookupVehicleByPlate(manualPlateNumber.trim());
+      // Use the new pricing system for plate detection
+      const success = await processPlateDetection(
+        plateToSearch,
+        selectedGateId,
+        user.id
+      );
 
-      if (result.success && result.exists && result.data) {
-        setFoundVehicle(result.data);
+      if (success && detectedVehicle) {
+        setFoundVehicle(detectedVehicle);
         setShowVehicleForm(false);
-        toast.success("Vehicle found in database");
+        setShowPricingDisplay(true);
+        toast.success("Vehicle processed successfully");
       } else {
-        setFoundVehicle(null);
-        setShowVehicleForm(true);
-        setVehicleFormData((prev) => ({
-          ...prev,
-          plate_number: manualPlateNumber.trim(),
-        }));
-        toast.info("Vehicle not found. Please register new vehicle.");
+        // Fallback to old vehicle lookup if pricing system fails
+        const result = await lookupVehicleByPlate(plateToSearch);
+
+        if (result.success && result.exists && result.data) {
+          setFoundVehicle(result.data);
+          setShowVehicleForm(false);
+
+          // Fetch actual pricing for the found vehicle
+          await fetchVehiclePricing(result.data);
+
+          toast.success("Vehicle found in database");
+        } else {
+          setFoundVehicle(null);
+          setShowVehicleForm(true);
+          setVehicleFormData((prev) => ({
+            ...prev,
+            plate_number: plateToSearch,
+          }));
+          toast.info("Vehicle not found. Please register new vehicle.");
+        }
       }
     } catch (error) {
       toast.error("Failed to search vehicle");
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [
+    currentPlateNumber,
+    selectedGateId,
+    user,
+    processPlateDetection,
+    detectedVehicle,
+    lookupVehicleByPlate,
+    fetchVehiclePricing,
+  ]);
 
-  const handleCreateVehicle = async () => {
+  const handleCreateVehicle = useCallback(async () => {
     if (!vehicleFormData.body_type_id || !vehicleFormData.plate_number) {
       toast.error(
         "Please fill in required fields (Body Type and Plate Number)"
@@ -144,11 +235,15 @@ export function VehicleEntryDrawer({
       const newVehicle = await createVehicle(vehicleFormData);
       setFoundVehicle(newVehicle);
       setShowVehicleForm(false);
+
+      // Fetch pricing for the newly created vehicle
+      await fetchVehiclePricing(newVehicle);
+
       toast.success("Vehicle registered successfully");
     } catch (error) {
       toast.error("Failed to register vehicle");
     }
-  };
+  }, [vehicleFormData, createVehicle, fetchVehiclePricing]);
 
   const handleProceedToPayment = () => {
     const vehicle = foundVehicle;
@@ -162,41 +257,20 @@ export function VehicleEntryDrawer({
       return;
     }
 
-    const bodyType = vehicleBodyTypes.find(
-      (bt: any) => bt.id === vehicle.body_type_id
-    );
-    let rate = 5;
-
-    if (bodyType?.prices && bodyType.prices.length > 0) {
-      rate = bodyType.prices[0].hourly_rate || 5;
+    // Use the pricing that was already fetched
+    if (actualPricing && actualPricing.base_price > 0) {
+      setPaymentAmount(actualPricing.base_price);
+      setShowPaymentDialog(true);
     } else {
-      switch (bodyType?.category) {
-        case "light":
-          rate = 3;
-          break;
-        case "medium":
-          rate = 5;
-          break;
-        case "heavy":
-          rate = 8;
-          break;
-        default:
-          rate = 5;
-      }
+      toast.error(
+        "No pricing configured for this vehicle type at this station"
+      );
     }
-
-    setPaymentAmount(rate);
-    setShowPaymentDialog(true);
   };
 
   const handleProcessEntry = async () => {
     if (!foundVehicle || !selectedGateId) {
       toast.error("Vehicle and gate selection required");
-      return;
-    }
-
-    if (passageType === "toll" && !paymentMethod) {
-      toast.error("Please select a payment method for toll passage");
       return;
     }
 
@@ -220,17 +294,12 @@ export function VehicleEntryDrawer({
         is_exempted: isExempted,
         exemption_reason: exemptionReason || undefined,
         notes: notes || undefined,
-        payment_method: passageType === "toll" ? paymentMethod : undefined,
         payment_amount: passageType === "toll" ? paymentAmount : undefined,
         payment_type_id: paymentTypeId,
       };
 
-      console.log("Processing vehicle entry with data:", passageData);
-
       const result: VehiclePassageResponse =
         await VehiclePassageService.processEntry(passageData);
-
-      console.log("Vehicle entry result:", result);
 
       if (result.success) {
         toast.success(result.message || "Vehicle entry processed successfully");
@@ -252,7 +321,7 @@ export function VehicleEntryDrawer({
     }
   };
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setManualPlateNumber("");
     setFoundVehicle(null);
     setShowVehicleForm(false);
@@ -267,14 +336,17 @@ export function VehicleEntryDrawer({
       is_registered: false,
     });
     setPaymentAmount(0);
-    setPaymentMethod("");
+    setActualPricing(null);
+    setIsLoadingPricing(false);
     setPaymentTypeId(undefined);
     setShowPaymentDialog(false);
     setPassageType("toll");
     setIsExempted(false);
     setExemptionReason("");
     setNotes("");
-  };
+    setShowPricingDisplay(false);
+    resetPricing();
+  }, [resetPricing]);
 
   const getPassageTypeIcon = (type: string) => {
     switch (type) {
@@ -313,17 +385,36 @@ export function VehicleEntryDrawer({
           >
             <SheetHeader className="text-left">
               <SheetTitle className="text-2xl font-bold text-gradient flex items-center space-x-3">
-                <Car className="w-6 h-6" />
-                <span>Vehicle Entry</span>
+                {isPlateDetectionEnabled ? (
+                  <Camera className="w-6 h-6" />
+                ) : (
+                  <Keyboard className="w-6 h-6" />
+                )}
+                <span>
+                  {isPlateDetectionEnabled ? "Manual Entry" : "Vehicle Entry"}
+                </span>
               </SheetTitle>
               <SheetDescription className="text-base mt-2">
-                Search for existing vehicles or register new ones with complete
-                details
+                {isPlateDetectionEnabled
+                  ? "Plate detection failed. Please enter vehicle details manually."
+                  : "Search for existing vehicles or register new ones with complete details"}
               </SheetDescription>
               {selectedGateId && (
                 <div className="mt-2 flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   <span>Gate selected and ready for processing</span>
+                </div>
+              )}
+              {!selectedGateId && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span>Please select a gate from the main page first</span>
+                </div>
+              )}
+              {detectedPlateNumber && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400">
+                  <Camera className="w-4 h-4" />
+                  <span>Detected: {detectedPlateNumber}</span>
                 </div>
               )}
             </SheetHeader>
@@ -346,19 +437,20 @@ export function VehicleEntryDrawer({
                   <div className="flex space-x-3">
                     <Input
                       id="searchPlate"
-                      value={manualPlateNumber}
+                      value={currentPlateNumber}
                       onChange={(e) => setManualPlateNumber(e.target.value)}
                       placeholder="Enter plate number (e.g., ABC-123)"
                       className="flex-1 h-12 text-base"
                       onKeyPress={(e) =>
                         e.key === "Enter" && handleSearchVehicle()
                       }
+                      // Allow manual entry even when plate is detected
                     />
                     <Button
                       onClick={handleSearchVehicle}
                       disabled={
                         isSearching ||
-                        !manualPlateNumber.trim() ||
+                        !currentPlateNumber.trim() ||
                         !selectedGateId
                       }
                       className="h-12 px-6 gradient-maroon hover:opacity-90 transition-all duration-200"
@@ -370,13 +462,29 @@ export function VehicleEntryDrawer({
                       )}
                     </Button>
                   </div>
+                  {detectedPlateNumber && (
+                    <p className="text-sm text-muted-foreground">
+                      Plate number detected automatically. Click search to
+                      proceed.
+                    </p>
+                  )}
+                  {!currentPlateNumber.trim() && (
+                    <p className="text-sm text-red-500">
+                      Please enter a plate number to search
+                    </p>
+                  )}
+                  {!selectedGateId && currentPlateNumber.trim() && (
+                    <p className="text-sm text-red-500">
+                      Please select a gate first
+                    </p>
+                  )}
                 </div>
               </div>
             </motion.div>
 
             {/* Found Vehicle Display */}
             <AnimatePresence>
-              {foundVehicle && (
+              {foundVehicle && !showPricingDisplay && (
                 <motion.div
                   initial={{ opacity: 0, y: 20, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -447,6 +555,41 @@ export function VehicleEntryDrawer({
                     )}
                   </div>
 
+                  {/* Pricing Information */}
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <DollarSign className="w-4 h-4 text-blue-600" />
+                      <span className="font-semibold text-blue-800 dark:text-blue-200">
+                        Pricing Information
+                      </span>
+                      {isLoadingPricing && (
+                        <div className="ml-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-muted-foreground">
+                          Base Price:
+                        </span>
+                        <span className="font-bold text-green-700 dark:text-green-300">
+                          {actualPricing?.base_price
+                            ? `Tsh ${actualPricing.base_price}`
+                            : "Not configured"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-muted-foreground">
+                          Payment Type:
+                        </span>
+                        <span className="font-semibold">
+                          {actualPricing ? "Cash Payment" : "Default"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -463,6 +606,42 @@ export function VehicleEntryDrawer({
                   </motion.div>
                 </motion.div>
               )}
+            </AnimatePresence>
+
+            {/* Pricing Display */}
+            <AnimatePresence>
+              {showPricingDisplay &&
+                pricing &&
+                detectedVehicle &&
+                gateAction && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <PricingDisplay
+                      pricing={pricing}
+                      vehicle={detectedVehicle}
+                      gateAction={gateAction}
+                      onProcessPayment={() => {
+                        // TODO: Implement payment processing
+                        console.log("Processing payment for:", pricing);
+                      }}
+                      onAllowPassage={() => {
+                        // TODO: Implement gate opening
+                        console.log(
+                          "Allowing passage for vehicle:",
+                          detectedVehicle
+                        );
+                        setShowPricingDisplay(false);
+                        resetPricing();
+                        onOpenChange(false);
+                      }}
+                      isLoading={pricingLoading}
+                    />
+                  </motion.div>
+                )}
             </AnimatePresence>
 
             {/* New Vehicle Registration Form */}
@@ -516,26 +695,33 @@ export function VehicleEntryDrawer({
                             <SelectValue placeholder="Select vehicle body type" />
                           </SelectTrigger>
                           <SelectContent>
-                            {vehicleBodyTypes.map((type: any) => (
-                              <SelectItem
-                                key={type.id}
-                                value={type.id.toString()}
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <Car className="w-4 h-4" />
-                                  <div>
-                                    <span className="font-medium">
-                                      {type.name}
+                            {vehicleBodyTypes.map((type: any) => {
+                              const vehicleIcon = getVehicleTypeIcon(type.name);
+                              return (
+                                <SelectItem
+                                  key={type.id}
+                                  value={type.id.toString()}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <span
+                                      className={`text-lg ${vehicleIcon.color}`}
+                                    >
+                                      {vehicleIcon.icon}
                                     </span>
-                                    {type.category && (
-                                      <span className="text-xs text-muted-foreground ml-2">
-                                        ({type.category})
+                                    <div>
+                                      <span className="font-medium">
+                                        {type.name}
                                       </span>
-                                    )}
+                                      {type.category && (
+                                        <span className="text-xs text-muted-foreground ml-2">
+                                          ({type.category})
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              </SelectItem>
-                            ))}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
@@ -819,35 +1005,13 @@ export function VehicleEntryDrawer({
                     {/* Payment Settings for Toll */}
                     {passageType === "toll" && (
                       <>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                        <div className="bg-blue-50 dark:bg-red-900/20 p-4 rounded-lg">
                           <div className="flex justify-between items-center">
                             <span className="font-medium">Hourly Rate:</span>
-                            <span className="text-2xl font-bold text-blue-600">
+                            <span className="text-2xl font-bold text-primary">
                               Tsh. {paymentAmount}.00
                             </span>
                           </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <Label className="text-sm font-medium">
-                            Payment Method
-                          </Label>
-                          <Select
-                            value={paymentMethod}
-                            onValueChange={setPaymentMethod}
-                          >
-                            <SelectTrigger className="h-11 w-full">
-                              <SelectValue placeholder="Select payment method" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cash">Cash</SelectItem>
-                              <SelectItem value="mpesa">M-Pesa</SelectItem>
-                              <SelectItem value="card">Card</SelectItem>
-                              <SelectItem value="airtel">
-                                Airtel Money
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
 
                         <div className="space-y-3">
@@ -856,9 +1020,10 @@ export function VehicleEntryDrawer({
                           </Label>
                           <Select
                             value={paymentTypeId?.toString() || ""}
-                            onValueChange={(value) =>
-                              setPaymentTypeId(parseInt(value))
-                            }
+                            onValueChange={(value) => {
+                              const typeId = parseInt(value);
+                              setPaymentTypeId(typeId);
+                            }}
                           >
                             <SelectTrigger className="h-11 w-full">
                               <SelectValue placeholder="Select payment type" />
@@ -905,7 +1070,7 @@ export function VehicleEntryDrawer({
                       onClick={handleProcessEntry}
                       disabled={
                         isProcessingEntry ||
-                        (passageType === "toll" && !paymentMethod)
+                        (passageType === "toll" && !paymentTypeId)
                       }
                     >
                       {isProcessingEntry ? (

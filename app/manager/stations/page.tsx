@@ -39,6 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/components/language-provider";
+import { formatDateTime } from "@/utils/date-utils";
 import {
   MapPin,
   Plus,
@@ -757,8 +758,7 @@ export default function StationsManagement() {
                     {/* Actions */}
                     <div className="flex justify-between items-center pt-2 border-t">
                       <p className="text-xs text-muted-foreground">
-                        Last updated:{" "}
-                        {new Date(station.lastUpdated).toLocaleString()}
+                        Last updated: {formatDateTime(station.lastUpdated)}
                       </p>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

@@ -48,6 +48,7 @@ import {
   type CreatePaymentTypeData,
 } from "../hooks/use-payment-types";
 import { getPaymentTypeIcon } from "@/utils/utils";
+import { formatDate } from "@/utils/date-utils";
 import { Plus, Edit, Trash2, MoreHorizontal } from "lucide-react";
 
 export function PaymentTypes() {
@@ -131,7 +132,7 @@ export function PaymentTypes() {
       key: "created_at",
       title: "Created",
       dataIndex: "created_at",
-      render: (value) => new Date(value).toLocaleDateString(),
+      render: (value) => formatDate(value),
     },
     {
       key: "actions",

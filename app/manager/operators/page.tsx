@@ -39,6 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/components/language-provider";
+import { formatDate, formatTime } from "@/utils/date-utils";
 import {
   Users,
   Plus,
@@ -520,10 +521,10 @@ export default function OperatorsManagement() {
                         </TableCell>
                         <TableCell>
                           <p className="text-sm">
-                            {new Date(operator.lastActive).toLocaleDateString()}
+                            {formatDate(operator.lastActive)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(operator.lastActive).toLocaleTimeString()}
+                            {formatTime(operator.lastActive)}
                           </p>
                         </TableCell>
                         <TableCell>

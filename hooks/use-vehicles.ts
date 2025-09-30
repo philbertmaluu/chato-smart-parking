@@ -134,12 +134,18 @@ export const useVehicles = () => {
     setLoading(true);
     setError(null);
     try {
-      const newVehicle = await post<Vehicle>(
+      const response = await post<any>(
         API_ENDPOINTS.VEHICLES.CREATE,
         data
       );
-      setVehicles(prev => [...prev, newVehicle]);
-      return newVehicle;
+      
+      if (response?.success && response?.data) {
+        const newVehicle = response.data;
+        setVehicles(prev => [...prev, newVehicle]);
+        return newVehicle;
+      } else {
+        throw new Error(response?.message || 'Failed to create vehicle');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create vehicle';
       setError(errorMessage);

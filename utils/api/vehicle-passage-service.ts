@@ -220,7 +220,7 @@ export class VehiclePassageService {
   /**
    * Get active passages
    */
-  static async getActivePassages(): Promise<VehiclePassage[]> {
+  static async getActivePassages(): Promise<{ success: boolean; data: VehiclePassage[]; messages: string; status: number }> {
     return get(API_ENDPOINTS.VEHICLE_PASSAGES.ACTIVE_LIST);
   }
 
@@ -307,7 +307,7 @@ export class GateControlService {
   /**
    * Get all active gates
    */
-  static async getActiveGates(): Promise<any[]> {
+  static async getActiveGates(): Promise<{ success: boolean; data: any[]; messages: string; status: number }> {
     return get(API_ENDPOINTS.GATE_CONTROL.ACTIVE_GATES);
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   post,
@@ -37,8 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
-  // Check if user is authenticated
-  const isAuthenticated = !isLoading && !!user && !!token;
+  // Check if user is authenticated - memoized to prevent unnecessary re-renders
+  const isAuthenticated = useMemo(
+    () => !isLoading && !!user && !!token,
+    [isLoading, user, token]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -49,22 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const storedUser = localStorage.getItem("auth_user");
         const storedToken = getAuthToken();
 
-        console.log("Auth initialization:", {
-          storedUser: !!storedUser,
-          storedToken: !!storedToken,
-          window: typeof window,
-          userAgent: navigator.userAgent,
-        });
-
         if (storedUser && storedToken) {
           const userData = JSON.parse(storedUser);
           setUser(userData);
           setToken(storedToken);
-          console.log(
-            "User restored from localStorage:",
-            userData.username,
-            userData.role?.name
-          );
+          console.log("User restored from localStorage:", userData.username);
         }
       } catch (error) {
         console.error("Failed to parse stored user data:", error);
@@ -79,13 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setIsLoading(false);
-    console.log("Auth provider initialized, loading set to false");
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      setIsLoading(true);
-
       const response = await post<ApiResponse<LoginResponse>>(
         API_ENDPOINTS.AUTH.LOGIN,
         {
@@ -97,10 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.success && response.data) {
         const { user: userData, token: accessToken } = response.data;
 
-        setUser(userData);
-        setToken(accessToken);
-
-        // Store in localStorage
+        // Store in localStorage first for immediate access
         if (mounted) {
           try {
             localStorage.setItem("authToken", accessToken);
@@ -110,16 +96,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Redirect based on role
-        if (
+        // Update state
+        setUser(userData);
+        setToken(accessToken);
+
+        // Immediate redirect without waiting for state updates
+        const targetPath =
           userData.role.name === "System Administrator" ||
           userData.role.name === "Stations Manager" ||
           userData.role.level <= 2
-        ) {
-          router.push("/manager/dashboard");
-        } else {
-          router.push("/operator/dashboard");
-        }
+            ? "/manager/dashboard"
+            : "/operator/dashboard";
+
+        router.replace(targetPath);
 
         return true;
       }
@@ -127,10 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return false;
     } catch (error) {
       console.error("Login failed:", error);
-      // Re-throw the error so the login page can handle it
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -141,8 +127,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name: string
   ): Promise<boolean> => {
     try {
-      setIsLoading(true);
-
       const response = await post<ApiResponse<LoginResponse>>(
         API_ENDPOINTS.AUTH.REGISTER,
         {
@@ -157,10 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.success && response.data) {
         const { user: userData, token: accessToken } = response.data;
 
-        setUser(userData);
-        setToken(accessToken);
-
-        // Store in localStorage
+        // Store in localStorage first for immediate access
         if (mounted) {
           try {
             localStorage.setItem("authToken", accessToken);
@@ -170,16 +151,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Redirect based on role
-        if (
+        // Update state
+        setUser(userData);
+        setToken(accessToken);
+
+        // Immediate redirect without waiting for state updates
+        const targetPath =
           userData.role.name === "System Administrator" ||
           userData.role.name === "Stations Manager" ||
           userData.role.level <= 2
-        ) {
-          router.push("/manager/dashboard");
-        } else {
-          router.push("/operator/dashboard");
-        }
+            ? "/manager/dashboard"
+            : "/operator/dashboard";
+
+        router.replace(targetPath);
 
         return true;
       }
@@ -188,28 +172,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Registration failed:", error);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const logout = () => {
-    // Clear local state
-    setUser(null);
-    setToken(null);
-
-    // Clear localStorage
+    // Clear localStorage first for immediate effect
     if (mounted) {
       try {
         localStorage.removeItem("authToken");
         localStorage.removeItem("auth_user");
+        localStorage.removeItem("smart-parking-current-gate");
       } catch (error) {
         console.error("Failed to clear auth data from localStorage:", error);
       }
     }
 
-    // Redirect to login page
-    router.push("/auth/login");
+    // Clear local state
+    setUser(null);
+    setToken(null);
+
+    // Immediate redirect
+    router.replace("/auth/login");
   };
 
   return (

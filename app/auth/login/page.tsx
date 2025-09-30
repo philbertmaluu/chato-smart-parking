@@ -41,10 +41,11 @@ export default function LoginPage() {
       const success = await login(email, password);
       if (success) {
         toast.success("Login successful!");
-        // Let the user navigate manually or add navigation here if needed
+        // No need to manually navigate - auth provider handles it
       } else {
         setError("Invalid email or password. Please try again.");
         toast.error("Login failed. Please check your credentials.");
+        setIsLoading(false);
       }
     } catch (error) {
       const errorMessage =
@@ -53,7 +54,6 @@ export default function LoginPage() {
           : "An unexpected error occurred. Please try again.";
       setError(errorMessage);
       toast.error(errorMessage);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -110,7 +110,6 @@ export default function LoginPage() {
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.email")}</Label>
                 <Input

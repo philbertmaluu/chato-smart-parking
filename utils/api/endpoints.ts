@@ -14,6 +14,33 @@ export const API_ENDPOINTS = {
    
   },
 
+  // Pricing system endpoints
+  PRICING: {
+    CALCULATE: "/pricing/calculate",
+    CALCULATE_BY_PLATE: "/pricing/calculate-by-plate",
+    STATION_SUMMARY: (stationId: string | number) => `/pricing/station/${stationId}/summary`,
+    STATION_VALIDATE: (stationId: string | number) => `/pricing/station/${stationId}/validate`,
+  },
+
+  // Vehicle body type pricing endpoints
+  VEHICLE_BODY_TYPE_PRICES: {
+    LIST: "/vehicle-body-type-prices",
+    CREATE: "/vehicle-body-type-prices",
+    DETAILS: (id: string | number) => `/vehicle-body-type-prices/${id}`,
+    UPDATE: (id: string | number) => `/vehicle-body-type-prices/${id}`,
+    DELETE: (id: string | number) => `/vehicle-body-type-prices/${id}`,
+    CURRENT_PRICE: "/vehicle-body-type-prices/current-price",
+    BY_STATION: (stationId: string | number) => `/vehicle-body-type-prices/station/${stationId}`,
+    BULK_UPDATE: "/vehicle-body-type-prices/bulk-update",
+    SUMMARY: "/vehicle-body-type-prices/summary",
+  },
+
+  // Vehicle exemption endpoints
+  VEHICLE_EXEMPTION: {
+    SET_EXEMPTION: (vehicleId: string | number) => `/toll-v1/vehicles/${vehicleId}/exempt`,
+    REMOVE_EXEMPTION: (vehicleId: string | number) => `/toll-v1/vehicles/${vehicleId}/exempt`,
+  },
+
   // Vehicle passage endpoints
   VEHICLE_PASSAGES: {
     LIST: "/vehicle-passages",
@@ -36,8 +63,8 @@ export const API_ENDPOINTS = {
 
   // Gate control endpoints
   GATE_CONTROL: {
-    PLATE_DETECTION: "/gate-control/plate-detection",
-    QUICK_LOOKUP: "/gate-control/quick-lookup",
+    PLATE_DETECTION: "/toll-v1/gate-control/plate-detection",
+    QUICK_LOOKUP: "/toll-v1/gate-control/quick-lookup",
     MANUAL: "/gate-control/manual",
     EMERGENCY: "/gate-control/emergency",
     GATE_STATUS: (gateId: string | number) => `/gate-control/gates/${gateId}/status`,

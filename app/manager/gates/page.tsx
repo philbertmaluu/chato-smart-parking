@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/components/language-provider";
+import { formatTime, formatDateTime } from "@/utils/date-utils";
 import {
   MapPin,
   Users,
@@ -265,9 +266,7 @@ export default function GatesManagement() {
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 Last active:{" "}
-                                {new Date(
-                                  gate.currentOperator.lastActive
-                                ).toLocaleTimeString()}
+                                {formatTime(gate.currentOperator.lastActive)}
                               </p>
                             </div>
                           </>
@@ -462,9 +461,9 @@ export default function GatesManagement() {
                             </p>
                             <p className="text-sm text-muted-foreground">
                               Last active:{" "}
-                              {new Date(
+                              {formatDateTime(
                                 selectedGate.currentOperator.lastActive
-                              ).toLocaleString()}
+                              )}
                             </p>
                           </div>
                         </div>

@@ -47,8 +47,7 @@ export function TestVehiclePassage() {
         notes: "Test entry from frontend",
       };
 
-      console.log("Testing vehicle entry with data:", testData);
-      console.log("API Base URL:", "http://127.0.0.1:8000/api/toll-v1");
+      
 
       const response = await VehiclePassageService.processEntry(testData);
 

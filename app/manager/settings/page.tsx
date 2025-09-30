@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/components/language-provider";
 import { VehicleBodyTypes } from "./components/vehicle-body-types";
+import { VehicleBodyTypePrices } from "./components/vehicle-body-type-prices";
 import { PaymentTypes } from "./components/payment-types";
 import { BundleTypes } from "./components/bandle-types";
 import { StationGates } from "./components/station-gates";
@@ -292,6 +293,14 @@ export default function SettingsPage() {
                 </TabsTrigger>
 
                 <TabsTrigger
+                  value="vehicle-pricing"
+                  className="flex items-center space-x-2"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Vehicle Pricing</span>
+                </TabsTrigger>
+
+                <TabsTrigger
                   value="payment-types"
                   className="flex items-center space-x-2"
                 >
@@ -324,14 +333,6 @@ export default function SettingsPage() {
                 </TabsTrigger>
 
                 <TabsTrigger
-                  value="system-configuration"
-                  className="flex items-center space-x-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>System Configuration</span>
-                </TabsTrigger>
-
-                <TabsTrigger
                   value="integration"
                   className="flex items-center space-x-2"
                 >
@@ -343,6 +344,11 @@ export default function SettingsPage() {
               {/* Vehicle Types Tab */}
               <TabsContent value="vehicle-types" className="space-y-6">
                 <VehicleBodyTypes />
+              </TabsContent>
+
+              {/* Vehicle Pricing Tab */}
+              <TabsContent value="vehicle-pricing" className="space-y-6">
+                <VehicleBodyTypePrices />
               </TabsContent>
 
               {/* Payment Types Tab */}
@@ -561,172 +567,6 @@ export default function SettingsPage() {
                           </>
                         )}
                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="system-configuration" className="space-y-6">
-                {/* System Configuration */}
-                <Card className="glass-effect border-0 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Settings className="w-5 h-5" />
-                      <span>System Configuration</span>
-                    </CardTitle>
-                    <CardDescription>
-                      General system settings and preferences
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label>Currency</Label>
-                        <Select
-                          value={systemSettings.currency}
-                          onValueChange={(value) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              currency: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Tsh.">
-                              Tanzanian Shilling (Tsh.)
-                            </SelectItem>
-                            <SelectItem value="$">US Dollar ($)</SelectItem>
-                            <SelectItem value="€">Euro (€)</SelectItem>
-                            <SelectItem value="£">British Pound (£)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Timezone</Label>
-                        <Select
-                          value={systemSettings.timezone}
-                          onValueChange={(value) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              timezone: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Africa/Dar_es_Salaam">
-                              Dar es Salaam (GMT+3)
-                            </SelectItem>
-                            <SelectItem value="Africa/Nairobi">
-                              Nairobi (GMT+3)
-                            </SelectItem>
-                            <SelectItem value="UTC">UTC (GMT+0)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Auto Logout (minutes)</Label>
-                        <Input
-                          type="number"
-                          value={systemSettings.autoLogout}
-                          onChange={(e) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              autoLogout: parseInt(e.target.value),
-                            }))
-                          }
-                          min="5"
-                          max="120"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Session Timeout (minutes)</Label>
-                        <Input
-                          type="number"
-                          value={systemSettings.security.sessionTimeout}
-                          onChange={(e) =>
-                            setSystemSettings((prev) => ({
-                              ...prev,
-                              security: {
-                                ...prev.security,
-                                sessionTimeout: parseInt(e.target.value),
-                              },
-                            }))
-                          }
-                          min="5"
-                          max="60"
-                        />
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                      <h4 className="font-semibold">Notifications</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Mail className="w-4 h-4" />
-                            <span>Email Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.email}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  email: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Smartphone className="w-4 h-4" />
-                            <span>SMS Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.sms}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  sms: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Bell className="w-4 h-4" />
-                            <span>Push Notifications</span>
-                          </div>
-                          <Switch
-                            checked={systemSettings.notifications.push}
-                            onCheckedChange={(checked) =>
-                              setSystemSettings((prev) => ({
-                                ...prev,
-                                notifications: {
-                                  ...prev.notifications,
-                                  push: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>

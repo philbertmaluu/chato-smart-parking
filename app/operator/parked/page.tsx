@@ -14,6 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/components/language-provider";
+import { useCurrentGate } from "@/hooks/use-current-gate";
+import { formatTime, formatDateTime } from "@/utils/date-utils";
+import {
+  useActivePassages,
+  type ActivePassage,
+} from "./hooks/use-active-passages";
+import { VehicleExitDialog } from "./components/vehicle-exit-dialog";
+import { getVehicleTypeIcon, getVehicleTypeBadge } from "@/utils/utils";
 import {
   Search,
   Car,
@@ -23,100 +31,48 @@ import {
   DollarSign,
   Grid,
   List,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
+  const { currentGate } = useCurrentGate();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-
-  const parkedVehicles = [
-    {
-      id: "1",
-      plateNumber: "ABC-123",
-      vehicleType: "car",
-      entryTime: "08:30 AM",
-      duration: "2h 15m",
-      currentFee: "Tsh. 11.25",
-      spot: "A-15",
-    },
-    {
-      id: "2",
-      plateNumber: "XYZ-789",
-      vehicleType: "motorcycle",
-      entryTime: "09:15 AM",
-      duration: "1h 30m",
-      currentFee: "Tsh. 4.50",
-      spot: "B-08",
-    },
-    {
-      id: "3",
-      plateNumber: "DEF-456",
-      vehicleType: "truck",
-      entryTime: "07:45 AM",
-      duration: "3h 00m",
-      currentFee: "Tsh. 24.00",
-      spot: "C-03",
-    },
-    {
-      id: "4",
-      plateNumber: "GHI-789",
-      vehicleType: "car",
-      entryTime: "10:00 AM",
-      duration: "45m",
-      currentFee: "Tsh. 3.75",
-      spot: "A-22",
-    },
-    {
-      id: "5",
-      plateNumber: "JKL-012",
-      vehicleType: "car",
-      entryTime: "09:30 AM",
-      duration: "1h 15m",
-      currentFee: "Tsh. 6.25",
-      spot: "B-14",
-    },
-    {
-      id: "6",
-      plateNumber: "MNO-345",
-      vehicleType: "motorcycle",
-      entryTime: "08:00 AM",
-      duration: "2h 45m",
-      currentFee: "Tsh. 8.25",
-      spot: "A-05",
-    },
-  ];
-
-  const filteredVehicles = parkedVehicles.filter(
-    (vehicle) =>
-      vehicle.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.spot.toLowerCase().includes(searchTerm.toLowerCase())
+  const [selectedVehicle, setSelectedVehicle] = useState<ActivePassage | null>(
+    null
   );
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
-  const getVehicleIcon = (type: string) => {
-    switch (type) {
-      case "car":
-        return Car;
-      case "motorcycle":
-        return Bike;
-      case "truck":
-        return Truck;
-      default:
-        return Car;
-    }
+  const {
+    activePassages,
+    loading,
+    error,
+    refreshing,
+    fetchActivePassages,
+    refreshActivePassages,
+    searchActivePassages,
+    getPassageStatistics,
+  } = useActivePassages();
+
+  // Filter vehicles based on search term
+  const filteredVehicles = searchActivePassages(searchTerm);
+
+  // Get statistics
+  const statistics = getPassageStatistics();
+
+  const handleProcessExit = (vehicle: ActivePassage) => {
+    setSelectedVehicle(vehicle);
+    setShowExitDialog(true);
   };
 
-  const getVehicleColor = (type: string) => {
-    switch (type) {
-      case "car":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300";
-      case "motorcycle":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
-      case "truck":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
-    }
+  const handleExitProcessed = () => {
+    // Refresh the active passages list to remove the exited vehicle
+    fetchActivePassages();
+    setShowExitDialog(false);
+    setSelectedVehicle(null);
   };
 
   return (
@@ -136,9 +92,29 @@ export default function ParkedVehicles() {
             <p className="text-muted-foreground mt-2">
               Currently parked vehicles and their details
             </p>
+            {!currentGate && (
+              <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                <span>
+                  Please select a gate from the entry page to process exits
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshActivePassages}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+            </Button>
             <Button
               variant={viewMode === "grid" ? "default" : "outline"}
               size="sm"
@@ -196,7 +172,7 @@ export default function ParkedVehicles() {
                         Total Parked
                       </p>
                       <p className="text-2xl font-bold">
-                        {filteredVehicles.length}
+                        {statistics.totalParked}
                       </p>
                     </div>
                     <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-full">
@@ -213,7 +189,9 @@ export default function ParkedVehicles() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Avg Duration
                       </p>
-                      <p className="text-2xl font-bold">1h 45m</p>
+                      <p className="text-2xl font-bold">
+                        {statistics.averageDuration}
+                      </p>
                     </div>
                     <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
                       <Clock className="w-5 h-5 text-green-600" />
@@ -229,7 +207,9 @@ export default function ParkedVehicles() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Total Revenue
                       </p>
-                      <p className="text-2xl font-bold">Tsh. 58.00</p>
+                      <p className="text-2xl font-bold">
+                        {statistics.totalRevenue}
+                      </p>
                     </div>
                     <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-full">
                       <DollarSign className="w-5 h-5 text-purple-600" />
@@ -241,160 +221,231 @@ export default function ParkedVehicles() {
           </motion.div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Loading parked vehicles...</p>
+          </motion.div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <AlertCircle className="w-8 h-8 mx-auto text-red-500 mb-4" />
+            <p className="text-red-600 font-medium mb-2">
+              Error loading vehicles
+            </p>
+            <p className="text-sm text-muted-foreground mb-4">{error}</p>
+            <Button onClick={fetchActivePassages} variant="outline">
+              Try Again
+            </Button>
+          </motion.div>
+        )}
+
         {/* Vehicles Display */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-        >
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredVehicles.map((vehicle, index) => {
-                const VehicleIcon = getVehicleIcon(vehicle.vehicleType);
-                return (
-                  <motion.div
-                    key={vehicle.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.6 + index * 0.1, duration: 0.3 }}
-                  >
-                    <Card className="glass-effect border-0 shadow-lg hover:shadow-xl transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-primary/10 rounded-full">
-                              <VehicleIcon className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-lg">
-                                {vehicle.plateNumber}
-                              </h3>
-                              <Badge
-                                className={getVehicleColor(vehicle.vehicleType)}
-                              >
-                                {vehicle.vehicleType}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">
-                              Spot
-                            </p>
-                            <p className="font-bold">{vehicle.spot}</p>
-                          </div>
-                        </div>
+        {!loading && !error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            {viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredVehicles.map((vehicle, index) => {
+                  const vehicleType =
+                    vehicle.vehicle?.body_type?.name || "Unknown";
+                  const vehicleIcon = getVehicleTypeIcon(vehicleType);
+                  const vehicleBadge = getVehicleTypeBadge(vehicleType);
 
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              Entry Time:
-                            </span>
-                            <span className="text-sm font-medium">
-                              {vehicle.entryTime}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              Duration:
-                            </span>
-                            <span className="text-sm font-medium">
-                              {vehicle.duration}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              Current Fee:
-                            </span>
-                            <span className="text-sm font-bold text-primary">
-                              {vehicle.currentFee}
-                            </span>
-                          </div>
-                        </div>
-
-                        <Button className="w-full mt-4 gradient-maroon hover:opacity-90 transition-opacity">
-                          Process Exit
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            <Card className="glass-effect border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Parked Vehicles List</CardTitle>
-                <CardDescription>
-                  Detailed view of all currently parked vehicles
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {filteredVehicles.map((vehicle, index) => {
-                    const VehicleIcon = getVehicleIcon(vehicle.vehicleType);
-                    return (
-                      <motion.div
-                        key={vehicle.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 + index * 0.1, duration: 0.3 }}
-                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="p-2 bg-primary/10 rounded-full">
-                            <VehicleIcon className="w-5 h-5 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-bold">{vehicle.plateNumber}</h3>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Badge
-                                className={getVehicleColor(vehicle.vehicleType)}
+                  return (
+                    <motion.div
+                      key={vehicle.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.6 + index * 0.1, duration: 0.3 }}
+                    >
+                      <Card className="glass-effect border-0 shadow-lg hover:shadow-xl transition-shadow">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-3">
+                              <div
+                                className={`p-2 rounded-full ${vehicleIcon.bgColor}`}
                               >
-                                {vehicle.vehicleType}
-                              </Badge>
+                                <span
+                                  className={`text-lg ${vehicleIcon.color}`}
+                                >
+                                  {vehicleIcon.icon}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-lg">
+                                  {vehicle.vehicle?.plate_number}
+                                </h3>
+                                <Badge
+                                  className={`${vehicleIcon.bgColor} ${vehicleIcon.color} border-0`}
+                                >
+                                  {vehicleType}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-muted-foreground">
+                                Spot
+                              </p>
+                              <p className="font-bold">{vehicle.spot}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Spot: {vehicle.spot}
+                                Entry Time:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {formatTime(vehicle.entry_time)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Duration:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {vehicle.duration}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Fee:
+                              </span>
+                              <span className="text-sm font-bold text-primary">
+                                {vehicle.currentFee}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Passage:
+                              </span>
+                              <span className="text-sm font-mono text-xs">
+                                {vehicle.passage_number}
                               </span>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center space-x-6">
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground">
-                              Entry
-                            </p>
-                            <p className="font-medium">{vehicle.entryTime}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground">
-                              Duration
-                            </p>
-                            <p className="font-medium">{vehicle.duration}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground">Fee</p>
-                            <p className="font-bold text-primary">
-                              {vehicle.currentFee}
-                            </p>
-                          </div>
                           <Button
-                            size="sm"
-                            className="gradient-maroon hover:opacity-90 transition-opacity"
+                            className="w-full mt-4 gradient-maroon hover:opacity-90 transition-opacity"
+                            onClick={() => handleProcessExit(vehicle)}
                           >
-                            Exit
+                            Process Exit
                           </Button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </motion.div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="glass-effect border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle>Parked Vehicles List</CardTitle>
+                  <CardDescription>
+                    Detailed view of all currently parked vehicles
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {filteredVehicles.map((vehicle, index) => {
+                      const vehicleType =
+                        vehicle.vehicle?.body_type?.name || "Unknown";
+                      const vehicleIcon = getVehicleTypeIcon(vehicleType);
 
-        {filteredVehicles.length === 0 && (
+                      return (
+                        <motion.div
+                          key={vehicle.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{
+                            delay: 0.6 + index * 0.1,
+                            duration: 0.3,
+                          }}
+                          className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div
+                              className={`p-2 rounded-full ${vehicleIcon.bgColor}`}
+                            >
+                              <span className={`text-lg ${vehicleIcon.color}`}>
+                                {vehicleIcon.icon}
+                              </span>
+                            </div>
+                            <div>
+                              <h3 className="font-bold">
+                                {vehicle.vehicle?.plate_number}
+                              </h3>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <Badge
+                                  className={`${vehicleIcon.bgColor} ${vehicleIcon.color} border-0`}
+                                >
+                                  {vehicleType}
+                                </Badge>
+                                <span className="text-sm text-muted-foreground">
+                                  Spot: {vehicle.spot}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-6">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Entry
+                              </p>
+                              <p className="font-medium">
+                                {formatTime(vehicle.entry_time)}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Duration
+                              </p>
+                              <p className="font-medium">{vehicle.duration}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Fee
+                              </p>
+                              <p className="font-bold text-primary">
+                                {vehicle.currentFee}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="gradient-maroon hover:opacity-90 transition-opacity"
+                              onClick={() => handleProcessExit(vehicle)}
+                            >
+                              Exit
+                            </Button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </motion.div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && filteredVehicles.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -413,6 +464,14 @@ export default function ParkedVehicles() {
           </motion.div>
         )}
       </div>
+
+      {/* Vehicle Exit Dialog */}
+      <VehicleExitDialog
+        open={showExitDialog}
+        onOpenChange={setShowExitDialog}
+        vehicle={selectedVehicle}
+        onExitProcessed={handleExitProcessed}
+      />
     </MainLayout>
   );
 }

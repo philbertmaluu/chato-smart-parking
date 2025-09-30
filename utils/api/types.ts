@@ -16,6 +16,60 @@ export interface PaginatedResponse<T = any> {
   to: number;
 }
 
+// Pricing System Types
+export interface PricingData {
+  amount: number;
+  payment_type: 'Cash' | 'Bundle' | 'Exemption';
+  payment_type_id: number;
+  requires_payment: boolean;
+  description: string;
+  base_amount: number;
+  discount_amount: number;
+  total_amount: number;
+  bundle_subscription_id?: number | null;
+}
+
+export interface VehiclePassageEntryData {
+  id: number;
+  passage_number: string;
+  vehicle_id: number;
+  account_id?: number | null;
+  bundle_subscription_id?: number | null;
+  payment_type_id: number;
+  entry_time: string;
+  entry_station_id: number;
+  entry_gate_id: number;
+  passage_type: 'toll' | 'free' | 'exempted';
+  base_amount: number;
+  discount_amount: number;
+  total_amount: number;
+  status: 'active' | 'completed' | 'cancelled';
+}
+
+export interface GateControlResponse {
+  vehicle: any;
+  pricing: PricingData;
+  gate_action: 'allow' | 'require_payment' | 'deny';
+  receipt?: any;
+}
+
+export interface PlateDetectionRequest {
+  plate_number: string;
+  gate_id: number;
+  operator_id: number;
+  additional_data?: {
+    account_id?: number;
+    notes?: string;
+  };
+}
+
+export interface PricingCalculationRequest {
+  vehicle_id?: number;
+  plate_number?: string;
+  station_id: number;
+  account_id?: number;
+}
+
 // User Types
 export interface Role {
   id: number;

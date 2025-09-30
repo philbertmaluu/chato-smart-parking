@@ -46,6 +46,7 @@ import {
   Mail,
   Phone,
 } from "lucide-react";
+import { formatDate } from "@/utils/date-utils";
 
 type Customer = {
   id: string;
@@ -175,7 +176,7 @@ export default function CustomersPage() {
         key: "createdAt",
         title: "Joined",
         dataIndex: "createdAt",
-        render: (value) => new Date(value).toLocaleDateString(),
+        render: (value) => formatDate(value),
       },
       {
         key: "actions",
@@ -286,27 +287,24 @@ export default function CustomersPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
         >
-
-           
-              <DataTable
-                dataSource={customers}
-                columns={columns}
-                loading={loading}
-                exportable
-                searchable
-                searchPlaceholder="Search customers..."
-                exportFileName="customers"
-                searchFields={["name", "email", "phone", "status"]}
-                actionButtons={
-                  <Button
-                    onClick={openCreateDialog}
-                    className="gradient-maroon hover:opacity-90"
-                  >
-                    <Plus className="w-4 h-4 mr-2" /> Add Customer
-                  </Button>
-                }
-              />
-          
+          <DataTable
+            dataSource={customers}
+            columns={columns}
+            loading={loading}
+            exportable
+            searchable
+            searchPlaceholder="Search customers..."
+            exportFileName="customers"
+            searchFields={["name", "email", "phone", "status"]}
+            actionButtons={
+              <Button
+                onClick={openCreateDialog}
+                className="gradient-maroon hover:opacity-90"
+              >
+                <Plus className="w-4 h-4 mr-2" /> Add Customer
+              </Button>
+            }
+          />
         </motion.div>
       </div>
 

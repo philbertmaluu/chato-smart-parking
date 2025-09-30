@@ -39,6 +39,7 @@ import {
   type BundleType,
   type CreateBundleTypeData,
 } from "../hooks/use-bundle-types";
+import { formatDate } from "@/utils/date-utils";
 import { Plus, Edit, Trash2, MoreHorizontal } from "lucide-react";
 
 function getDurationBadge(durationDays: number) {
@@ -140,7 +141,7 @@ export function BundleTypes() {
       key: "created_at",
       title: "Created",
       dataIndex: "created_at",
-      render: (value) => new Date(value).toLocaleDateString(),
+      render: (value) => formatDate(value),
     },
     {
       key: "actions",
@@ -310,9 +311,7 @@ export function BundleTypes() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Add Bundle Type</DialogTitle>
-            <DialogDescription>
-              Create a new bundle type.
-            </DialogDescription>
+            <DialogDescription>Create a new bundle type.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">

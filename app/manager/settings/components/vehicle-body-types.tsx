@@ -48,6 +48,7 @@ import {
   type CreateVehicleBodyTypeData,
 } from "../hooks/use-vehicle-body-types";
 import { getVehicleTypeIcon } from "@/utils/utils";
+import { formatDate } from "@/utils/date-utils";
 import {
   Plus,
   Edit,
@@ -153,7 +154,7 @@ export function VehicleBodyTypes() {
       key: "created_at",
       title: "Created",
       dataIndex: "created_at",
-      render: (value) => new Date(value).toLocaleDateString(),
+      render: (value) => formatDate(value),
     },
     {
       key: "actions",

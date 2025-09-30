@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Car, Plus, Edit, Trash2, MoreHorizontal } from "lucide-react";
 import { getVehicleTypeIcon } from "@/utils/utils";
+import { formatDate } from "@/utils/date-utils";
 import {
   useVehicleBodyTypes,
   type VehicleBodyType,
@@ -231,7 +232,7 @@ export default function VehiclesPage() {
         key: "created_at",
         title: "Added",
         dataIndex: "created_at",
-        render: (value) => new Date(value).toLocaleDateString(),
+        render: (value) => formatDate(value),
       },
       {
         key: "actions",
