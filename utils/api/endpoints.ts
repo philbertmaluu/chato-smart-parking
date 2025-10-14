@@ -211,6 +211,21 @@ export const API_ENDPOINTS = {
     WITH_BUNDLE_COUNT: "/bundle-types/with-bundle-count",
     POPULAR: (limit: number = 10) => `/bundle-types/popular?limit=${limit}`,
   },
+
+  // Bundle endpoints
+  BUNDLES: {
+    LIST: "/bundles",
+    CREATE: "/bundles",
+    DETAILS: (id: string | number) => `/bundles/${id}`,
+    UPDATE: (id: string | number) => `/bundles/${id}`,
+    DELETE: (id: string | number) => `/bundles/${id}`,
+    TOGGLE_STATUS: (id: string | number) => `/bundles/${id}/toggle-status`,
+    ACTIVE_LIST: "/bundles/active/list",
+    BY_TYPE: (bundleTypeId: string | number) => `/bundles/type/${bundleTypeId}`,
+    BY_PRICE_RANGE: "/bundles/price-range",
+    WITH_SUBSCRIPTION_COUNT: "/bundles/with-subscription-count",
+    POPULAR: (limit: number = 10) => `/bundles/popular?limit=${limit}`,
+  },
 } as const;
 
 // Type for endpoint parameters

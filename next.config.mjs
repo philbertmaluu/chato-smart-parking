@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove output: 'export' to enable dynamic imports and proper chunk loading
-  // output: 'export',
+  // Enable static export for Tauri builds
+  output: 'export',
   trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,

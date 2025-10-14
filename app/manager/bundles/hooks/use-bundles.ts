@@ -5,12 +5,25 @@ import { API_ENDPOINTS } from '@/utils/api/endpoints';
 export interface BundleType {
   id: number;
   name: string;
-  duration_days: number; // 1=daily, 7=weekly, 30=monthly, 365=yearly
+  duration_days: number;
   description?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  deleted_at?: string | null;
+}
+
+export interface Bundle {
+  id: number;
+  bundle_type_id: number;
+  name: string;
+  amount: number;
+  max_vehicles: number;
+  max_passages?: number | null;
+  description?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  bundle_type?: BundleType;
 }
 
 export interface PaginatedResponse<T> {
@@ -34,19 +47,22 @@ export interface PaginatedResponse<T> {
   status: number;
 }
 
-export interface CreateBundleTypeData {
+export interface CreateBundleData {
+  bundle_type_id: number;
   name: string;
-  duration_days: number;
+  amount: number;
+  max_vehicles: number;
+  max_passages?: number | null;
   description?: string;
   is_active?: boolean;
 }
 
-export interface UpdateBundleTypeData extends Partial<CreateBundleTypeData> {
+export interface UpdateBundleData extends Partial<CreateBundleData> {
   id: number;
 }
 
-export const useBundleTypes = () => {
-  const [bundleTypes, setBundleTypes] = useState<BundleType[]>([]);
+export const useBundles = () => {
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
@@ -56,15 +72,15 @@ export const useBundleTypes = () => {
     lastPage: 1,
   });
 
-  const fetchBundleTypes = useCallback(async (page: number = 1) => {
+  const fetchBundles = useCallback(async (page: number = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<PaginatedResponse<BundleType>>(
-        `${API_ENDPOINTS.BUNDLE_TYPES.LIST}?page=${page}`
+      const response = await get<PaginatedResponse<Bundle>>(
+        `${API_ENDPOINTS.BUNDLES.LIST}?page=${page}`
       );
       if (response?.success && response?.data) {
-        setBundleTypes(response.data.data || []);
+        setBundles(response.data.data || []);
         setPagination({
           currentPage: response.data.current_page || 1,
           total: response.data.total || 0,
@@ -72,33 +88,33 @@ export const useBundleTypes = () => {
           lastPage: response.data.last_page || 1,
         });
       } else {
-        setBundleTypes([]);
+        setBundles([]);
         setPagination({ currentPage: 1, total: 0, perPage: 15, lastPage: 1 });
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to fetch bundle types'
+        err instanceof Error ? err.message : 'Failed to fetch bundles'
       );
-      setBundleTypes([]);
+      setBundles([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const createBundleType = useCallback(async (data: CreateBundleTypeData) => {
+  const createBundle = useCallback(async (data: CreateBundleData) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await post<{ success: boolean; data: BundleType }>(
-        API_ENDPOINTS.BUNDLE_TYPES.CREATE,
+      const response = await post<{ success: boolean; data: Bundle }>(
+        API_ENDPOINTS.BUNDLES.CREATE,
         data
       );
       const created = response.data;
-      setBundleTypes((prev) => [...prev, created]);
+      setBundles((prev) => [...prev, created]);
       return created;
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to create bundle type'
+        err instanceof Error ? err.message : 'Failed to create bundle'
       );
       throw err;
     } finally {
@@ -106,22 +122,22 @@ export const useBundleTypes = () => {
     }
   }, []);
 
-  const updateBundleType = useCallback(async (data: UpdateBundleTypeData) => {
+  const updateBundle = useCallback(async (data: UpdateBundleData) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await put<{ success: boolean; data: BundleType }>(
-        API_ENDPOINTS.BUNDLE_TYPES.UPDATE(data.id),
+      const response = await put<{ success: boolean; data: Bundle }>(
+        API_ENDPOINTS.BUNDLES.UPDATE(data.id),
         data
       );
       const updated = response.data;
-      setBundleTypes((prev) =>
+      setBundles((prev) =>
         prev.map((item) => (item.id === data.id ? updated : item))
       );
       return updated;
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to update bundle type'
+        err instanceof Error ? err.message : 'Failed to update bundle'
       );
       throw err;
     } finally {
@@ -129,15 +145,15 @@ export const useBundleTypes = () => {
     }
   }, []);
 
-  const deleteBundleType = useCallback(async (id: number) => {
+  const deleteBundle = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      await del(API_ENDPOINTS.BUNDLE_TYPES.DELETE(id));
-      setBundleTypes((prev) => prev.filter((item) => item.id !== id));
+      await del(API_ENDPOINTS.BUNDLES.DELETE(id));
+      setBundles((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to delete bundle type'
+        err instanceof Error ? err.message : 'Failed to delete bundle'
       );
       throw err;
     } finally {
@@ -149,12 +165,12 @@ export const useBundleTypes = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await post<{ success: boolean; data: BundleType }>(
-        API_ENDPOINTS.BUNDLE_TYPES.TOGGLE_STATUS(id),
+      const response = await post<{ success: boolean; data: Bundle }>(
+        API_ENDPOINTS.BUNDLES.TOGGLE_STATUS(id),
         { is_active: isActive }
       );
       const updated = response.data;
-      setBundleTypes((prev) =>
+      setBundles((prev) =>
         prev.map((item) => (item.id === id ? updated : item))
       );
       return updated;
@@ -162,7 +178,7 @@ export const useBundleTypes = () => {
       setError(
         err instanceof Error
           ? err.message
-          : 'Failed to update bundle type status'
+          : 'Failed to update bundle status'
       );
       throw err;
     } finally {
@@ -171,23 +187,23 @@ export const useBundleTypes = () => {
   }, []);
 
   const handlePageChange = useCallback(async (page: number) => {
-    await fetchBundleTypes(page);
-  }, [fetchBundleTypes]);
+    await fetchBundles(page);
+  }, [fetchBundles]);
 
   useEffect(() => {
-    fetchBundleTypes();
-  }, []);
+    fetchBundles();
+  }, [fetchBundles]);
 
   return {
-    bundleTypes,
+    bundles,
     loading,
     error,
     pagination,
-    fetchBundleTypes,
+    fetchBundles,
     handlePageChange,
-    createBundleType,
-    updateBundleType,
-    deleteBundleType,
+    createBundle,
+    updateBundle,
+    deleteBundle,
     toggleActiveStatus,
   };
 };
