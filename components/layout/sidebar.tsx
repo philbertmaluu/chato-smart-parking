@@ -29,6 +29,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
+  CreditCard,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -128,10 +130,11 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/manager/dashboard",
       icon: LayoutDashboard,
     },
+   
     {
-      title: t("nav.customers"),
-      href: "/manager/customers",
-      icon: Users,
+      title: t("nav.accounts"),
+      href: "/manager/accounts",
+      icon: CreditCard,
     },
     {
       title: t("nav.bundles"),
@@ -139,12 +142,15 @@ export function Sidebar({ className }: SidebarProps) {
       icon: Package,  
     },
     {
+      title: t("nav.bundleSubscriptions"),
+      href: "/manager/bundle-subscriptions",
+      icon: UserCheck,
+    },
+    {
       title: t("nav.vehicles"),
       href: "/manager/vehicles",
       icon: Car,
     },
-
-
     {
       title: t("nav.history"),
       href: "/manager/history",

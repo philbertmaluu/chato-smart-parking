@@ -1,49 +1,55 @@
-import { useState, useEffect } from 'react';
-import { get, post, put, del } from '@/utils/api/api';
+import { useState, useCallback } from 'react';
 import { API_ENDPOINTS } from '@/utils/api/endpoints';
+import { get, post, put, del } from '@/utils/api/api';
 
 export interface Vehicle {
   id: number;
   body_type_id: number;
   plate_number: string;
-  make?: string;
-  model?: string;
-  year?: number;
-  color?: string;
-  owner_name?: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  owner_name: string;
   is_registered: boolean;
+  is_exempted: boolean;
+  exemption_reason?: string;
+  exemption_expires_at?: string;
   created_at: string;
   updated_at: string;
-  deleted_at?: string | null;
   body_type?: {
     id: number;
     name: string;
-    description?: string;
-    category?: 'light' | 'medium' | 'heavy';
-    is_active: boolean;
+    category: string;
   };
 }
 
 export interface CreateVehicleData {
   body_type_id: number;
   plate_number: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  owner_name: string;
+  is_registered: boolean;
+  is_exempted: boolean;
+  exemption_reason?: string;
+  exemption_expires_at?: string;
+}
+
+export interface UpdateVehicleData {
+  body_type_id?: number;
+  plate_number?: string;
   make?: string;
   model?: string;
   year?: number;
   color?: string;
   owner_name?: string;
   is_registered?: boolean;
-}
-
-export interface UpdateVehicleData extends Partial<CreateVehicleData> {
-  id: number;
-}
-
-export interface VehicleLookupResponse {
-  success: boolean;
-  data: Vehicle | null;
-  message: string;
-  exists: boolean;
+  is_exempted?: boolean;
+  exemption_reason?: string;
+  exemption_expires_at?: string;
 }
 
 export const useVehicles = () => {
@@ -51,205 +57,182 @@ export const useVehicles = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
-    currentPage: 1,
+    current_page: 1,
+    last_page: 1,
+    per_page: 15,
     total: 0,
-    perPage: 15,
-    lastPage: 1,
   });
 
-  // Fetch all vehicles
-  const fetchVehicles = async (page: number = 1) => {
+  const fetchVehicles = useCallback(async (page: number = 1, search: string = '') => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<any>(
-        `${API_ENDPOINTS.VEHICLES.LIST}?page=${page}`
-      );
+      const params = new URLSearchParams({
+        page: page.toString(),
+        per_page: pagination.per_page.toString(),
+      });
       
-      if (response?.success && response?.data) {
-        setVehicles(response.data.data || []);
-        setPagination({
-          currentPage: response.data.current_page || 1,
-          total: response.data.total || 0,
-          perPage: response.data.per_page || 15,
-          lastPage: response.data.last_page || 1,
-        });
-      } else {
-        setVehicles([]);
-        setPagination({
-          currentPage: 1,
-          total: 0,
-          perPage: 15,
-          lastPage: 1,
-        });
+      if (search) {
+        params.append('search', search);
       }
+
+      const response = await get<{
+        success: boolean;
+        data: {
+          current_page: number;
+          data: Vehicle[];
+          last_page: number;
+          per_page: number;
+          total: number;
+        };
+        message: string;
+        status: number;
+      }>(`${API_ENDPOINTS.VEHICLES.LIST}?${params.toString()}`);
+      
+      setVehicles(response.data.data);
+      setPagination({
+        current_page: response.data.current_page,
+        last_page: response.data.last_page,
+        per_page: response.data.per_page,
+        total: response.data.total,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch vehicles');
-      setVehicles([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.per_page]);
 
-  // Lookup vehicle by plate number
-  const lookupVehicleByPlate = async (plateNumber: string): Promise<VehicleLookupResponse> => {
+  const createVehicle = useCallback(async (data: CreateVehicleData) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<VehicleLookupResponse>(
-        API_ENDPOINTS.VEHICLES.LOOKUP_BY_PLATE(plateNumber)
-      );
-      
-      if (response?.success) {
-        return {
-          success: true,
-          data: response.data,
-          message: response.message || 'Vehicle lookup completed',
-          exists: !!response.data,
-        };
-      } else {
-        return {
-          success: false,
-          data: null,
-          message: response.message || 'Vehicle not found',
-          exists: false,
-        };
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to lookup vehicle';
-      setError(errorMessage);
-      return {
-        success: false,
-        data: null,
-        message: errorMessage,
-        exists: false,
-      };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Create new vehicle
-  const createVehicle = async (data: CreateVehicleData): Promise<Vehicle> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await post<any>(
+      const response = await post<{ success: boolean; data: Vehicle }>(
         API_ENDPOINTS.VEHICLES.CREATE,
         data
       );
-      
-      if (response?.success && response?.data) {
-        const newVehicle = response.data;
-        setVehicles(prev => [...prev, newVehicle]);
-        return newVehicle;
-      } else {
-        throw new Error(response?.message || 'Failed to create vehicle');
-      }
+      const created = response.data;
+      setVehicles((prev) => [...prev, created]);
+      return created;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create vehicle';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Failed to create vehicle');
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Update vehicle
-  const updateVehicle = async (data: UpdateVehicleData): Promise<Vehicle> => {
+  const updateVehicle = useCallback(async (id: number, data: UpdateVehicleData) => {
     setLoading(true);
     setError(null);
     try {
-      const updatedVehicle = await put<Vehicle>(
-        API_ENDPOINTS.VEHICLES.UPDATE(data.id),
+      const response = await put<{ success: boolean; data: Vehicle }>(
+        API_ENDPOINTS.VEHICLES.UPDATE(id),
         data
       );
-      setVehicles(prev =>
-        prev.map(item =>
-          item.id === data.id ? updatedVehicle : item
+      const updated = response.data;
+      setVehicles((prev) =>
+        prev.map((vehicle) =>
+          vehicle.id === id ? updated : vehicle
         )
       );
-      return updatedVehicle;
+      return updated;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update vehicle';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Failed to update vehicle');
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Delete vehicle
-  const deleteVehicle = async (id: number) => {
+  const deleteVehicle = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
       await del(API_ENDPOINTS.VEHICLES.DELETE(id));
-      setVehicles(prev => prev.filter(item => item.id !== id));
+      setVehicles((prev) => prev.filter((vehicle) => vehicle.id !== id));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to delete vehicle';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Failed to delete vehicle');
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Search vehicles by plate number
-  const searchVehiclesByPlate = async (plateNumber: string): Promise<Vehicle[]> => {
+  const toggleVehicleStatus = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<any>(
-        API_ENDPOINTS.VEHICLES.SEARCH_BY_PLATE(plateNumber)
+      const response = await post<{ success: boolean; data: Vehicle }>(
+        API_ENDPOINTS.VEHICLES.TOGGLE_STATUS(id),
+        {}
       );
-      
-      if (response?.success && response?.data) {
-        return response.data;
-      } else {
-        return [];
-      }
+      const updated = response.data;
+      setVehicles((prev) =>
+        prev.map((vehicle) =>
+          vehicle.id === id ? updated : vehicle
+        )
+      );
+      return updated;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to search vehicles';
-      setError(errorMessage);
-      return [];
+      setError(err instanceof Error ? err.message : 'Failed to toggle vehicle status');
+      throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Get vehicles by body type
-  const getVehiclesByBodyType = async (bodyTypeId: number): Promise<Vehicle[]> => {
+  const getActiveVehicles = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await get<any>(
+      const response = await get<{ success: boolean; data: Vehicle[] }>(
+        API_ENDPOINTS.VEHICLES.ACTIVE_LIST
+      );
+      return response.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch active vehicles');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getVehiclesByBodyType = useCallback(async (bodyTypeId: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await get<{ success: boolean; data: Vehicle[] }>(
         API_ENDPOINTS.VEHICLES.BY_BODY_TYPE(bodyTypeId)
       );
-      
-      if (response?.success && response?.data) {
-        return response.data;
-      } else {
-        return [];
-      }
+      return response.data;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch vehicles by body type';
-      setError(errorMessage);
-      return [];
+      setError(err instanceof Error ? err.message : 'Failed to fetch vehicles by body type');
+      throw err;
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle page change
-  const handlePageChange = async (page: number) => {
-    await fetchVehicles(page);
-  };
-
-  // Load vehicles on mount
-  useEffect(() => {
-    fetchVehicles();
   }, []);
+
+  const searchVehicles = useCallback(async (searchTerm: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await get<{ success: boolean; data: Vehicle[] }>(
+        `${API_ENDPOINTS.VEHICLES.LIST}?search=${encodeURIComponent(searchTerm)}`
+      );
+      return response.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to search vehicles');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    fetchVehicles(page);
+  }, [fetchVehicles]);
 
   return {
     vehicles,
@@ -257,12 +240,13 @@ export const useVehicles = () => {
     error,
     pagination,
     fetchVehicles,
-    handlePageChange,
-    lookupVehicleByPlate,
     createVehicle,
     updateVehicle,
     deleteVehicle,
-    searchVehiclesByPlate,
+    toggleVehicleStatus,
+    getActiveVehicles,
     getVehiclesByBodyType,
+    searchVehicles,
+    handlePageChange,
   };
 };

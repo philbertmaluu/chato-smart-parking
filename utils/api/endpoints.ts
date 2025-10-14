@@ -162,6 +162,7 @@ export const API_ENDPOINTS = {
     DETAILS: (id: string | number) => `/vehicles/${id}`,
     UPDATE: (id: string | number) => `/vehicles/${id}`,
     DELETE: (id: string | number) => `/vehicles/${id}`,
+    TOGGLE_STATUS: (id: string | number) => `/vehicles/${id}/toggle-status`,
     SEARCH_BY_PLATE: (plateNumber: string) => `/vehicles/search/plate/${plateNumber}`,
     LOOKUP_BY_PLATE: (plateNumber: string) => `/vehicles/lookup/${plateNumber}`,
     ACTIVE_LIST: "/vehicles/active/list",
@@ -225,6 +226,58 @@ export const API_ENDPOINTS = {
     BY_PRICE_RANGE: "/bundles/price-range",
     WITH_SUBSCRIPTION_COUNT: "/bundles/with-subscription-count",
     POPULAR: (limit: number = 10) => `/bundles/popular?limit=${limit}`,
+  },
+
+  // Customer endpoints
+  CUSTOMERS: {
+    LIST: "/customers",
+    CREATE: "/customers",
+    DETAILS: (id: string | number) => `/customers/${id}`,
+    UPDATE: (id: string | number) => `/customers/${id}`,
+    DELETE: (id: string | number) => `/customers/${id}`,
+    ACTIVE_LIST: "/customers/active/list",
+    STATISTICS: (id: string | number) => `/customers/${id}/statistics`,
+  },
+
+  // Account endpoints
+  ACCOUNTS: {
+    LIST: "/accounts",
+    CREATE: "/accounts",
+    DETAILS: (id: string | number) => `/accounts/${id}`,
+    UPDATE: (id: string | number) => `/accounts/${id}`,
+    DELETE: (id: string | number) => `/accounts/${id}`,
+    TOGGLE_STATUS: (id: string | number) => `/accounts/${id}/toggle-status`,
+    ACTIVE_LIST: "/accounts/active/list",
+    BY_TYPE: (type: string) => `/accounts/type/${type}`,
+    BY_CUSTOMER: (customerId: string | number) => `/accounts/customer/${customerId}`,
+    STATISTICS: (id: string | number) => `/accounts/${id}/statistics`,
+  },
+
+  // Customer Account endpoints (Complete User + Customer + Account management)
+  CUSTOMER_ACCOUNTS: {
+    LIST: "/customer-accounts",
+    CREATE: "/customer-accounts",
+    DETAILS: (id: string | number) => `/customer-accounts/${id}`,
+    UPDATE: (id: string | number) => `/customer-accounts/${id}`,
+    DELETE: (id: string | number) => `/customer-accounts/${id}`,
+    ADD_VEHICLE: (accountId: string | number) => `/customer-accounts/${accountId}/vehicles`,
+    REMOVE_VEHICLE: (accountId: string | number, vehicleId: string | number) => `/customer-accounts/${accountId}/vehicles/${vehicleId}`,
+    GET_VEHICLES: (accountId: string | number) => `/customer-accounts/${accountId}/vehicles`,
+  },
+
+  // Bundle Subscription endpoints
+  BUNDLE_SUBSCRIPTIONS: {
+    LIST: "/bundle-subscriptions",
+    CREATE: "/bundle-subscriptions",
+    DETAILS: (id: string | number) => `/bundle-subscriptions/${id}`,
+    UPDATE: (id: string | number) => `/bundle-subscriptions/${id}`,
+    DELETE: (id: string | number) => `/bundle-subscriptions/${id}`,
+    UPDATE_STATUS: (id: string | number) => `/bundle-subscriptions/${id}/status`,
+    ACTIVE_LIST: "/bundle-subscriptions/active/list",
+    BY_ACCOUNT: (accountId: string | number) => `/bundle-subscriptions/account/${accountId}`,
+    BY_BUNDLE: (bundleId: string | number) => `/bundle-subscriptions/bundle/${bundleId}`,
+    USAGE_STATS: "/bundle-subscriptions/usage-stats",
+    EXPIRING: (days: number = 7) => `/bundle-subscriptions/expiring?days=${days}`,
   },
 } as const;
 
