@@ -31,6 +31,7 @@ import {
   Package,
   CreditCard,
   UserCheck,
+  Shield,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -206,7 +207,7 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Car className="w-6 h-6 text-white" />
+              <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="font-bold text-lg text-gradient">Smart Parking</h2>

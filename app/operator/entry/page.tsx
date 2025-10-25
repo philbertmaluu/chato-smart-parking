@@ -3,54 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useLanguage } from "@/components/language-provider";
-import { VehicleEntryDrawer } from "./components/vehicleEntrydrawer";
-import { ReceiptDialog } from "./components/receipt-dialog";
-import { PricingDisplay } from "./components/pricing-display";
+import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
-import { type Vehicle } from "@/hooks/use-vehicles";
 import { useGates } from "@/app/manager/settings/hooks/use-gates";
 import { useCurrentGate } from "@/hooks/use-current-gate";
-import { usePricing } from "@/hooks/use-pricing";
-import { useAuth } from "@/components/auth-provider";
-import { formatDateTime } from "@/utils/date-utils";
-import { Pencil, ChevronDown, MapPin, X, CheckCircle } from "lucide-react";
+import { ChevronDown, MapPin, Pencil } from "lucide-react";
 
 export default function VehicleEntry() {
-  const { t } = useLanguage();
-  const { user } = useAuth();
-
   const { gates, loading: gatesLoading, fetchActive } = useGates();
   const { currentGate, selectGate, getGateDisplayName } = useCurrentGate();
-  const {
-    pricing,
-    gateAction,
-    vehicle: detectedVehicle,
-    receipt,
-    isLoading: pricingLoading,
-    error: pricingError,
-    processPlateDetection,
-    resetPricing,
-  } = usePricing();
-
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [receiptData, setReceiptData] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-  const [showManualEntry, setShowManualEntry] = useState(false);
   const [showGateDropdown, setShowGateDropdown] = useState(false);
-  const [showPricingDisplay, setShowPricingDisplay] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [showEntryDrawer, setShowEntryDrawer] = useState(false);
 
   useEffect(() => {
     fetchActive();
@@ -72,49 +36,9 @@ export default function VehicleEntry() {
     }
   }, [showGateDropdown, handleClickOutside]);
 
-  const handleManualEntry = () => {
-    setShowManualEntry(true);
-  };
-
-  const handleProcessPayment = () => {
-    // TODO: Implement payment processing
-    console.log("Processing payment for:", pricing);
-  };
-
-  const handleAllowPassage = () => {
-    // TODO: Implement gate opening
-    console.log("Allowing passage for vehicle:", detectedVehicle);
-    setShowPricingDisplay(false);
-    resetPricing();
-  };
-
-  const handleClosePricingDisplay = () => {
-    setShowPricingDisplay(false);
-    resetPricing();
-  };
-
-  const handleVehicleRegistered = (
-    vehicle: Vehicle,
-    passageData?: any,
-    receiptData?: any
-  ) => {
-    const receipt = {
-      plateNumber: vehicle.plate_number,
-      vehicleType: vehicle.body_type?.name || "Unknown",
-      entryTime: mounted ? formatDateTime(new Date()) : "",
-      rate: passageData?.total_amount || 5,
-      receiptId:
-        receiptData?.receipt_number || mounted ? `RCP-${Date.now()}` : "",
-      vehicleDetails: vehicle,
-      gate: getGateDisplayName(),
-      passageNumber: passageData?.passage_number,
-      passageType: passageData?.passage_type,
-      paymentMethod: receiptData?.payment_method,
-      amount: receiptData?.amount,
-    };
-
-    setReceiptData(receipt);
-    setShowReceipt(true);
+  const handleEntrySuccess = (data: any) => {
+    console.log("Entry processed successfully:", data);
+    // Handle success - could show receipt, update UI, etc.
   };
 
   return (
@@ -132,7 +56,7 @@ export default function VehicleEntry() {
                 Vehicle Entry
               </h1>
               <p className="text-muted-foreground mt-2">
-                Scan license plates and register incoming vehicles
+                Simple vehicle entry processing
               </p>
               {!currentGate && (
                 <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
@@ -141,6 +65,8 @@ export default function VehicleEntry() {
                 </div>
               )}
             </div>
+            
+            {/* Gate Selection */}
             <div className="relative gate-dropdown-container">
               <Button
                 onClick={() => setShowGateDropdown(!showGateDropdown)}
@@ -153,7 +79,7 @@ export default function VehicleEntry() {
               >
                 <MapPin className="w-4 h-4" />
                 <span>
-                  {getGateDisplayName() || "Select Gate Linked To Your Station"}
+                  {getGateDisplayName() || "Select Gate"}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 transition-transform ${
@@ -203,11 +129,6 @@ export default function VehicleEntry() {
                                 <div className="font-medium">{gate.name}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {gate.station?.name || "Unknown Station"}
-                                  {gate.station?.code && (
-                                    <span className="ml-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">
-                                      ({gate.station.code})
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                               <div
@@ -233,11 +154,11 @@ export default function VehicleEntry() {
           </div>
         </motion.div>
 
-        {/* IP Camera Interface Section */}
+        {/* Camera Interface Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
         >
           <CameraInterface
             className="glass-effect"
@@ -248,74 +169,24 @@ export default function VehicleEntry() {
                     ? "gradient-maroon hover:opacity-90"
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 } transition-opacity`}
-                onClick={handleManualEntry}
+                onClick={() => setShowEntryDrawer(true)}
                 disabled={!currentGate}
                 title={!currentGate ? "Please select a gate first" : ""}
               >
                 <Pencil className="w-5 h-5" />
-                <span>{t("entry.manualEntry")}</span>
+                <span>Manual Entry</span>
               </Button>
             }
           />
         </motion.div>
-
-        {/* Pricing Display Panel */}
-        {showPricingDisplay && pricing && detectedVehicle && gateAction && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="lg:col-span-1"
-          >
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center space-x-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <span>Vehicle Detected</span>
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleClosePricingDisplay}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <CardDescription>
-                  Plate: {detectedVehicle.plate_number} • {pricing.payment_type}{" "}
-                  Payment
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PricingDisplay
-                  pricing={pricing}
-                  vehicle={detectedVehicle}
-                  gateAction={gateAction}
-                  onProcessPayment={handleProcessPayment}
-                  onAllowPassage={handleAllowPassage}
-                  isLoading={pricingLoading}
-                />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
       </div>
 
       {/* Vehicle Entry Drawer */}
       <VehicleEntryDrawer
-        open={showManualEntry}
-        onOpenChange={setShowManualEntry}
-        onVehicleRegistered={handleVehicleRegistered}
-        selectedGateId={currentGate?.id}
-      />
-
-      {/* Receipt Dialog */}
-      <ReceiptDialog
-        open={showReceipt}
-        onOpenChange={setShowReceipt}
-        receiptData={receiptData}
+        open={showEntryDrawer}
+        onOpenChange={setShowEntryDrawer}
+        gateId={currentGate?.id}
+        onSuccess={handleEntrySuccess}
       />
     </MainLayout>
   );
