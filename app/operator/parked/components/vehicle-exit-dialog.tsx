@@ -10,16 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useExitGates } from "../hooks/use-exit-gates";
 import { useCurrentGate } from "@/hooks/use-current-gate";
@@ -31,10 +23,13 @@ import {
   Clock,
   DollarSign,
   MapPin,
-  Receipt,
   Loader2,
   AlertCircle,
   CheckCircle,
+  QrCode,
+  Download,
+  Receipt,
+  Shield,
 } from "lucide-react";
 
 interface VehicleExitDialogProps {
@@ -59,9 +54,9 @@ export function VehicleExitDialog({
   } = useExitGates();
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [notes, setNotes] = useState("");
   const [exitResult, setExitResult] = useState<any>(null);
+
+
 
   const handleProcessExit = async () => {
     if (!vehicle || !currentGate) {
@@ -81,8 +76,6 @@ export function VehicleExitDialog({
       const result = await VehiclePassageService.processExit({
         plate_number: vehicle.vehicle?.plate_number || "",
         gate_id: currentGate.id,
-        payment_confirmed: paymentConfirmed,
-        notes: notes || undefined,
       });
 
       setExitResult(result);
@@ -97,8 +90,6 @@ export function VehicleExitDialog({
         setTimeout(() => {
           onOpenChange(false);
           setExitResult(null);
-          setPaymentConfirmed(false);
-          setNotes("");
         }, 2000);
       } else {
         toast.error(result.message || "Failed to process vehicle exit");
@@ -118,7 +109,7 @@ export function VehicleExitDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-white border border-gray-200 shadow-2xl max-w-2xl">
+      <DialogContent className="bg-white border border-gray-200 shadow-2xl w-[95vw] max-w-7xl mx-4 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-center text-gradient flex items-center justify-center space-x-2">
             <span className={`text-xl ${vehicleIcon.color}`}>
@@ -133,128 +124,81 @@ export function VehicleExitDialog({
 
         <div className="space-y-6">
           {/* Vehicle Information */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 p-6 rounded-xl border border-blue-200 dark:border-blue-800"
-          >
-            <div className="flex items-center space-x-4 mb-4">
-              <div className={`p-3 rounded-full ${vehicleIcon.bgColor}`}>
-                <span className={`text-xl ${vehicleIcon.color}`}>
-                  {vehicleIcon.icon}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">
-                  {vehicle.vehicle?.plate_number}
-                </h3>
-                <div className="flex items-center space-x-2 mt-1">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${vehicleIcon.bgColor} ${vehicleIcon.color}`}
-                  >
-                    {vehicleType}
-                  </span>
-                  {/* {vehicle.spot && (
-                    <span className="text-sm text-muted-foreground">
-                      Spot: {vehicle.spot}
-                    </span>
-                  )} */}
-                </div>
-              </div>
-            </div>
+         
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Entry Time</p>
-                  <p className="font-medium">
-                    {formatDateTime(vehicle.entry_time)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Duration</p>
-                  <p className="font-medium">{vehicle.duration}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Fee</p>
-                  <p className="font-bold text-primary">{vehicle.currentFee}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Receipt className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Passage Number</p>
-                  <p className="font-mono text-xs">{vehicle.passage_number}</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Exit Configuration */}
+          {/* Receipt Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="space-y-4"
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6"
           >
-            <h4 className="font-semibold text-lg">Exit Configuration</h4>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-lg flex items-center space-x-2">
+                {/* <Receipt className="w-5 h-5" /> */}
+                <span>Parking Receipt</span>
+              </h4>
+              <Button onClick={() => toast.success("Receipt downloaded successfully")} size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+            </div>
 
-            {/* Current Gate Display */}
-            <div className="space-y-2">
-              <Label>Exit Gate</Label>
-              <div className="flex items-center space-x-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
+            {/* Receipt Content */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              {/* Receipt Header with Shield Icon */}
+              <div className="flex items-center space-x-3 mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="w-12 h-12 gradient-maroon rounded-lg  flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
                 <div>
-                  <span className="font-medium">{currentGate?.name}</span>
-                  {currentGate?.stationName && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ({currentGate.stationName})
-                    </span>
-                  )}
+                  <h3 className="font-bold text-lg">Chato Parking</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Parking Receipt</p>
                 </div>
               </div>
-            </div>
 
-            {/* Payment Confirmation */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Payment Status</Label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="paymentConfirmed"
-                  checked={paymentConfirmed}
-                  onChange={(e) => setPaymentConfirmed(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor="paymentConfirmed" className="text-sm">
-                  Payment has been confirmed
-                </Label>
-              </div>
-              {!paymentConfirmed && (
-                <div className="flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Payment confirmation required for exit</span>
+              {/* Receipt Details */}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Receipt #:</span>
+                  <span className="font-mono">{vehicle?.passage_number || 'N/A'}</span>
                 </div>
-              )}
-            </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Plate Number:</span>
+                  <span className="font-mono font-medium">{vehicle?.vehicle?.plate_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Vehicle Type:</span>
+                  <span>{vehicleType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Entry Time:</span>
+                  <span>{formatDateTime(vehicle?.entry_time || "")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                  <span>{vehicle?.duration}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
+                  <span>Total Fee:</span>
+                  <span className="text-primary">{vehicle?.currentFee}</span>
+                </div>
+              </div>
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="exitNotes">Exit Notes (Optional)</Label>
-              <Textarea
-                id="exitNotes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Enter any additional notes about the exit..."
-                className="h-20"
-              />
+              {/* Right Column - QR Code and Footer */}
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex flex-col justify-between">
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mx-auto mb-2">
+                    <QrCode className="w-10 h-10 text-gray-500" />
+                  </div>
+                  <p className="text-xs text-green-600 mb-4">Scan to make payment</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Thank you for using Chato Parking!</p>
+                  <p className="text-xs text-gray-400 mt-1">Keep this receipt for your records</p>
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -293,12 +237,16 @@ export function VehicleExitDialog({
             </motion.div>
           )}
 
-          {/* Action Buttons */}
+        </div>
+
+      
+
+        {/* Action Buttons - Full Width at Bottom */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="flex space-x-3"
+          className="flex space-x-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700"
           >
             <Button
               variant="outline"
@@ -328,7 +276,6 @@ export function VehicleExitDialog({
               )}
             </Button>
           </motion.div>
-        </div>
       </DialogContent>
     </Dialog>
   );

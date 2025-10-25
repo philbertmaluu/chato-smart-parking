@@ -46,6 +46,9 @@ export function getVehicleTypeIcon(vehicleType: string): VehicleTypeIcon {
     case "truck":
     case "pickup":
     case "lorry":
+    case "heavy vehicle":
+    case "large vehicles":
+    case "Large Vehicles":
       return {
         icon: "🚛",
         color: "text-orange-600",

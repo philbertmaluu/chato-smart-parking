@@ -148,7 +148,7 @@ export function Sidebar({ className }: SidebarProps) {
       icon: UserCheck,
     },
     {
-      title: t("nav.vehicles"),
+      title: t("nav.vehicleFleet"),
       href: "/manager/vehicles",
       icon: Car,
     },
@@ -163,20 +163,11 @@ export function Sidebar({ className }: SidebarProps) {
       icon: BarChart3,
     },
     {
-      title: "Stations",
-      href: "/manager/stations",
-      icon: Building2,
-    },
-    {
       title: t("nav.operators"),
       href: "/manager/operators",
       icon: Users,
     },
-    {
-      title: "Gates",
-      href: "/manager/gates",
-      icon: MapPin,
-    },
+    
     {
       title: t("nav.settings"),
       href: "/manager/settings",
@@ -206,11 +197,11 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 gradient-maroon rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-gradient">Smart Parking</h2>
+              <h2 className="font-bold text-lg text-gradient">Chato Parking</h2>
               <p className="text-sm text-muted-foreground capitalize">
                 {user?.role?.name === "System Administrator"
                   ? "Admin Panel"
@@ -220,7 +211,7 @@ export function Sidebar({ className }: SidebarProps) {
               </p>
             </div>
           </div>
-        </div>
+        </div>  
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">

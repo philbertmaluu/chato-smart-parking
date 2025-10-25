@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -38,13 +38,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Car, Plus, Edit, Trash2, MoreHorizontal } from "lucide-react";
+import { Car, Plus, Edit, Trash2, MoreHorizontal, Search, Filter, Download, RefreshCw, TrendingUp, Users, Clock, DollarSign, Activity, BarChart3, PieChart } from "lucide-react";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import { formatDate } from "@/utils/date-utils";
+import { useVehicles } from "@/hooks/use-vehicles";
 import {
   useVehicleBodyTypes,
   type VehicleBodyType,
 } from "../settings/hooks/use-vehicle-body-types";
+import { toast } from "sonner";
+import { get } from "@/utils/api/api";
+import { API_ENDPOINTS } from "@/utils/api/endpoints";
 
 type Vehicle = {
   id: number;
@@ -57,49 +61,83 @@ type Vehicle = {
   owner_name?: string | null;
   is_registered: boolean;
   created_at: string;
+  body_type?: {
+    id: number;
+    name: string;
+    category?: string;
+  };
+  vehicle_passages?: any[];
 };
 
-// Mock data for demonstration
-const mockVehicles: Vehicle[] = [
-  {
-    id: 1,
-    body_type_id: 1,
-    plate_number: "T123 ABC",
-    make: "Toyota",
-    model: "Corolla",
-    year: 2018,
-    color: "Silver",
-    owner_name: "John Doe",
-    is_registered: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    body_type_id: 2,
-    plate_number: "T456 XYZ",
-    make: "Honda",
-    model: "Civic",
-    year: 2020,
-    color: "Blue",
-    owner_name: "Jane Smith",
-    is_registered: false,
-    created_at: new Date().toISOString(),
-  },
-];
-
 export default function VehiclesPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
-  const [loading, setLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "registered" | "unregistered">("all");
+  
+  // Analytics state
+  const [analytics, setAnalytics] = useState({
+    totalRevenue: 0,
+    totalPassages: 0,
+    averageStayTime: 0,
+    bodyTypeDistribution: [],
+    recentActivity: [],
+    monthlyTrends: []
+  });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Use the vehicles hook for real API data
+  const {
+    vehicles,
+    loading,
+    error,
+    pagination,
+    fetchVehicles,
+    createVehicle,
+    updateVehicle,
+    deleteVehicle,
+    toggleVehicleStatus,
+    handlePageChange,
+  } = useVehicles();
 
   // Load body types for dropdown and rendering
   const { vehicleBodyTypes, fetchVehicleBodyTypes } = useVehicleBodyTypes();
 
+  // Fetch analytics data - temporarily disabled due to backend issues
+  const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      // For now, use mock data since backend endpoints are returning 500 errors
+      // TODO: Fix backend endpoints and re-enable real data fetching
+      setAnalytics({
+        totalRevenue: 0,
+        totalPassages: 0,
+        averageStayTime: 0,
+        bodyTypeDistribution: [],
+        recentActivity: [],
+        monthlyTrends: []
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchVehicleBodyTypes?.();
-  }, [fetchVehicleBodyTypes]);
+    fetchVehicles(1);
+    // fetchAnalytics(); // Temporarily disabled due to backend 500 errors
+  }, [fetchVehicleBodyTypes, fetchVehicles]);
+
+  // Filter vehicles based on status
+  const filteredVehicles = useMemo(() => {
+    if (filterStatus === "all") return vehicles;
+    return vehicles.filter(vehicle => 
+      filterStatus === "registered" ? vehicle.is_registered : !vehicle.is_registered
+    );
+  }, [vehicles, filterStatus]);
 
   const bodyTypeById = useMemo(() => {
     const map = new Map<number, VehicleBodyType>();
@@ -297,53 +335,69 @@ export default function VehiclesPage() {
     setShowEditDialog(true);
   };
 
-  const handleCreate = () => {
-    // Simple client-side create
-    if (!formData.plate_number || !formData.body_type_id) return;
-    const next: Vehicle = {
-      id: vehicles.length ? vehicles[0].id + 1 : 1,
-      body_type_id: formData.body_type_id,
-      plate_number: formData.plate_number,
-      make: formData.make || null,
-      model: formData.model || null,
-      year: formData.year ? Number(formData.year) : null,
-      color: formData.color || null,
-      owner_name: formData.owner_name || null,
-      is_registered: formData.is_registered,
-      created_at: new Date().toISOString(),
-    };
-    setVehicles((prev) => [next, ...prev]);
-    setShowCreateDialog(false);
-    resetForm();
+  const handleCreate = async () => {
+    try {
+      if (!formData.plate_number || !formData.body_type_id) return;
+      await createVehicle({
+        body_type_id: formData.body_type_id,
+        plate_number: formData.plate_number,
+        make: formData.make || '',
+        model: formData.model || '',
+        year: formData.year ? Number(formData.year) : 0,
+        color: formData.color || '',
+        owner_name: formData.owner_name || '',
+        is_registered: formData.is_registered,
+        is_exempted: false,
+      });
+      toast.success("Vehicle created successfully");
+      setShowCreateDialog(false);
+      resetForm();
+    } catch (error) {
+      toast.error("Failed to create vehicle");
+    }
   };
 
-  const handleEdit = () => {
-    if (!selectedVehicle) return;
-    setVehicles((prev) =>
-      prev.map((v) =>
-        v.id === selectedVehicle.id
-          ? {
-              ...v,
-              body_type_id: formData.body_type_id || v.body_type_id,
-              plate_number: formData.plate_number,
-              make: formData.make || null,
-              model: formData.model || null,
-              year: formData.year ? Number(formData.year) : null,
-              color: formData.color || null,
-              owner_name: formData.owner_name || null,
-              is_registered: formData.is_registered,
-            }
-          : v
-      )
-    );
-    setShowEditDialog(false);
-    setSelectedVehicle(null);
-    resetForm();
+  const handleEdit = async () => {
+    try {
+      if (!selectedVehicle) return;
+      await updateVehicle(selectedVehicle.id, {
+        body_type_id: formData.body_type_id!,
+        plate_number: formData.plate_number,
+        make: formData.make || '',
+        model: formData.model || '',
+        year: formData.year ? Number(formData.year) : 0,
+        color: formData.color || '',
+        owner_name: formData.owner_name || '',
+        is_registered: formData.is_registered,
+      });
+      toast.success("Vehicle updated successfully");
+      setShowEditDialog(false);
+      setSelectedVehicle(null);
+      resetForm();
+    } catch (error) {
+      toast.error("Failed to update vehicle");
+    }
   };
 
-  const handleDelete = (record: Vehicle) => {
-    setVehicles((prev) => prev.filter((v) => v.id !== record.id));
+  const handleDelete = async (record: Vehicle) => {
+    try {
+      await deleteVehicle(record.id);
+      toast.success("Vehicle deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete vehicle");
+    }
   };
+
+  const handleToggleStatus = async (record: Vehicle) => {
+    try {
+      await toggleVehicleStatus(record.id);
+      toast.success(`Vehicle ${record.is_registered ? 'unregistered' : 'registered'} successfully`);
+    } catch (error) {
+      toast.error("Failed to update vehicle status");
+    }
+  };
+
+
 
   return (
     <MainLayout>
@@ -356,27 +410,205 @@ export default function VehiclesPage() {
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
-            <h1 className="text-3xl font-bold text-gradient">Vehicles</h1>
+            <h1 className="text-3xl font-bold text-gradient">Vehicle Fleet</h1>
             <p className="text-muted-foreground mt-2">
-              Manage registered and frequent vehicles
+              Manage and monitor all vehicles in the system
             </p>
           </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => fetchVehicles(1)}
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              className="gradient-maroon hover:opacity-90"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Vehicle
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Analytics Dashboard */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          {/* Total Vehicles */}
+          <Card className="relative overflow-hidden border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold">{vehicles.length}</p>
+                  <p className="text-sm text-muted-foreground">Total Vehicles</p>
+                </div>
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full">
+                  <Car className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Revenue Analytics */}
+          <Card className="relative overflow-hidden border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold">$0</p>
+                  <p className="text-sm text-muted-foreground">Total Revenue</p>
+                </div>
+                <div className="p-2 bg-gradient-to-br from-green-500 to-green-600 rounded-full">
+                  <DollarSign className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Vehicle Passages */}
+          <Card className="relative overflow-hidden border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold">0</p>
+                  <p className="text-sm text-muted-foreground">Total Passages</p>
+                </div>
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full">
+                  <Activity className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Average Stay Time */}
+          <Card className="relative overflow-hidden border-0 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold">0.0h</p>
+                  <p className="text-sm text-muted-foreground">Avg Stay Time</p>
+                </div>
+                <div className="p-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full">
+                  <Clock className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Additional Analytics Row - Compact */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-3"
+        >
+          {/* Registration Status - Compact */}
+          <Card className="h-20 border-0 shadow-sm">
+            <CardContent className="p-3 h-full flex items-center">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium">Registration</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-xs">{vehicles.filter(v => v.is_registered).length}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span className="text-xs">{vehicles.filter(v => !v.is_registered).length}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Vehicle Types - Compact */}
+          <Card className="h-20 border-0 shadow-sm">
+            <CardContent className="p-3 h-full flex items-center">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2">
+                  <PieChart className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium">Types</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Analytics disabled
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity - Compact */}
+          <Card className="h-20 border-0 shadow-sm">
+            <CardContent className="p-3 h-full flex items-center">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium">Activity</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-green-600">+24</span>
+                  <span className="text-xs text-blue-600">+18</span>
+                  <span className="text-xs text-purple-600">6</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="flex flex-col sm:flex-row gap-4"
+        >
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search vehicles by plate, make, model, or owner..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+          <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vehicles</SelectItem>
+              <SelectItem value="registered">Registered Only</SelectItem>
+              <SelectItem value="unregistered">Unregistered Only</SelectItem>
+            </SelectContent>
+          </Select>
         </motion.div>
 
         {/* Vehicles Table */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
         >
           <DataTable
-            dataSource={vehicles}
+            dataSource={filteredVehicles}
             columns={columns}
             loading={loading}
             exportable
             searchable
             searchPlaceholder="Search vehicles..."
-            exportFileName="vehicles"
+            exportFileName="vehicle-fleet"
             searchFields={[
               "plate_number",
               "make",
@@ -384,21 +616,20 @@ export default function VehiclesPage() {
               "color",
               "owner_name",
             ]}
-            actionButtons={
-              <Button
-                onClick={openCreateDialog}
-                className="gradient-maroon hover:opacity-90"
-              >
-                <Plus className="w-4 h-4 mr-2" /> Add Vehicle
-              </Button>
-            }
+            pagination={{
+              currentPage: pagination.current_page,
+              total: pagination.total,
+              perPage: pagination.per_page,
+              lastPage: pagination.last_page,
+              onPageChange: handlePageChange,
+            }}
           />
         </motion.div>
       </div>
 
       {/* Create Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="glass-effect border-0 shadow-2xl max-w-lg">
+        <DialogContent className="bg-white border-0 shadow-2xl max-w-lg">
           <DialogHeader>
             <DialogTitle>Add New Vehicle</DialogTitle>
             <DialogDescription>Create a new vehicle record</DialogDescription>
@@ -528,7 +759,7 @@ export default function VehiclesPage() {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="glass-effect border-0 shadow-2xl max-w-lg">
+        <DialogContent className="bg-white border-0 shadow-2xl max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Vehicle</DialogTitle>
             <DialogDescription>Update vehicle information</DialogDescription>

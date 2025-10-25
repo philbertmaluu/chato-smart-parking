@@ -69,7 +69,7 @@ export const useVehicles = () => {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        per_page: pagination.per_page.toString(),
+        per_page: '15', // Use fixed per_page to avoid dependency issues
       });
       
       if (search) {
@@ -101,7 +101,7 @@ export const useVehicles = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.per_page]);
+  }, []);
 
   const createVehicle = useCallback(async (data: CreateVehicleData) => {
     setLoading(true);

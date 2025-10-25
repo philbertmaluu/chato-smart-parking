@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { get, post, put, del } from '@/utils/api/api';
 import { API_ENDPOINTS } from '@/utils/api/endpoints';
 
@@ -64,7 +64,7 @@ export const useVehicleBodyTypes = () => {
   });
 
   // Fetch all vehicle body types
-  const fetchVehicleBodyTypes = async (page: number = 1) => {
+  const fetchVehicleBodyTypes = useCallback(async (page: number = 1) => {
     setLoading(true);
     setError(null);
     try {
@@ -95,10 +95,10 @@ export const useVehicleBodyTypes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Create new vehicle body type
-  const createVehicleBodyType = async (data: CreateVehicleBodyTypeData) => {
+  const createVehicleBodyType = useCallback(async (data: CreateVehicleBodyTypeData) => {
     setLoading(true);
     setError(null);
     try {
@@ -114,10 +114,10 @@ export const useVehicleBodyTypes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Update vehicle body type
-  const updateVehicleBodyType = async (data: UpdateVehicleBodyTypeData) => {
+  const updateVehicleBodyType = useCallback(async (data: UpdateVehicleBodyTypeData) => {
     setLoading(true);
     setError(null);
     try {
@@ -137,10 +137,10 @@ export const useVehicleBodyTypes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Delete vehicle body type
-  const deleteVehicleBodyType = async (id: number) => {
+  const deleteVehicleBodyType = useCallback(async (id: number) => {
     setLoading(true);
     setError(null);
     try {
@@ -152,10 +152,10 @@ export const useVehicleBodyTypes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Toggle active status
-  const toggleActiveStatus = async (id: number, isActive: boolean) => {
+  const toggleActiveStatus = useCallback(async (id: number, isActive: boolean) => {
     setLoading(true);
     setError(null);
     try {
@@ -175,12 +175,12 @@ export const useVehicleBodyTypes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Handle page change
-  const handlePageChange = async (page: number) => {
+  const handlePageChange = useCallback(async (page: number) => {
     await fetchVehicleBodyTypes(page);
-  };
+  }, [fetchVehicleBodyTypes]);
 
   // Load vehicle body types on mount
   useEffect(() => {

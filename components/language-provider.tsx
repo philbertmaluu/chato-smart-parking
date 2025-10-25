@@ -16,9 +16,10 @@ const translations = {
     // Navigation
     "nav.dashboard": "Dashboard",
     "nav.vehicles": "Vehicles",
+    "nav.vehicleFleet": "Vehicle Fleet",
     "nav.entry": "Entry",
     "nav.parked": "Parked",
-    "nav.history": "History",
+    "nav.history": "Passage History",
     "nav.bundles": "Manage Bundles",
     "nav.bundleSubscriptions": "Bundle Subscriptions",
     "nav.accounts": "Customer Accounts",
@@ -74,9 +75,10 @@ const translations = {
     // Navigation
     "nav.dashboard": "Dashibodi",
     "nav.vehicles": "Magari",
+    "nav.vehicleFleet": "Kikosi cha Magari",
     "nav.entry": "Kuingia",
     "nav.parked": "Yaliyoegeshwa",
-    "nav.history": "Historia",
+    "nav.history": "Historia ya Kupita",
     "nav.analytics": "Uchambuzi",
     "nav.operators": "Waendeshaji",
     "nav.customers": "Wateja",
