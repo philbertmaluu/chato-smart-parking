@@ -17,6 +17,7 @@ export class PricingService {
     plateNumber: string,
     gateId: number,
     operatorId: number,
+    direction: 'entry' | 'exit' = 'entry',
     additionalData?: {
       account_id?: number;
       notes?: string;
@@ -26,6 +27,7 @@ export class PricingService {
       plate_number: plateNumber,
       gate_id: gateId,
       operator_id: operatorId,
+      direction: direction,
       additional_data: additionalData,
     };
 

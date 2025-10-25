@@ -57,6 +57,7 @@ export interface PlateDetectionRequest {
   plate_number: string;
   gate_id: number;
   operator_id: number;
+  direction: 'entry' | 'exit';
   additional_data?: {
     account_id?: number;
     notes?: string;

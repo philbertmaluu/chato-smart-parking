@@ -178,7 +178,8 @@ export function VehicleEntryDrawer({
       const success = await processPlateDetection(
         plateToSearch,
         selectedGateId,
-        user.id
+        user.id,
+        'entry' // Direction: entry for vehicle entry processing
       );
 
       if (success && detectedVehicle) {

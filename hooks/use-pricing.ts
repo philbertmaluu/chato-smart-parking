@@ -17,6 +17,7 @@ interface UsePricingReturn {
     plateNumber: string,
     gateId: number,
     operatorId: number,
+    direction?: 'entry' | 'exit',
     additionalData?: {
       account_id?: number;
       notes?: string;
@@ -50,6 +51,7 @@ export function usePricing(): UsePricingReturn {
     plateNumber: string,
     gateId: number,
     operatorId: number,
+    direction: 'entry' | 'exit' = 'entry',
     additionalData?: {
       account_id?: number;
       notes?: string;
@@ -63,6 +65,7 @@ export function usePricing(): UsePricingReturn {
         plateNumber,
         gateId,
         operatorId,
+        direction,
         additionalData
       );
 

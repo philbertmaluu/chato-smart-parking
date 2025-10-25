@@ -63,8 +63,8 @@ export const API_ENDPOINTS = {
 
   // Gate control endpoints
   GATE_CONTROL: {
-    PLATE_DETECTION: "/toll-v1/gate-control/plate-detection",
-    QUICK_LOOKUP: "/toll-v1/gate-control/quick-lookup",
+    PLATE_DETECTION: "/gate-control/plate-detection",
+    QUICK_LOOKUP: "/gate-control/quick-lookup",
     MANUAL: "/gate-control/manual",
     EMERGENCY: "/gate-control/emergency",
     GATE_STATUS: (gateId: string | number) => `/gate-control/gates/${gateId}/status`,
