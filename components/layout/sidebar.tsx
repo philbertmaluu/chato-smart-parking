@@ -157,11 +157,11 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/manager/history",
       icon: History,
     },
-    {
-      title: t("nav.analytics"),
-      href: "/manager/analytics",
-      icon: BarChart3,
-    },
+    // {
+    //   title: t("nav.analytics"),
+    //   href: "/manager/analytics",
+    //   icon: BarChart3,
+    // },
     {
       title: t("nav.operators"),
       href: "/manager/operators",
