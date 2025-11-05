@@ -168,10 +168,6 @@ export function OperatorsTable({ onViewDetails, onStatusChange }: OperatorsTable
             return false;
           };
 
-          const getStatusEmoji = (isActive: boolean) => {
-            return isActive ? "🟢" : "⚪";
-          };
-
           const getStatusLabel = (isActive: boolean) => {
             return isActive ? "Active" : "Inactive";
           };
@@ -201,18 +197,15 @@ export function OperatorsTable({ onViewDetails, onStatusChange }: OperatorsTable
           };
 
           return (
-            <div className="flex items-center space-x-3">
-              <span className="text-lg">{getStatusEmoji(isActiveValue)}</span>
-              <div className="flex flex-col">
-                <Switch
-                  checked={isActiveValue}
-                  onCheckedChange={handleStatusChange}
-                  disabled={loading}
-                />
-                <span className={`text-xs mt-1 ${getStatusColor(isActiveValue)}`}>
-                  {getStatusLabel(isActiveValue)}
-                </span>
-              </div>
+            <div className="flex flex-col items-start">
+              <Switch
+                checked={isActiveValue}
+                onCheckedChange={handleStatusChange}
+                disabled={loading}
+              />
+              <span className={`text-xs mt-1 ${getStatusColor(isActiveValue)}`}>
+                {getStatusLabel(isActiveValue)}
+              </span>
             </div>
           );
         },
