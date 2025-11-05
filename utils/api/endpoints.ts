@@ -128,15 +128,6 @@ export const API_ENDPOINTS = {
     ACTIVE_LIST: "/stations/active/list",
   },
 
-  // Operator management endpoints
-  OPERATORS: {
-    LIST: "/operators",
-    DETAILS: (id: string | number) => `/operators/${id}`,
-    CREATE: "/operators",
-    UPDATE: (id: string | number) => `/operators/${id}`,
-    DELETE: (id: string | number) => `/operators/${id}`,
-    ASSIGN_STATION: (id: string | number) => `/operators/${id}/assign-station`,
-  },
 
   // Analytics endpoints
   ANALYTICS: {
@@ -292,6 +283,28 @@ export const API_ENDPOINTS = {
     ACTIVE_LIST: "/gate-devices/active/list",
     TEST_CONNECTION: (id: string | number) => `/gate-devices/${id}/test-connection`,
     TOGGLE_STATUS: (id: string | number) => `/gate-devices/${id}/toggle-status`,
+  },
+
+  // Operators endpoints (Operators Management)
+  OPERATORS: {
+    LIST: "/operators",
+    ALL: "/operators/all",
+    CREATE: "/operators",
+    DETAILS: (id: string | number) => `/operators/${id}`,
+    UPDATE: (id: string | number) => `/operators/${id}`,
+    DELETE: (id: string | number) => `/operators/${id}`,
+    ACTIVATE: (id: string | number) => `/operators/${id}/activate`,
+    DEACTIVATE: (id: string | number) => `/operators/${id}/deactivate`,
+    RESET_PASSWORD: (id: string | number) => `/operators/${id}/reset-password`,
+    STATIONS: (id: string | number) => `/operators/${id}/stations`,
+    AVAILABLE_GATES: (id: string | number) => `/operators/${id}/available-gates`,
+    ASSIGN_STATION: (id: string | number) => `/operators/${id}/assign-station`,
+    UNASSIGN_STATION: (id: string | number) => `/operators/${id}/unassign-station`,
+  },
+  
+  // Roles endpoints
+  ROLES: {
+    LIST: "/roles",
   },
 } as const;
 
