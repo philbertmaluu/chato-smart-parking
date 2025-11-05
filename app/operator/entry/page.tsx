@@ -10,20 +10,70 @@ import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
 import { useGates } from "@/app/manager/settings/hooks/use-gates";
 import { useCurrentGate } from "@/hooks/use-current-gate";
-import { zktecoConfig } from "@/utils/config/zkteco-config";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle } from "lucide-react";
+import { useCurrentStation } from "@/hooks/use-current-station";
+import { useGateCamera } from "@/hooks/use-gate-camera";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2 } from "lucide-react";
 
 export default function VehicleEntry() {
-  const { gates, loading: gatesLoading, fetchActive } = useGates();
-  const { currentGate, selectGate, getGateDisplayName } = useCurrentGate();
+  const { gates, loading: gatesLoading, fetchActive, fetchByStation } = useGates();
+  const { currentGate, selectGate, getGateDisplayName, clearGate } = useCurrentGate();
+  const { currentStation, selectStation, getStationDisplayName } = useCurrentStation();
+  const { cameraConfig, loading: cameraLoading, error: cameraError, fetchCameraConfig } = useGateCamera();
+  const [stations, setStations] = useState<any[]>([]);
+  const [stationsLoading, setStationsLoading] = useState(false);
+  const [showStationDropdown, setShowStationDropdown] = useState(false);
   const [showGateDropdown, setShowGateDropdown] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
-  const [cameraConfig] = useState(zktecoConfig.getConfig());
   const imageRef = useRef<HTMLImageElement>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch stations on mount
+  useEffect(() => {
+    fetchStations();
+  }, []);
+
+  // Fetch gates when station changes
+  useEffect(() => {
+    if (currentStation?.id) {
+      fetchByStation(currentStation.id);
+      // Clear current gate when station changes
+      clearGate();
+    }
+  }, [currentStation?.id, fetchByStation, clearGate]);
+
+  const fetchStations = async () => {
+    setStationsLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/toll-v1/stations/active/list', {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setStations(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching stations:', error);
+    } finally {
+      setStationsLoading(false);
+    }
+  };
+
+  // Fetch camera config when gate changes
+  useEffect(() => {
+    if (currentGate?.id) {
+      fetchCameraConfig(currentGate.id);
+    }
+  }, [currentGate?.id, fetchCameraConfig]);
+
   // Auto-refresh camera feed
   useEffect(() => {
+    if (!cameraConfig) return;
+
     const refreshCamera = () => {
       if (imageRef.current) {
         const timestamp = new Date().toISOString();
@@ -40,27 +90,24 @@ export default function VehicleEntry() {
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [cameraConfig.ip]);
-
-  useEffect(() => {
-    fetchActive();
-  }, [fetchActive]);
+  }, [cameraConfig]);
 
   // Close dropdown when clicking outside
   const handleClickOutside = useCallback((event: MouseEvent) => {
     const target = event.target as Element;
-    if (!target.closest(".gate-dropdown-container")) {
+    if (!target.closest(".station-dropdown-container") && !target.closest(".gate-dropdown-container")) {
+      setShowStationDropdown(false);
       setShowGateDropdown(false);
     }
   }, []);
 
   useEffect(() => {
-    if (showGateDropdown) {
+    if (showStationDropdown || showGateDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
       return () =>
         document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [showGateDropdown, handleClickOutside]);
+  }, [showStationDropdown, showGateDropdown, handleClickOutside]);
 
   const handleEntrySuccess = (data: any) => {
     console.log("Entry processed successfully:", data);
@@ -84,7 +131,13 @@ export default function VehicleEntry() {
               <p className="text-muted-foreground mt-2">
                 Simple vehicle entry processing
               </p>
-              {!currentGate && (
+              {!currentStation && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span>Please select your station first</span>
+                </div>
+              )}
+              {currentStation && !currentGate && (
                 <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
                   <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                   <span>Please select a gate to start processing vehicles</span>
@@ -92,33 +145,109 @@ export default function VehicleEntry() {
               )}
             </div>
             
-            {/* Gate Selection */}
-            <div className="relative gate-dropdown-container">
-              <Button
-                onClick={() => setShowGateDropdown(!showGateDropdown)}
-                variant={currentGate ? "default" : "outline"}
-                className={`${
-                  currentGate
-                    ? "bg-gradient-maroon text-white border-0"
-                    : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
-                } transition-all duration-200 flex items-center space-x-2`}
-              >
-                <MapPin className="w-4 h-4" />
-                <span>
-                  {getGateDisplayName() || "Select Gate"}
-                </span>
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform ${
-                    showGateDropdown ? "rotate-180" : ""
-                  }`}
-                />
-              </Button>
+            {/* Station & Gate Selection */}
+            <div className="flex items-center gap-3">
+              {/* Station Selection */}
+              <div className="relative station-dropdown-container">
+                <Button
+                  onClick={() => setShowStationDropdown(!showStationDropdown)}
+                  variant={currentStation ? "default" : "outline"}
+                  className={`${
+                    currentStation
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0"
+                      : "border-blue-500 text-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-700 hover:text-white"
+                  } transition-all duration-200 flex items-center space-x-2`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>
+                    {getStationDisplayName() || "Select Station"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showStationDropdown ? "rotate-180" : ""
+                    }`}
+                  />
+                </Button>
 
-              {/* Gate Dropdown */}
-              {showGateDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                {/* Station Dropdown */}
+                {showStationDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50"
+                  >
+                    <div className="p-2">
+                      <div className="text-xs font-medium text-muted-foreground px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                        Select Your Station
+                      </div>
+                      {stationsLoading ? (
+                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                          Loading stations...
+                        </div>
+                      ) : stations.length === 0 ? (
+                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                          No stations available
+                        </div>
+                      ) : (
+                        <div className="max-h-60 overflow-y-auto">
+                          {stations.map((station) => (
+                            <button
+                              key={station.id}
+                              onClick={() => {
+                                selectStation(station);
+                                setShowStationDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                                currentStation?.id === station.id
+                                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white"
+                                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                              }`}
+                            >
+                              <div className="font-medium">{station.name}</div>
+                              {station.code && (
+                                <div className="text-xs text-muted-foreground">
+                                  Code: {station.code}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Gate Selection - Only show if station is selected */}
+              {currentStation && (
+                <div className="relative gate-dropdown-container">
+                  <Button
+                    onClick={() => setShowGateDropdown(!showGateDropdown)}
+                    variant={currentGate ? "default" : "outline"}
+                    className={`${
+                      currentGate
+                        ? "bg-gradient-maroon text-white border-0"
+                        : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
+                    } transition-all duration-200 flex items-center space-x-2`}
+                  >
+                    <MapPin className="w-4 h-4" />
+                    <span>
+                      {getGateDisplayName() || "Select Gate"}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${
+                        showGateDropdown ? "rotate-180" : ""
+                      }`}
+                    />
+                  </Button>
+
+                  {/* Gate Dropdown */}
+                  {showGateDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
                   transition={{ duration: 0.2 }}
                   className="absolute top-full right-0 mt-2 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50"
@@ -172,21 +301,22 @@ export default function VehicleEntry() {
                           </button>
                         ))}
                       </div>
-                    )}
-                  </div>
-                </motion.div>
+                      )}
+                    </div>
+                  </motion.div>
+                  )}
+                </div>
               )}
             </div>
           </div>
-        </motion.div>
-
-        {/* Camera Interface Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        >
-          <div className="relative">
+        </motion.div>        {/* Camera Interface Section - Only show if station and gate are selected */}
+        {currentStation && currentGate && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+          >
+            <div className="relative">
             {/* Camera Feed - Full Width */}
             <Card className="glass-effect">
               <CardHeader className="pb-3">
@@ -196,7 +326,12 @@ export default function VehicleEntry() {
                     <div>
                       <CardTitle>Live Camera Feed</CardTitle>
                       <CardDescription>
-                        Real-time monitoring from ZKTeco camera at {cameraConfig.ip}
+                        {cameraConfig 
+                          ? `Real-time monitoring from camera at ${cameraConfig.ip}`
+                          : currentGate 
+                            ? 'Loading camera configuration...' 
+                            : 'Select a gate to view camera feed'
+                        }
                       </CardDescription>
                     </div>
                   </div>
@@ -227,62 +362,97 @@ export default function VehicleEntry() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
-                  <img
-                    ref={imageRef}
-                    src={`http://${cameraConfig.ip}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`}
-                    alt="Camera Feed"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      target.style.display = 'none';
-                      const errorDiv = target.nextElementSibling as HTMLElement;
-                      if (errorDiv && errorDiv.classList.contains('error-message')) {
-                        errorDiv.style.display = 'flex';
-                      }
-                    }}
-                  />
-                  <div className="error-message absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4" style={{ display: 'none' }}>
-                    <div className="text-center space-y-2">
+                {cameraLoading ? (
+                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
+                    <div className="text-white text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                      <p>Loading camera configuration...</p>
+                    </div>
+                  </div>
+                ) : cameraError ? (
+                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
+                    <div className="text-center space-y-2 p-4">
                       <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-                      <p className="font-semibold">Cannot connect to camera</p>
-                      <p className="text-sm text-gray-400">
-                        Camera at {cameraConfig.ip} is not accessible from this browser.
-                      </p>
+                      <p className="font-semibold text-white">Camera Configuration Error</p>
+                      <p className="text-sm text-gray-400">{cameraError}</p>
                     </div>
                   </div>
-                  
-                  {/* Live Indicator */}
-                  <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                    <span className="text-white font-medium text-sm">LIVE</span>
-                  </div>
-                  
-                  {/* Camera Info */}
-                  <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                    <p className="text-white text-sm font-mono">{cameraConfig.ip}</p>
-                  </div>
-                  
-                  {/* Current Gate Overlay (Mobile) */}
-                  {currentGate && (
-                    <div className="md:hidden absolute bottom-4 left-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                      <p className="text-white text-xs">Gate: {currentGate.name}</p>
+                ) : !cameraConfig ? (
+                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
+                    <div className="text-center space-y-2 p-4">
+                      <Camera className="w-12 h-12 mx-auto text-gray-500" />
+                      <p className="font-semibold text-white">No Gate Selected</p>
+                      <p className="text-sm text-gray-400">Please select a gate to view the camera feed</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
+                    <img
+                      ref={imageRef}
+                      src={`http://${cameraConfig.ip}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`}
+                      alt="Camera Feed"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const errorDiv = target.nextElementSibling as HTMLElement;
+                        if (errorDiv && errorDiv.classList.contains('error-message')) {
+                          errorDiv.style.display = 'flex';
+                        }
+                      }}
+                    />
+                    <div className="error-message absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4" style={{ display: 'none' }}>
+                      <div className="text-center space-y-2">
+                        <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
+                        <p className="font-semibold">Cannot connect to camera</p>
+                        <p className="text-sm text-gray-400">
+                          Camera at {cameraConfig.ip} is not accessible from this browser.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Live Indicator */}
+                    <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
+                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      <span className="text-white font-medium text-sm">LIVE</span>
+                    </div>
+                    
+                    {/* Camera Info */}
+                    <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
+                      <p className="text-white text-sm font-mono">{cameraConfig.ip}</p>
+                    </div>
+                    
+                    {/* Current Gate Overlay (Mobile) */}
+                    {currentGate && (
+                      <div className="md:hidden absolute bottom-4 left-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
+                        <p className="text-white text-xs">Gate: {currentGate.name}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="flex items-center justify-between">
-                  <Alert className="flex-1">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <AlertDescription>
-                      <strong>Live monitoring active</strong> - Auto-refreshing every 500ms for real-time vehicle detection.
-                    </AlertDescription>
-                  </Alert>
+                  {cameraConfig ? (
+                    <Alert className="flex-1">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <AlertDescription>
+                        <strong>Live monitoring active</strong> - Auto-refreshing every 500ms for real-time vehicle detection.
+                      </AlertDescription>
+                    </Alert>
+                  ) : currentGate ? (
+                    <Alert className="flex-1" variant="destructive">
+                      <AlertCircle className="w-4 h-4" />
+                      <AlertDescription>
+                        <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
           </div>
         </motion.div>
+        )}
       </div>
 
       {/* Vehicle Entry Drawer */}
