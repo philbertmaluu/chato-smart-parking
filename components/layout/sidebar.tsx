@@ -161,7 +161,7 @@ export function Sidebar({ className }: SidebarProps) {
     //   title: t("nav.analytics"),
     //   href: "/manager/analytics",
     //   icon: BarChart3,
-    // },
+    // },0620
     {
       title: t("nav.operators"),
       href: "/manager/operators",
