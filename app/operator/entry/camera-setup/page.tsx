@@ -175,10 +175,7 @@ export default function CameraSetupPage() {
                 <TestTube className="w-4 h-4" />
                 Testing & Preview
               </TabsTrigger>
-              <TabsTrigger value="advanced" className="flex items-center gap-2">
-                <Monitor className="w-4 h-4" />
-                Advanced
-              </TabsTrigger>
+             
             </TabsList>
 
             {/* Configuration Tab */}
@@ -496,87 +493,6 @@ export default function CameraSetupPage() {
               </motion.div>
             </TabsContent>
 
-            {/* Advanced Tab */}
-            <TabsContent value="advanced" className="space-y-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Advanced Settings</CardTitle>
-                    <CardDescription>
-                      Advanced configuration and troubleshooting tools
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Current Configuration (JSON)</Label>
-                      <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
-                        <pre className="text-sm overflow-x-auto">
-                          {JSON.stringify(formData, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <Label>Quick Access Links</Label>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => window.open(`http://${formData.ip}:${formData.httpPort}`, '_blank')}
-                        >
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          Camera Web Interface
-                        </Button>
-                        
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => copyToClipboard(`http://${formData.ip}:${formData.httpPort}`)}
-                        >
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copy Web URL
-                        </Button>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    {/* Troubleshooting Guide */}
-                    <div className="space-y-2">
-                      <Label>Troubleshooting Guide</Label>
-                      <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                        <div className="space-y-3 text-sm">
-                          <div>
-                            <p className="font-semibold mb-1">Camera Not Found?</p>
-                            <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                              <li>Check if camera is powered on (look for LED lights)</li>
-                              <li>Verify network cable is connected</li>
-                              <li>Check your router's DHCP client list for camera IP</li>
-                              <li>Try common IPs: 192.168.1.64, 192.168.0.64, 192.168.1.108</li>
-                            </ul>
-                          </div>
-                          
-                          <div>
-                            <p className="font-semibold mb-1">Authentication Failed?</p>
-                            <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                              <li>Try default: admin/admin or admin/Password123!</li>
-                              <li>Check camera manual for default credentials</li>
-                              <li>Reset camera to factory defaults if needed</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </TabsContent>
           </Tabs>
         </div>
       </MainLayout>
