@@ -8,67 +8,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
-import { useGates } from "@/app/manager/settings/hooks/use-gates";
-import { useCurrentGate } from "@/hooks/use-current-gate";
-import { useCurrentStation } from "@/hooks/use-current-station";
+import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { useGateCamera } from "@/hooks/use-gate-camera";
+import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2 } from "lucide-react";
 
 export default function VehicleEntry() {
-  const { gates, loading: gatesLoading, fetchActive, fetchByStation } = useGates();
-  const { currentGate, selectGate, getGateDisplayName, clearGate } = useCurrentGate();
-  const { currentStation, selectStation, getStationDisplayName } = useCurrentStation();
+  const { availableGates, selectedGate, loading: gatesLoading, error: gatesError, selectGate } = useOperatorGates();
   const { cameraConfig, loading: cameraLoading, error: cameraError, fetchCameraConfig } = useGateCamera();
-  const [stations, setStations] = useState<any[]>([]);
-  const [stationsLoading, setStationsLoading] = useState(false);
-  const [showStationDropdown, setShowStationDropdown] = useState(false);
-  const [showGateDropdown, setShowGateDropdown] = useState(false);
+  const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch stations on mount
+  // Check if operator has selected a gate on mount
   useEffect(() => {
-    fetchStations();
-  }, []);
-
-  // Fetch gates when station changes
-  useEffect(() => {
-    if (currentStation?.id) {
-      fetchByStation(currentStation.id);
-      // Clear current gate when station changes
-      clearGate();
+    if (!gatesLoading && !selectedGate) {
+      setShowGateModal(true);
     }
-  }, [currentStation?.id, fetchByStation, clearGate]);
-
-  const fetchStations = async () => {
-    setStationsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/toll-v1/stations/active/list', {
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          setStations(result.data);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching stations:', error);
-    } finally {
-      setStationsLoading(false);
-    }
-  };
+  }, [gatesLoading, selectedGate]);
 
   // Fetch camera config when gate changes
   useEffect(() => {
-    if (currentGate?.id) {
-      fetchCameraConfig(currentGate.id);
+    if (selectedGate?.id) {
+      fetchCameraConfig(selectedGate.id);
     }
-  }, [currentGate?.id, fetchCameraConfig]);
+  }, [selectedGate?.id, fetchCameraConfig]);
 
   // Auto-refresh camera feed
   useEffect(() => {
@@ -92,26 +57,14 @@ export default function VehicleEntry() {
     };
   }, [cameraConfig]);
 
-  // Close dropdown when clicking outside
-  const handleClickOutside = useCallback((event: MouseEvent) => {
-    const target = event.target as Element;
-    if (!target.closest(".station-dropdown-container") && !target.closest(".gate-dropdown-container")) {
-      setShowStationDropdown(false);
-      setShowGateDropdown(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showStationDropdown || showGateDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [showStationDropdown, showGateDropdown, handleClickOutside]);
-
   const handleEntrySuccess = (data: any) => {
     console.log("Entry processed successfully:", data);
     // Handle success - could show receipt, update UI, etc.
+  };
+
+  const handleGateSelect = async (gateId: number) => {
+    await selectGate(gateId);
+    setShowGateModal(false);
   };
 
   return (
@@ -131,186 +84,42 @@ export default function VehicleEntry() {
               <p className="text-muted-foreground mt-2">
                 Simple vehicle entry processing
               </p>
-              {!currentStation && (
-                <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                  <span>Please select your station first</span>
-                </div>
-              )}
-              {currentStation && !currentGate && (
+              {!selectedGate && (
                 <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
                   <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                   <span>Please select a gate to start processing vehicles</span>
                 </div>
               )}
-            </div>
-            
-            {/* Station & Gate Selection */}
-            <div className="flex items-center gap-3">
-              {/* Station Selection */}
-              <div className="relative station-dropdown-container">
-                <Button
-                  onClick={() => setShowStationDropdown(!showStationDropdown)}
-                  variant={currentStation ? "default" : "outline"}
-                  className={`${
-                    currentStation
-                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0"
-                      : "border-blue-500 text-blue-600 hover:bg-gradient-to-r hover:from-blue-600 hover:to-blue-700 hover:text-white"
-                  } transition-all duration-200 flex items-center space-x-2`}
-                >
-                  <Building2 className="w-4 h-4" />
-                  <span>
-                    {getStationDisplayName() || "Select Station"}
-                  </span>
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform ${
-                      showStationDropdown ? "rotate-180" : ""
-                    }`}
-                  />
-                </Button>
-
-                {/* Station Dropdown */}
-                {showStationDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50"
-                  >
-                    <div className="p-2">
-                      <div className="text-xs font-medium text-muted-foreground px-3 py-2 border-b border-gray-100 dark:border-gray-800">
-                        Select Your Station
-                      </div>
-                      {stationsLoading ? (
-                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                          Loading stations...
-                        </div>
-                      ) : stations.length === 0 ? (
-                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                          No stations available
-                        </div>
-                      ) : (
-                        <div className="max-h-60 overflow-y-auto">
-                          {stations.map((station) => (
-                            <button
-                              key={station.id}
-                              onClick={() => {
-                                selectStation(station);
-                                setShowStationDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
-                                currentStation?.id === station.id
-                                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white"
-                                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                              }`}
-                            >
-                              <div className="font-medium">{station.name}</div>
-                              {station.code && (
-                                <div className="text-xs text-muted-foreground">
-                                  Code: {station.code}
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Gate Selection - Only show if station is selected */}
-              {currentStation && (
-                <div className="relative gate-dropdown-container">
-                  <Button
-                    onClick={() => setShowGateDropdown(!showGateDropdown)}
-                    variant={currentGate ? "default" : "outline"}
-                    className={`${
-                      currentGate
-                        ? "bg-gradient-maroon text-white border-0"
-                        : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
-                    } transition-all duration-200 flex items-center space-x-2`}
-                  >
-                    <MapPin className="w-4 h-4" />
-                    <span>
-                      {getGateDisplayName() || "Select Gate"}
-                    </span>
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform ${
-                        showGateDropdown ? "rotate-180" : ""
-                      }`}
-                    />
-                  </Button>
-
-                  {/* Gate Dropdown */}
-                  {showGateDropdown && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute top-full right-0 mt-2 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50"
-                >
-                  <div className="p-2">
-                    <div className="text-xs font-medium text-muted-foreground px-3 py-2 border-b border-gray-100 dark:border-gray-800">
-                      Select Your Gate
-                    </div>
-                    {gatesLoading ? (
-                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                        Loading gates...
-                      </div>
-                    ) : gates.length === 0 ? (
-                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                        No gates available
-                      </div>
-                    ) : (
-                      <div className="max-h-60 overflow-y-auto">
-                        {gates.map((gate) => (
-                          <button
-                            key={gate.id}
-                            onClick={() => {
-                              selectGate(gate);
-                              setShowGateDropdown(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
-                              currentGate?.id === gate.id
-                                ? "bg-gradient-maroon text-white"
-                                : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium">{gate.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {gate.station?.name || "Unknown Station"}
-                                </div>
-                              </div>
-                              <div
-                                className={`text-xs px-2 py-1 rounded-full ${
-                                  gate.gate_type === "entry"
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
-                                    : gate.gate_type === "exit"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-                                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
-                                }`}
-                              >
-                                {gate.gate_type}
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      )}
-                    </div>
-                  </motion.div>
-                  )}
+              {selectedGate && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Active Gate: <strong>{selectedGate.name}</strong> at {selectedGate.station?.name}</span>
                 </div>
               )}
             </div>
+            
+            {/* Gate Selection Button */}
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setShowGateModal(true)}
+                variant={selectedGate ? "default" : "outline"}
+                className={`${
+                  selectedGate
+                    ? "bg-gradient-maroon text-white border-0"
+                    : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
+                } transition-all duration-200 flex items-center space-x-2`}
+              >
+                <MapPin className="w-4 h-4" />
+                <span>
+                  {selectedGate ? selectedGate.name : "Select Gate"}
+                </span>
+              </Button>
+            </div>
           </div>
-        </motion.div>        {/* Camera Interface Section - Only show if station and gate are selected */}
-        {currentStation && currentGate && (
+        </motion.div>
+
+        {/* Camera Interface Section - Only show if gate is selected */}
+        {selectedGate && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -328,7 +137,7 @@ export default function VehicleEntry() {
                       <CardDescription>
                         {cameraConfig 
                           ? `Real-time monitoring from camera at ${cameraConfig.ip}`
-                          : currentGate 
+                          : selectedGate 
                             ? 'Loading camera configuration...' 
                             : 'Select a gate to view camera feed'
                         }
@@ -338,22 +147,22 @@ export default function VehicleEntry() {
                   
                   {/* Manual Entry Button - Top Right */}
                   <div className="flex items-center gap-3">
-                    {currentGate && (
+                    {selectedGate && (
                       <div className="hidden md:block text-right">
                         <p className="text-sm font-medium text-muted-foreground">Active Gate</p>
-                        <p className="text-base font-bold text-gradient">{currentGate.name}</p>
+                        <p className="text-base font-bold text-gradient">{selectedGate.name}</p>
                       </div>
                     )}
                     <Button
                       size="lg"
                       className={`${
-                        currentGate
+                        selectedGate
                           ? "gradient-maroon hover:opacity-90"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       } transition-opacity shadow-lg`}
                       onClick={() => setShowEntryDrawer(true)}
-                      disabled={!currentGate}
-                      title={!currentGate ? "Please select a gate first" : ""}
+                      disabled={!selectedGate}
+                      title={!selectedGate ? "Please select a gate first" : ""}
                     >
                       <Pencil className="w-5 h-5 mr-2" />
                       Manual Entry
@@ -423,9 +232,9 @@ export default function VehicleEntry() {
                     </div>
                     
                     {/* Current Gate Overlay (Mobile) */}
-                    {currentGate && (
+                    {selectedGate && (
                       <div className="md:hidden absolute bottom-4 left-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                        <p className="text-white text-xs">Gate: {currentGate.name}</p>
+                        <p className="text-white text-xs">Gate: {selectedGate.name}</p>
                       </div>
                     )}
                   </div>
@@ -439,7 +248,7 @@ export default function VehicleEntry() {
                         <strong>Live monitoring active</strong> - Auto-refreshing every 500ms for real-time vehicle detection.
                       </AlertDescription>
                     </Alert>
-                  ) : currentGate ? (
+                  ) : selectedGate ? (
                     <Alert className="flex-1" variant="destructive">
                       <AlertCircle className="w-4 h-4" />
                       <AlertDescription>
@@ -459,8 +268,17 @@ export default function VehicleEntry() {
       <VehicleEntryDrawer
         open={showEntryDrawer}
         onOpenChange={setShowEntryDrawer}
-        gateId={currentGate?.id}
+        gateId={selectedGate?.id}
         onSuccess={handleEntrySuccess}
+      />
+
+      {/* Gate Selection Modal */}
+      <GateSelectionModal
+        open={showGateModal}
+        onClose={() => setShowGateModal(false)}
+        onGateSelected={(gate) => {
+          setShowGateModal(false);
+        }}
       />
     </MainLayout>
   );
