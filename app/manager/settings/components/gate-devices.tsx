@@ -152,7 +152,7 @@ export function GateDevices() {
         dataIndex: "status",
         render: (value, record) => {
           const getStatusEmoji = (status: string | null | undefined) => {
-            if (!status) return "⚪";
+            if (!status || typeof status !== 'string') return "⚪";
             switch (status) {
               case "active":
                 return "🟢";
@@ -168,11 +168,14 @@ export function GateDevices() {
           };
 
           const getStatusLabel = (status: string | null | undefined) => {
-            if (!status) return "Unknown";
+            if (!status || typeof status !== 'string') return "Unknown";
             return status.charAt(0).toUpperCase() + status.slice(1);
           };
           
-          const statusValue = value || record.status || "inactive";
+          // Ensure we have a valid string status value
+          const statusValue = typeof value === 'string' ? value : 
+                             typeof record.status === 'string' ? record.status : 
+                             "inactive";
           const isOpen = openStatusDropdowns[record.id] || false;
           
           return (
@@ -343,13 +346,17 @@ export function GateDevices() {
   };
 
   const handleStatusChange = async (record: GateDevice, newStatus: string) => {
-    if (record.status === newStatus) {
+    // Ensure newStatus is a string
+    const statusString = String(newStatus || '');
+    const currentStatus = String(record.status || '');
+    
+    if (currentStatus === statusString) {
       return; // No change needed
     }
 
     try {
-      await toggleActiveStatus(record.id, newStatus);
-      toast.success(`Status changed to ${newStatus}`);
+      await toggleActiveStatus(record.id, statusString);
+      toast.success(`Status changed to ${statusString}`);
       await fetchGateDevices(pagination.currentPage);
     } catch (error) {
       toast.error(
