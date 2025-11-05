@@ -276,7 +276,9 @@ export default function VehicleEntry() {
       <GateSelectionModal
         open={showGateModal}
         onClose={() => setShowGateModal(false)}
-        onGateSelected={(gate) => {
+        onGateSelected={async (gate) => {
+          // Gate selection is handled by the modal itself
+          // Just close the modal after selection
           setShowGateModal(false);
         }}
       />

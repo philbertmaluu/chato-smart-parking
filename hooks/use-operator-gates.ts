@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
+import { API_ENDPOINTS } from '@/utils/api/endpoints';
+import { get, post } from '@/utils/api/api';
 
 export interface Gate {
   id: number;
@@ -31,52 +33,36 @@ interface UseOperatorGatesReturn {
   selectGate: (gateId: number) => Promise<boolean>;
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api/toll-v1';
-
 export function useOperatorGates(): UseOperatorGatesReturn {
   const [availableGates, setAvailableGates] = useState<Gate[]>([]);
   const [selectedGate, setSelectedGate] = useState<Gate | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getAuthToken = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken');
-    }
-    return null;
-  }, []);
-
   const fetchAvailableGates = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      // Silently skip fetching if not authenticated
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/operators/me/available-gates`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch available gates: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const response = await get<{
+        success: boolean;
+        data: {
+          available_gates: Gate[];
+          selected_gate: Gate | null;
+        };
+        message: string;
+      }>(API_ENDPOINTS.OPERATORS.MY_AVAILABLE_GATES);
       
-      if (result.success && result.data) {
-        setAvailableGates(result.data.available_gates || []);
-        setSelectedGate(result.data.selected_gate || null);
+      if (response.success && response.data) {
+        setAvailableGates(response.data.available_gates || []);
+        // Set selected gate if available
+        if (response.data.selected_gate) {
+          setSelectedGate(response.data.selected_gate);
+        } else {
+          setSelectedGate(null);
+        }
       } else {
-        throw new Error(result.message || 'Failed to fetch gates');
+        throw new Error(response.message || 'Failed to fetch gates');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -85,40 +71,44 @@ export function useOperatorGates(): UseOperatorGatesReturn {
     } finally {
       setLoading(false);
     }
-  }, [getAuthToken]);
+  }, []);
 
   const selectGate = useCallback(async (gateId: number): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
     try {
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/operators/me/select-gate`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ gate_id: gateId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to select gate: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const response = await post<{
+        success: boolean;
+        data: {
+          operator: any;
+          gate_devices: any[];
+        };
+        message: string;
+      }>(API_ENDPOINTS.OPERATORS.SELECT_GATE, { gate_id: gateId });
       
-      if (result.success && result.data) {
-        setSelectedGate(result.data);
+      if (response.success) {
+        // The response includes both operator and gate_devices
+        // We need to extract the selected gate from the operator's assigned stations
+        // or find it from the available gates
+        const operatorData = response.data.operator || response.data;
+        if (operatorData && operatorData.assigned_stations) {
+          // Find the station with current_gate_id
+          const stationWithGate = operatorData.assigned_stations.find((s: any) => s.pivot?.current_gate_id);
+          if (stationWithGate && stationWithGate.pivot?.current_gate_id) {
+            const selectedGateId = stationWithGate.pivot.current_gate_id;
+            // Find the gate in available gates or fetch it
+            const gate = availableGates.find(g => g.id === selectedGateId);
+            if (gate) {
+              setSelectedGate(gate);
+            }
+          }
+        }
+        // Refresh available gates to get updated list
         await fetchAvailableGates();
         return true;
       } else {
-        throw new Error(result.message || 'Failed to select gate');
+        throw new Error(response.message || 'Failed to select gate');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -128,7 +118,7 @@ export function useOperatorGates(): UseOperatorGatesReturn {
     } finally {
       setLoading(false);
     }
-  }, [getAuthToken, fetchAvailableGates]);
+  }, [availableGates, fetchAvailableGates]);
 
   useEffect(() => {
     fetchAvailableGates();
