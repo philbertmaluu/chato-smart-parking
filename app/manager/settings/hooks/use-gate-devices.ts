@@ -187,7 +187,7 @@ export const useGateDevices = () => {
     try {
       const updated = await put<GateDevice>(
         API_ENDPOINTS.GATE_DEVICES.UPDATE(id),
-        { status: status === 'active' ? 'inactive' : 'active' }
+        { status: status }
       );
       setGateDevices((prev) => prev.map((d) => (d.id === id ? updated : d)));
       return updated;

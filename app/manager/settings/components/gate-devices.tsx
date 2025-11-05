@@ -47,7 +47,7 @@ import {
 } from "../hooks/use-gate-devices";
 import { useGates } from "../hooks/use-gates";
 import { useStations } from "../hooks/use-stations";
-import { Edit, MoreHorizontal, Plus, Trash2, Camera, Lock, Wifi, WifiOff } from "lucide-react";
+import { Edit, MoreHorizontal, Plus, Trash2, Wifi, WifiOff, ChevronDown, ChevronUp } from "lucide-react";
 import { formatDate } from "@/utils/date-utils";
 
 export function GateDevices() {
@@ -70,6 +70,7 @@ export function GateDevices() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<GateDevice | null>(null);
+  const [openStatusDropdowns, setOpenStatusDropdowns] = useState<Record<number, boolean>>({});
   const [formData, setFormData] = useState<CreateGateDeviceData>({
     gate_id: 0,
     device_type: "camera",
@@ -107,28 +108,16 @@ export function GateDevices() {
         searchable: true,
         render: (value) => {
           const isCamera = value === "camera";
+          const emoji = isCamera ? "📷" : "🚧";
           return (
             <div className="flex items-center space-x-2">
-              {isCamera ? (
-                <Camera className="h-4 w-4 text-blue-500" />
-              ) : (
-                <Lock className="h-4 w-4 text-green-500" />
-              )}
-              <Badge variant={isCamera ? "default" : "secondary"}>
+              <span className="text-lg">{emoji}</span>
+              <span className="font-medium">
                 {value === "camera" ? "Camera" : "Boom Gate"}
-              </Badge>
+              </span>
             </div>
           );
         },
-      },
-      {
-        key: "name",
-        title: "Name",
-        dataIndex: "name",
-        searchable: true,
-        render: (value) => (
-          <span className="font-medium">{value || "Unnamed Device"}</span>
-        ),
       },
       {
         key: "gate",
@@ -137,46 +126,100 @@ export function GateDevices() {
         searchable: false,
         render: (_, record) => {
           const gate = gates.find((g) => g.id === record.gate_id);
+          const station = stations.find((s) => s.id === gate?.station_id) || gate?.station;
+          const stationName = station?.name || `Station #${gate?.station_id || record.gate_id}`;
           return (
             <span className="text-muted-foreground">
-              {gate?.name || `Gate #${record.gate_id}`}
+              {stationName} - {gate?.name || `Gate #${record.gate_id}`}
             </span>
           );
         },
       },
       {
         key: "ip_address",
-        title: "IP Address",
+        title: "IP Address & Port",
         dataIndex: "ip_address",
         searchable: true,
-        render: (value) => (
-          <span className="font-mono text-sm">{value}</span>
+        render: (value, record) => (
+          <span className="font-mono text-sm">
+            {value}:{record.http_port}
+          </span>
         ),
       },
       {
-        key: "is_online",
+        key: "status",
         title: "Status",
-        dataIndex: "is_online",
-        render: (value, record) => (
-          <div className="flex items-center space-x-2">
-            {value ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-gray-400" />
-            )}
-            <Badge
-              variant={
-                record.status === "active"
-                  ? "default"
-                  : record.status === "maintenance"
-                  ? "secondary"
-                  : "destructive"
-              }
-            >
-              {record.status}
-            </Badge>
-          </div>
-        ),
+        dataIndex: "status",
+        render: (value, record) => {
+          const getStatusEmoji = (status: string | null | undefined) => {
+            if (!status) return "⚪";
+            switch (status) {
+              case "active":
+                return "🟢";
+              case "inactive":
+                return "⚪";
+              case "maintenance":
+                return "🟡";
+              case "error":
+                return "🔴";
+              default:
+                return "⚪";
+            }
+          };
+
+          const getStatusLabel = (status: string | null | undefined) => {
+            if (!status) return "Unknown";
+            return status.charAt(0).toUpperCase() + status.slice(1);
+          };
+          
+          const statusValue = value || record.status || "inactive";
+          const isOpen = openStatusDropdowns[record.id] || false;
+          
+          return (
+            <div className="flex items-center space-x-2">
+              {record.is_online ? (
+                <Wifi className="h-4 w-4 text-green-500" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-gray-400" />
+              )}
+              <DropdownMenu 
+                onOpenChange={(open) => 
+                  setOpenStatusDropdowns(prev => ({ ...prev, [record.id]: open }))
+                }
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 justify-start">
+                    <span className="mr-2">{getStatusEmoji(statusValue)}</span>
+                    {getStatusLabel(statusValue)}
+                    {isOpen ? (
+                      <ChevronUp className="h-3 w-3 ml-auto" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 ml-auto" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => handleStatusChange(record, "active")}>
+                    <span className="mr-2">🟢</span>
+                    Active
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange(record, "inactive")}>
+                    <span className="mr-2">⚪</span>
+                    Inactive
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange(record, "maintenance")}>
+                    <span className="mr-2">🟡</span>
+                    Maintenance
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange(record, "error")}>
+                    <span className="mr-2">🔴</span>
+                    Error
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
       },
       {
         key: "created_at",
@@ -299,10 +342,15 @@ export function GateDevices() {
     }
   };
 
-  const handleToggleStatus = async (id: number, currentStatus: string) => {
+  const handleStatusChange = async (record: GateDevice, newStatus: string) => {
+    if (record.status === newStatus) {
+      return; // No change needed
+    }
+
     try {
-      await toggleActiveStatus(id, currentStatus);
-      toast.success("Status updated successfully");
+      await toggleActiveStatus(record.id, newStatus);
+      toast.success(`Status changed to ${newStatus}`);
+      await fetchGateDevices(pagination.currentPage);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update status"

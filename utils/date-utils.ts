@@ -4,15 +4,31 @@
 
 /**
  * Formats a date string or Date object to "DD-MMM-YYYY" format (e.g., "30-May-2025")
- * @param date - Date string, Date object, or timestamp
- * @returns Formatted date string
+ * @param date - Date string, Date object, timestamp, or null/undefined
+ * @returns Formatted date string or "-" for null/undefined
  */
-export function formatDate(date: string | Date | number): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : 
-                  typeof date === 'number' ? new Date(date) : date;
+export function formatDate(date: string | Date | number | null | undefined): string {
+  if (!date || date === null || date === undefined) {
+    return '-';
+  }
   
-  if (isNaN(dateObj.getTime())) {
-    return 'Invalid Date';
+  let dateObj: Date;
+  
+  if (typeof date === 'string') {
+    if (date.trim() === '' || date === 'null' || date === 'undefined') {
+      return '-';
+    }
+    dateObj = new Date(date);
+  } else if (typeof date === 'number') {
+    dateObj = new Date(date);
+  } else if (date instanceof Date) {
+    dateObj = date;
+  } else {
+    return '-';
+  }
+  
+  if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+    return '-';
   }
 
   const day = dateObj.getDate().toString().padStart(2, '0');
@@ -24,15 +40,19 @@ export function formatDate(date: string | Date | number): string {
 
 /**
  * Formats a date string or Date object to "DD-MMM-YYYY HH:MM" format (e.g., "30-May-2025 14:30")
- * @param date - Date string, Date object, or timestamp
- * @returns Formatted date and time string
+ * @param date - Date string, Date object, timestamp, or null/undefined
+ * @returns Formatted date and time string or "-" for null/undefined
  */
-export function formatDateTime(date: string | Date | number): string {
+export function formatDateTime(date: string | Date | number | null | undefined): string {
+  if (!date) {
+    return '-';
+  }
+  
   const dateObj = typeof date === 'string' ? new Date(date) : 
                   typeof date === 'number' ? new Date(date) : date;
   
-  if (isNaN(dateObj.getTime())) {
-    return 'Invalid Date';
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return '-';
   }
 
   const formattedDate = formatDate(dateObj);
@@ -44,15 +64,19 @@ export function formatDateTime(date: string | Date | number): string {
 
 /**
  * Formats a date string or Date object to "HH:MM" format (e.g., "14:30")
- * @param date - Date string, Date object, or timestamp
- * @returns Formatted time string
+ * @param date - Date string, Date object, timestamp, or null/undefined
+ * @returns Formatted time string or "-" for null/undefined
  */
-export function formatTime(date: string | Date | number): string {
+export function formatTime(date: string | Date | number | null | undefined): string {
+  if (!date) {
+    return '-';
+  }
+  
   const dateObj = typeof date === 'string' ? new Date(date) : 
                   typeof date === 'number' ? new Date(date) : date;
   
-  if (isNaN(dateObj.getTime())) {
-    return 'Invalid Time';
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return '-';
   }
 
   const hours = dateObj.getHours().toString().padStart(2, '0');
@@ -63,15 +87,19 @@ export function formatTime(date: string | Date | number): string {
 
 /**
  * Gets a relative time string (e.g., "2 hours ago", "yesterday")
- * @param date - Date string, Date object, or timestamp
- * @returns Relative time string
+ * @param date - Date string, Date object, timestamp, or null/undefined
+ * @returns Relative time string or "-" for null/undefined
  */
-export function getRelativeTime(date: string | Date | number): string {
+export function getRelativeTime(date: string | Date | number | null | undefined): string {
+  if (!date) {
+    return '-';
+  }
+  
   const dateObj = typeof date === 'string' ? new Date(date) : 
                   typeof date === 'number' ? new Date(date) : date;
   
-  if (isNaN(dateObj.getTime())) {
-    return 'Invalid Date';
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return '-';
   }
 
   const now = new Date();
