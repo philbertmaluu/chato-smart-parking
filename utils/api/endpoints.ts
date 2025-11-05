@@ -279,6 +279,20 @@ export const API_ENDPOINTS = {
     USAGE_STATS: "/bundle-subscriptions/usage-stats",
     EXPIRING: (days: number = 7) => `/bundle-subscriptions/expiring?days=${days}`,
   },
+
+  // Gate Devices endpoints (Hardware Integration)
+  GATE_DEVICES: {
+    LIST: "/gate-devices",
+    CREATE: "/gate-devices",
+    DETAILS: (id: string | number) => `/gate-devices/${id}`,
+    UPDATE: (id: string | number) => `/gate-devices/${id}`,
+    DELETE: (id: string | number) => `/gate-devices/${id}`,
+    BY_GATE: (gateId: string | number) => `/gate-devices/gate/${gateId}`,
+    BY_TYPE: (type: string) => `/gate-devices/type/${type}`,
+    ACTIVE_LIST: "/gate-devices/active/list",
+    TEST_CONNECTION: (id: string | number) => `/gate-devices/${id}/test-connection`,
+    TOGGLE_STATUS: (id: string | number) => `/gate-devices/${id}/toggle-status`,
+  },
 } as const;
 
 // Type for endpoint parameters

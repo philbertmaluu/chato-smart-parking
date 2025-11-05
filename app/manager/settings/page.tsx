@@ -49,6 +49,7 @@ import { VehicleBodyTypePrices } from "./components/vehicle-body-type-prices";
 import { PaymentTypes } from "./components/payment-types";
 import { BundleTypes } from "./components/bandle-types";
 import { StationGates } from "./components/station-gates";
+import { GateDevices } from "./components/gate-devices";
 import {
   Settings,
   Car,
@@ -574,13 +575,7 @@ export default function SettingsPage() {
 
               {/* Hardware Integrations Tab */}
               <TabsContent value="integration" className="space-y-6">
-                <div className="flex flex-col gap-4">
-                  <h1 className="text-2xl font-bold">Hardware Integrations</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Manage hardware integrations for the parking system is under
-                    development.
-                  </p>
-                </div>
+                <GateDevices />
               </TabsContent>
             </Tabs>
           </motion.div>
