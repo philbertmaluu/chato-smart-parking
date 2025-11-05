@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +45,7 @@ import {
   type Operator,
 } from "../hooks/use-operators";
 import { useStations } from "@/app/manager/settings/hooks/use-stations";
-import { MoreHorizontal, Plus, MapPin, X, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { MoreHorizontal, Plus, MapPin, X, Eye } from "lucide-react";
 import { formatDate } from "@/utils/date-utils";
 
 interface OperatorsTableProps {
@@ -53,7 +54,6 @@ interface OperatorsTableProps {
 }
 
 export function OperatorsTable({ onViewDetails, onStatusChange }: OperatorsTableProps = {}) {
-  const [openStatusDropdowns, setOpenStatusDropdowns] = useState<Record<number, boolean>>({});
   const {
     operators,
     loading,
@@ -181,68 +181,39 @@ export function OperatorsTable({ onViewDetails, onStatusChange }: OperatorsTable
           };
 
           const isActiveValue = normalizeActive(value) || normalizeActive(record.is_active);
-          const isOpen = openStatusDropdowns[record.id] || false;
+
+          const handleStatusChange = async (checked: boolean) => {
+            try {
+              if (checked) {
+                await activateOperator(record.id);
+                toast.success("Operator activated successfully");
+              } else {
+                await deactivateOperator(record.id);
+                toast.success("Operator deactivated successfully");
+              }
+              // Also call parent handler if provided
+              if (onStatusChange) {
+                onStatusChange(record, checked);
+              }
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Failed to update operator status");
+            }
+          };
 
           return (
-            <DropdownMenu 
-              onOpenChange={(open) => 
-                setOpenStatusDropdowns(prev => ({ ...prev, [record.id]: open }))
-              }
-            >
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 px-2 justify-start">
-                  <span className="mr-2 text-lg">{getStatusEmoji(isActiveValue)}</span>
-                  <span className={getStatusColor(isActiveValue)}>{getStatusLabel(isActiveValue)}</span>
-                  {isOpen ? (
-                    <ChevronUp className="h-3 w-3 ml-auto" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 ml-auto" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem 
-                  onClick={async () => {
-                    if (!isActiveValue) {
-                      try {
-                        await activateOperator(record.id);
-                        toast.success("Operator activated successfully");
-                        // Also call parent handler if provided
-                        if (onStatusChange) {
-                          onStatusChange(record, true);
-                        }
-                      } catch (error) {
-                        toast.error(error instanceof Error ? error.message : "Failed to activate operator");
-                      }
-                    }
-                  }}
-                  disabled={isActiveValue}
-                >
-                  <span className="mr-2 text-lg">🟢</span>
-                  <span className="text-primary">Active</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={async () => {
-                    if (isActiveValue) {
-                      try {
-                        await deactivateOperator(record.id);
-                        toast.success("Operator deactivated successfully");
-                        // Also call parent handler if provided
-                        if (onStatusChange) {
-                          onStatusChange(record, false);
-                        }
-                      } catch (error) {
-                        toast.error(error instanceof Error ? error.message : "Failed to deactivate operator");
-                      }
-                    }
-                  }}
-                  disabled={!isActiveValue}
-                >
-                  <span className="mr-2 text-lg">⚪</span>
-                  <span className="text-gray-500">Inactive</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center space-x-3">
+              <span className="text-lg">{getStatusEmoji(isActiveValue)}</span>
+              <div className="flex flex-col">
+                <Switch
+                  checked={isActiveValue}
+                  onCheckedChange={handleStatusChange}
+                  disabled={loading}
+                />
+                <span className={`text-xs mt-1 ${getStatusColor(isActiveValue)}`}>
+                  {getStatusLabel(isActiveValue)}
+                </span>
+              </div>
+            </div>
           );
         },
       },
