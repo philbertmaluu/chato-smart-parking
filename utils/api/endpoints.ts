@@ -300,6 +300,9 @@ export const API_ENDPOINTS = {
     AVAILABLE_GATES: (id: string | number) => `/operators/${id}/available-gates`,
     ASSIGN_STATION: (id: string | number) => `/operators/${id}/assign-station`,
     UNASSIGN_STATION: (id: string | number) => `/operators/${id}/unassign-station`,
+    // Logged-in operator endpoints
+    MY_AVAILABLE_GATES: "/operators/me/available-gates",
+    SELECT_GATE: "/operators/me/select-gate",
   },
   
   // Roles endpoints
