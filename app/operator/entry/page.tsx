@@ -6,9 +6,10 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
+import { ZKTecoCameraWidget } from "@/components/camera/zkteco-camera-widget";
 import { useGates } from "@/app/manager/settings/hooks/use-gates";
 import { useCurrentGate } from "@/hooks/use-current-gate";
-import { ChevronDown, MapPin, Pencil } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera } from "lucide-react";
 
 export default function VehicleEntry() {
   const { gates, loading: gatesLoading, fetchActive } = useGates();
@@ -160,24 +161,64 @@ export default function VehicleEntry() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.5 }}
         >
-          <CameraInterface
-            className="glass-effect"
-            manualEntryButton={
-              <Button
-                className={`${
-                  currentGate
-                    ? "gradient-maroon hover:opacity-90"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                } transition-opacity`}
-                onClick={() => setShowEntryDrawer(true)}
-                disabled={!currentGate}
-                title={!currentGate ? "Please select a gate first" : ""}
-              >
-                <Pencil className="w-5 h-5" />
-                <span>Manual Entry</span>
-              </Button>
-            }
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Camera Feed */}
+            <div className="lg:col-span-2">
+              <ZKTecoCameraWidget
+                className="glass-effect"
+                showControls={true}
+                defaultStreamType="mjpeg"
+                autoConnect={true}
+                onSnapshot={(imageUrl) => {
+                  console.log("Snapshot captured:", imageUrl);
+                  // You can handle the snapshot here, maybe show it in the entry form
+                }}
+              />
+            </div>
+            
+            {/* Manual Entry Controls */}
+            <div className="space-y-4">
+              <div className="glass-effect p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Pencil className="w-5 h-5" />
+                  Vehicle Entry
+                </h3>
+                
+                <div className="space-y-3">
+                  <Button
+                    className={`w-full ${
+                      currentGate
+                        ? "gradient-maroon hover:opacity-90"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    } transition-opacity`}
+                    onClick={() => setShowEntryDrawer(true)}
+                    disabled={!currentGate}
+                    title={!currentGate ? "Please select a gate first" : ""}
+                  >
+                    <Pencil className="w-5 h-5 mr-2" />
+                    Manual Entry
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.location.href = '/operator/entry/camera-setup'}
+                  >
+                    <Camera className="w-5 h-5 mr-2" />
+                    Camera Setup
+                  </Button>
+                </div>
+
+                {currentGate && (
+                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-sm font-medium">Active Gate</p>
+                    <p className="text-lg font-bold text-gradient">{currentGate.name}</p>
+                    <p className="text-xs text-muted-foreground">Gate ID: {currentGate.id}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
 

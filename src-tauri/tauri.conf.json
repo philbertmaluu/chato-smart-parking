@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "Smart Parking",
-        "width": 800,
-        "height": 600,
+        "title": "Smart Parking - Camera Setup",
+        "width": 1400,
+        "height": 900,
         "resizable": true,
         "fullscreen": false
       }

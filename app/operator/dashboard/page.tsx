@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
 import { useAuth } from "@/components/auth-provider";
+import { ZKTecoCameraWidget } from "@/components/camera/zkteco-camera-widget";
 import { Car, ScanLine, ParkingCircle, DollarSign, Clock } from "lucide-react";
 import Link from "next/link";
 
@@ -137,6 +138,20 @@ export default function OperatorDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </motion.div>
+
+          {/* Camera Feed Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+          >
+            <ZKTecoCameraWidget
+              className="w-full"
+              showControls={true}
+              defaultStreamType="mjpeg"
+              autoConnect={true}
+            />
           </motion.div>
 
           {/* Recent Activity */}

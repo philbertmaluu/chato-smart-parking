@@ -58,7 +58,7 @@ export class CameraProxyService {
 
 // Default camera proxy configuration
 export const defaultCameraProxy = new CameraProxyService({
-  cameraUrl: 'http://192.168.0.103:80',
+  cameraUrl: 'http://192.168.0.109',
   username: 'admin',
   password: 'Password123!',
   allowedOrigins: ['http://localhost:3000', 'https://yourdomain.com'], // Add your domains

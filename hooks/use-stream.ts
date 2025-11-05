@@ -51,7 +51,7 @@ export const useStream = () => {
   const cameraCredentials: CameraCredentials = {
     username: 'admin',
     password: 'Password123!',
-    ip: '192.168.0.103',
+    ip: '192.168.0.109',
     port: '554',
     path: '/stream'
   };

@@ -243,7 +243,7 @@ export function StreamControls({
         <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
           <h5 className="text-xs font-semibold text-muted-foreground mb-2">Camera Information</h5>
           <div className="text-xs space-y-1 font-mono">
-            <div>IP: 192.168.0.103:554</div>
+            <div>IP: 192.168.0.109:554</div>
             <div>Protocol: RTSP</div>
             <div>Authentication: Digest</div>
           </div>
