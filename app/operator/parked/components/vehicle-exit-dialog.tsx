@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useExitGates } from "../hooks/use-exit-gates";
-import { useCurrentGate } from "@/hooks/use-current-gate";
+import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { type ActivePassage } from "../hooks/use-active-passages";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import { formatDateTime } from "@/utils/date-utils";
@@ -45,7 +45,7 @@ export function VehicleExitDialog({
   vehicle,
   onExitProcessed,
 }: VehicleExitDialogProps) {
-  const { currentGate } = useCurrentGate();
+  const { selectedGate } = useOperatorGates();
   const {
     exitGates,
     selectedGateId,
@@ -59,7 +59,7 @@ export function VehicleExitDialog({
 
 
   const handleProcessExit = async () => {
-    if (!vehicle || !currentGate) {
+    if (!vehicle || !selectedGate) {
       toast.error("Vehicle and gate selection required");
       return;
     }
@@ -75,7 +75,7 @@ export function VehicleExitDialog({
 
       const result = await VehiclePassageService.processExit({
         plate_number: vehicle.vehicle?.plate_number || "",
-        gate_id: currentGate.id,
+        gate_id: selectedGate.id,
       });
 
       setExitResult(result);
@@ -259,7 +259,7 @@ export function VehicleExitDialog({
             <Button
               className="flex-1 gradient-maroon hover:opacity-90"
               onClick={handleProcessExit}
-              disabled={isProcessing || !currentGate}
+              disabled={isProcessing || !selectedGate}
             >
               {isProcessing ? (
                 <>
