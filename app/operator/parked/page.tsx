@@ -40,7 +40,7 @@ export default function ParkedVehicles() {
   const { t } = useLanguage();
   const { currentGate } = useCurrentGate();
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedVehicle, setSelectedVehicle] = useState<ActivePassage | null>(
     null
   );
