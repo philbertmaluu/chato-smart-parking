@@ -9,40 +9,43 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
-import { useGateCamera } from "@/hooks/use-gate-camera";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X } from "lucide-react";
 
 export default function VehicleEntry() {
-  const { availableGates, selectedGate, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
-  const { cameraConfig, loading: cameraLoading, error: cameraError, fetchCameraConfig } = useGateCamera();
+  const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
   const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check if operator has selected a gate on mount
+  // Get camera device from gate devices
+  const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
+
+  // Check if operator has selected a gate on mount - show modal automatically
   useEffect(() => {
     if (!gatesLoading && !selectedGate) {
       setShowGateModal(true);
     }
   }, [gatesLoading, selectedGate]);
 
-  // Fetch camera config when gate changes
+  // Auto-refresh camera feed using gate device IP
   useEffect(() => {
-    if (selectedGate?.id) {
-      fetchCameraConfig(selectedGate.id);
+    if (!cameraDevice || !cameraDevice.ip_address) {
+      // Clear interval if no camera device
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      return;
     }
-  }, [selectedGate?.id, fetchCameraConfig]);
-
-  // Auto-refresh camera feed
-  useEffect(() => {
-    if (!cameraConfig) return;
 
     const refreshCamera = () => {
-      if (imageRef.current) {
+      if (imageRef.current && cameraDevice.ip_address) {
         const timestamp = new Date().toISOString();
-        imageRef.current.src = `http://${cameraConfig.ip}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${timestamp}`;
+        const protocol = cameraDevice.use_https ? 'https' : 'http';
+        const port = cameraDevice.http_port || 80;
+        imageRef.current.src = `${protocol}://${cameraDevice.ip_address}:${port}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${timestamp}`;
       }
     };
 
@@ -55,7 +58,7 @@ export default function VehicleEntry() {
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [cameraConfig]);
+  }, [cameraDevice]);
 
   const handleEntrySuccess = (data: any) => {
     console.log("Entry processed successfully:", data);
@@ -98,35 +101,6 @@ export default function VehicleEntry() {
               )}
             </div>
             
-            {/* Gate Selection/Change Button */}
-            <div className="flex items-center gap-3">
-              {selectedGate && (
-                <Button
-                  onClick={async () => {
-                    await deselectGate();
-                  }}
-                  variant="outline"
-                  className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center space-x-2"
-                >
-                  <X className="w-4 h-4" />
-                  <span>Deselect Gate</span>
-                </Button>
-              )}
-              <Button
-                onClick={() => setShowGateModal(true)}
-                variant={selectedGate ? "default" : "outline"}
-                className={`${
-                  selectedGate
-                    ? "bg-gradient-maroon text-white border-0"
-                    : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
-                } transition-all duration-200 flex items-center space-x-2`}
-              >
-                <MapPin className="w-4 h-4" />
-                <span>
-                  {selectedGate ? `Change Gate (${selectedGate.name})` : "Select Gate"}
-                </span>
-              </Button>
-            </div>
           </div>
         </motion.div>
 
@@ -146,9 +120,39 @@ export default function VehicleEntry() {
                     
                   </div>
                   
-                  {/* Manual Entry Button - Top Right */}
+                  {/* Gate Selection and Manual Entry Buttons - Top Right */}
                   <div className="flex items-center gap-3">
+                    {/* Gate Selection/Change Button */}
+                    {selectedGate && (
+                      <Button
+                        onClick={async () => {
+                          await deselectGate();
+                        }}
+                        variant="outline"
+                        size="lg"
+                        className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center space-x-2"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Deselect Gate</span>
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => setShowGateModal(true)}
+                      variant={selectedGate ? "default" : "outline"}
+                      size="lg"
+                      className={`${
+                        selectedGate
+                          ? "bg-gradient-maroon text-white border-0"
+                          : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
+                      } transition-all duration-200 flex items-center space-x-2`}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      <span>
+                        {selectedGate ? `Change Gate` : "Select Gate"}
+                      </span>
+                    </Button>
                     
+                    {/* Manual Entry Button */}
                     <Button
                       size="lg"
                       className={`${
@@ -167,34 +171,26 @@ export default function VehicleEntry() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {cameraLoading ? (
+                {gatesLoading ? (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
                     <div className="text-white text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                      <p>Loading camera configuration...</p>
+                      <p>Loading gate information...</p>
                     </div>
                   </div>
-                ) : cameraError ? (
-                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
-                    <div className="text-center space-y-2 p-4">
-                      <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-                      <p className="font-semibold text-white">Camera Configuration Error</p>
-                      <p className="text-sm text-gray-400">{cameraError}</p>
-                    </div>
-                  </div>
-                ) : !cameraConfig ? (
+                ) : !cameraDevice ? (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
                     <div className="text-center space-y-2 p-4">
                       <Camera className="w-12 h-12 mx-auto text-gray-500" />
-                      <p className="font-semibold text-white">No Gate Selected</p>
-                      <p className="text-sm text-gray-400">Please select a gate to view the camera feed</p>
+                      <p className="font-semibold text-white">No Camera Configured</p>
+                      <p className="text-sm text-gray-400">Please contact administrator to configure camera for this gate.</p>
                     </div>
                   </div>
                 ) : (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
                     <img
                       ref={imageRef}
-                      src={`http://${cameraConfig.ip}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`}
+                      src={`${cameraDevice.use_https ? 'https' : 'http'}://${cameraDevice.ip_address}:${cameraDevice.http_port || 80}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`}
                       alt="Camera Feed"
                       className="w-full h-full object-contain"
                       onError={(e) => {
@@ -211,7 +207,7 @@ export default function VehicleEntry() {
                         <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
                         <p className="font-semibold">Cannot connect to camera</p>
                         <p className="text-sm text-gray-400">
-                          Camera at {cameraConfig.ip} is not accessible from this browser.
+                          Camera at {cameraDevice.ip_address} is not accessible from this browser.
                         </p>
                       </div>
                     </div>
@@ -224,7 +220,7 @@ export default function VehicleEntry() {
                     
                     {/* Camera Info */}
                     <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                      <p className="text-white text-sm font-mono">{cameraConfig.ip}</p>
+                      <p className="text-white text-sm font-mono">{cameraDevice.ip_address}</p>
                     </div>
                     
                     {/* Current Gate Overlay (Mobile) */}
@@ -237,16 +233,14 @@ export default function VehicleEntry() {
                 )}
                 
                 <div className="flex items-center justify-between">
-                  {cameraConfig ? (
-                    <div></div>
-                  ) : selectedGate ? (
+                  {!cameraDevice && selectedGate && (
                     <Alert className="flex-1" variant="destructive">
                       <AlertCircle className="w-4 h-4" />
                       <AlertDescription>
                         <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
                       </AlertDescription>
                     </Alert>
-                  ) : null}
+                  )}
                 </div>
               </CardContent>
             </Card>

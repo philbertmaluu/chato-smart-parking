@@ -24,9 +24,48 @@ export interface Gate {
   };
 }
 
+export interface GateDevice {
+  id: number;
+  gate_id: number;
+  device_type: string;
+  name: string | null;
+  device_id: string | null;
+  serial_number: string | null;
+  mac_address: string | null;
+  ip_address: string;
+  http_port: number;
+  rtsp_port: number;
+  use_https: boolean;
+  subnet_mask: string | null;
+  gateway: string | null;
+  dns_server: string | null;
+  username: string;
+  password: string;
+  direction: string;
+  status: string;
+  is_online: boolean;
+  last_connected_at: string | null;
+  last_ping_at: string | null;
+  connection_timeout: number;
+  ping_interval: number;
+  supports_rtsp: boolean;
+  supports_snapshot: boolean;
+  supports_motion_detection: boolean;
+  supports_audio: boolean;
+  supports_ptz: boolean;
+  open_duration: number | null;
+  close_duration: number | null;
+  auto_close: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  gate?: Gate;
+}
+
 interface UseOperatorGatesReturn {
   availableGates: Gate[];
   selectedGate: Gate | null;
+  selectedGateDevices: GateDevice[];
   loading: boolean;
   error: string | null;
   fetchAvailableGates: () => Promise<void>;
@@ -37,8 +76,27 @@ interface UseOperatorGatesReturn {
 export function useOperatorGates(): UseOperatorGatesReturn {
   const [availableGates, setAvailableGates] = useState<Gate[]>([]);
   const [selectedGate, setSelectedGate] = useState<Gate | null>(null);
+  const [selectedGateDevices, setSelectedGateDevices] = useState<GateDevice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchSelectedGateDevices = useCallback(async () => {
+    try {
+      const response = await get<{
+        success: boolean;
+        data: any[];
+        message: string;
+      }>(API_ENDPOINTS.OPERATORS.MY_SELECTED_GATE_DEVICES);
+      
+      if (response.success && response.data) {
+        setSelectedGateDevices(response.data || []);
+      }
+    } catch (err) {
+      // Silently fail - gate might not have devices configured
+      console.error('Error fetching gate devices:', err);
+      setSelectedGateDevices([]);
+    }
+  }, []);
 
   const fetchAvailableGates = useCallback(async () => {
     setLoading(true);
@@ -59,8 +117,11 @@ export function useOperatorGates(): UseOperatorGatesReturn {
         // Set selected gate if available
         if (response.data.selected_gate) {
           setSelectedGate(response.data.selected_gate);
+          // Fetch gate devices for the selected gate
+          await fetchSelectedGateDevices();
         } else {
           setSelectedGate(null);
+          setSelectedGateDevices([]);
         }
       } else {
         throw new Error(response.message || 'Failed to fetch gates');
@@ -72,7 +133,7 @@ export function useOperatorGates(): UseOperatorGatesReturn {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchSelectedGateDevices]);
 
   const selectGate = useCallback(async (gateId: number): Promise<boolean> => {
     setLoading(true);
@@ -89,6 +150,10 @@ export function useOperatorGates(): UseOperatorGatesReturn {
       }>(API_ENDPOINTS.OPERATORS.SELECT_GATE, { gate_id: gateId });
       
       if (response.success) {
+        // Store gate devices from response
+        const gateDevices = response.data.gate_devices || [];
+        setSelectedGateDevices(gateDevices);
+        
         // Immediately update state with gate from availableGates for instant UI update
         const gateFromList = availableGates.find(g => g.id === gateId);
         if (gateFromList) {
@@ -123,8 +188,9 @@ export function useOperatorGates(): UseOperatorGatesReturn {
       }>(API_ENDPOINTS.OPERATORS.DESELECT_GATE, {});
       
       if (response.success) {
-        // Clear selected gate
+        // Clear selected gate and devices
         setSelectedGate(null);
+        setSelectedGateDevices([]);
         // Refresh available gates to get updated list
         await fetchAvailableGates();
         return true;
@@ -148,6 +214,7 @@ export function useOperatorGates(): UseOperatorGatesReturn {
   return {
     availableGates,
     selectedGate,
+    selectedGateDevices,
     loading,
     error,
     fetchAvailableGates,
