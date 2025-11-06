@@ -26,7 +26,7 @@ interface GateSelectionModalProps {
 }
 
 export function GateSelectionModal({ open, onGateSelected, onClose }: GateSelectionModalProps) {
-  const { availableGates, selectedGate, loading, error, fetchAvailableGates, selectGate } = useOperatorGates();
+  const { availableGates, selectedGate, loading, error, fetchAvailableGates, selectGate, deselectGate } = useOperatorGates();
   const [selectingGateId, setSelectingGateId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -35,22 +35,32 @@ export function GateSelectionModal({ open, onGateSelected, onClose }: GateSelect
     }
   }, [open, fetchAvailableGates]);
 
-  // If a gate is already selected, notify parent and close
+  // Notify parent when gate is selected
   useEffect(() => {
     if (selectedGate && !selectingGateId) {
       onGateSelected(selectedGate);
+    }
+  }, [selectedGate, onGateSelected, selectingGateId]);
+  
+  // Auto-close modal immediately when a gate is successfully selected
+  useEffect(() => {
+    if (selectedGate && !selectingGateId) {
+      // Close modal instantly on successful selection
       if (onClose) {
         onClose();
       }
     }
-  }, [selectedGate, onGateSelected, onClose, selectingGateId]);
+  }, [selectedGate, selectingGateId, onClose]);
 
   const handleSelectGate = async (gateId: number) => {
     setSelectingGateId(gateId);
     const success = await selectGate(gateId);
     if (success) {
-      // The useEffect above will handle calling onGateSelected
-      setTimeout(() => setSelectingGateId(null), 500);
+      // Close modal immediately - state updates instantly
+      setSelectingGateId(null);
+      if (onClose) {
+        onClose();
+      }
     } else {
       setSelectingGateId(null);
     }
@@ -99,10 +109,25 @@ export function GateSelectionModal({ open, onGateSelected, onClose }: GateSelect
         {/* Selected Gate Info */}
         {selectedGate && !selectingGateId && (
           <Alert className="my-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            <CheckCircle className="w-4 h-4 text-green-600" />
-            <AlertDescription className="text-green-800 dark:text-green-200">
-              <strong>Gate already selected:</strong> {selectedGate.name} at {selectedGate.station?.name}
-            </AlertDescription>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  <strong>Gate already selected:</strong> {selectedGate.name} at {selectedGate.station?.name}
+                </AlertDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await deselectGate();
+                }}
+                className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Lock className="w-3 h-3 mr-1" />
+                Deselect
+              </Button>
+            </div>
           </Alert>
         )}
 

@@ -31,6 +31,7 @@ interface UseOperatorGatesReturn {
   error: string | null;
   fetchAvailableGates: () => Promise<void>;
   selectGate: (gateId: number) => Promise<boolean>;
+  deselectGate: () => Promise<boolean>;
 }
 
 export function useOperatorGates(): UseOperatorGatesReturn {
@@ -88,24 +89,14 @@ export function useOperatorGates(): UseOperatorGatesReturn {
       }>(API_ENDPOINTS.OPERATORS.SELECT_GATE, { gate_id: gateId });
       
       if (response.success) {
-        // The response includes both operator and gate_devices
-        // We need to extract the selected gate from the operator's assigned stations
-        // or find it from the available gates
-        const operatorData = response.data.operator || response.data;
-        if (operatorData && operatorData.assigned_stations) {
-          // Find the station with current_gate_id
-          const stationWithGate = operatorData.assigned_stations.find((s: any) => s.pivot?.current_gate_id);
-          if (stationWithGate && stationWithGate.pivot?.current_gate_id) {
-            const selectedGateId = stationWithGate.pivot.current_gate_id;
-            // Find the gate in available gates or fetch it
-            const gate = availableGates.find(g => g.id === selectedGateId);
-            if (gate) {
-              setSelectedGate(gate);
-            }
-          }
+        // Immediately update state with gate from availableGates for instant UI update
+        const gateFromList = availableGates.find(g => g.id === gateId);
+        if (gateFromList) {
+          setSelectedGate(gateFromList);
         }
-        // Refresh available gates to get updated list
-        await fetchAvailableGates();
+        
+        // Refresh available gates in background to get updated list from backend
+        fetchAvailableGates();
         return true;
       } else {
         throw new Error(response.message || 'Failed to select gate');
@@ -120,6 +111,36 @@ export function useOperatorGates(): UseOperatorGatesReturn {
     }
   }, [availableGates, fetchAvailableGates]);
 
+  const deselectGate = useCallback(async (): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await post<{
+        success: boolean;
+        data: any;
+        message: string;
+      }>(API_ENDPOINTS.OPERATORS.DESELECT_GATE, {});
+      
+      if (response.success) {
+        // Clear selected gate
+        setSelectedGate(null);
+        // Refresh available gates to get updated list
+        await fetchAvailableGates();
+        return true;
+      } else {
+        throw new Error(response.message || 'Failed to deselect gate');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      console.error('Error deselecting gate:', err);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAvailableGates]);
+
   useEffect(() => {
     fetchAvailableGates();
   }, [fetchAvailableGates]);
@@ -131,5 +152,6 @@ export function useOperatorGates(): UseOperatorGatesReturn {
     error,
     fetchAvailableGates,
     selectGate,
+    deselectGate,
   };
 }

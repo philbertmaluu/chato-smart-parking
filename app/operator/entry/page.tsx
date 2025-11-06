@@ -11,10 +11,10 @@ import { CameraInterface } from "./components/camera-interface";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { useGateCamera } from "@/hooks/use-gate-camera";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2 } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X } from "lucide-react";
 
 export default function VehicleEntry() {
-  const { availableGates, selectedGate, loading: gatesLoading, error: gatesError, selectGate } = useOperatorGates();
+  const { availableGates, selectedGate, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
   const { cameraConfig, loading: cameraLoading, error: cameraError, fetchCameraConfig } = useGateCamera();
   const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
@@ -98,8 +98,20 @@ export default function VehicleEntry() {
               )}
             </div>
             
-            {/* Gate Selection Button */}
+            {/* Gate Selection/Change Button */}
             <div className="flex items-center gap-3">
+              {selectedGate && (
+                <Button
+                  onClick={async () => {
+                    await deselectGate();
+                  }}
+                  variant="outline"
+                  className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center space-x-2"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Deselect Gate</span>
+                </Button>
+              )}
               <Button
                 onClick={() => setShowGateModal(true)}
                 variant={selectedGate ? "default" : "outline"}
@@ -111,7 +123,7 @@ export default function VehicleEntry() {
               >
                 <MapPin className="w-4 h-4" />
                 <span>
-                  {selectedGate ? selectedGate.name : "Select Gate"}
+                  {selectedGate ? `Change Gate (${selectedGate.name})` : "Select Gate"}
                 </span>
               </Button>
             </div>
@@ -131,28 +143,12 @@ export default function VehicleEntry() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Video className="w-5 h-5" />
-                    <div>
-                      <CardTitle>Live Camera Feed</CardTitle>
-                      <CardDescription>
-                        {cameraConfig 
-                          ? `Real-time monitoring from camera at ${cameraConfig.ip}`
-                          : selectedGate 
-                            ? 'Loading camera configuration...' 
-                            : 'Select a gate to view camera feed'
-                        }
-                      </CardDescription>
-                    </div>
+                    
                   </div>
                   
                   {/* Manual Entry Button - Top Right */}
                   <div className="flex items-center gap-3">
-                    {selectedGate && (
-                      <div className="hidden md:block text-right">
-                        <p className="text-sm font-medium text-muted-foreground">Active Gate</p>
-                        <p className="text-base font-bold text-gradient">{selectedGate.name}</p>
-                      </div>
-                    )}
+                    
                     <Button
                       size="lg"
                       className={`${
@@ -242,12 +238,7 @@ export default function VehicleEntry() {
                 
                 <div className="flex items-center justify-between">
                   {cameraConfig ? (
-                    <Alert className="flex-1">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <AlertDescription>
-                        <strong>Live monitoring active</strong> - Auto-refreshing every 500ms for real-time vehicle detection.
-                      </AlertDescription>
-                    </Alert>
+                    <div></div>
                   ) : selectedGate ? (
                     <Alert className="flex-1" variant="destructive">
                       <AlertCircle className="w-4 h-4" />
@@ -276,10 +267,10 @@ export default function VehicleEntry() {
       <GateSelectionModal
         open={showGateModal}
         onClose={() => setShowGateModal(false)}
-        onGateSelected={async (gate) => {
+        onGateSelected={(gate) => {
           // Gate selection is handled by the modal itself
-          // Just close the modal after selection
-          setShowGateModal(false);
+          // The selectedGate state will update automatically via the hook
+          // Camera config will be fetched automatically via useEffect
         }}
       />
     </MainLayout>

@@ -303,6 +303,7 @@ export const API_ENDPOINTS = {
     // Logged-in operator endpoints
     MY_AVAILABLE_GATES: "/operators/me/available-gates",
     SELECT_GATE: "/operators/me/select-gate",
+    DESELECT_GATE: "/operators/me/deselect-gate",
     MY_SELECTED_GATE_DEVICES: "/operators/me/selected-gate/devices",
   },
   
