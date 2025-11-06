@@ -21,6 +21,22 @@ import { get } from "@/utils/api/api";
 import { API_ENDPOINTS } from "@/utils/api/endpoints";
 import { formatTime, formatDateTime } from "@/utils/date-utils";
 
+// Helper function to calculate duration
+const calculateDuration = (entryTime: string, exitTime: string | null): string => {
+  if (!exitTime) return 'N/A';
+  const entry = new Date(entryTime);
+  const exit = new Date(exitTime);
+  const diffMs = exit.getTime() - entry.getTime();
+  
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
 interface VehiclePassage {
   id: number;
   passage_number: string;
@@ -207,8 +223,8 @@ export default function OperatorDashboard() {
                               <p className="font-medium">{vehicle.vehicle?.plate_number || 'N/A'}</p>
                               <p className="text-sm text-muted-foreground">
                                 {vehicle.type === 'parked' 
-                                  ? `${vehicle.entry_gate?.name || 'Gate N/A'} • ${formatTime(vehicle.entry_time)}`
-                                  : `${vehicle.exit_gate?.name || vehicle.entry_gate?.name || 'Gate N/A'} • ${formatTime(vehicle.exit_time || vehicle.entry_time)}`
+                                  ? `${vehicle.entry_gate?.name || 'Gate N/A'} • Entry: ${formatTime(vehicle.entry_time)}`
+                                  : `${vehicle.exit_gate?.name || vehicle.entry_gate?.name || 'Gate N/A'} • Entry: ${formatTime(vehicle.entry_time)} • Exit: ${formatTime(vehicle.exit_time || vehicle.entry_time)} • Duration: ${calculateDuration(vehicle.entry_time, vehicle.exit_time)}`
                                 }
                               </p>
                             </div>

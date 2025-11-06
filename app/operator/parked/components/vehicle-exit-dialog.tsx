@@ -133,16 +133,16 @@ export function VehicleExitDialog({
             transition={{ delay: 0.1 }}
             className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6"
           >
-            <div className="flex items-center justify-between mb-4">
+            {/* <div className="flex items-center justify-between mb-4">
               <h4 className="font-semibold text-lg flex items-center space-x-2">
-                {/* <Receipt className="w-5 h-5" /> */}
+              
                 <span>Parking Receipt</span>
               </h4>
               <Button onClick={() => toast.success("Receipt downloaded successfully")} size="sm">
                 <Download className="w-4 h-4 mr-2" />
                 Download PDF
               </Button>
-            </div>
+            </div> */}
 
             {/* Receipt Content */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
@@ -196,7 +196,7 @@ export function VehicleExitDialog({
                 
                 <div className="text-center">
                   <p className="text-xs text-gray-500">Thank you for using Chato Parking!</p>
-                  <p className="text-xs text-gray-400 mt-1">Keep this receipt for your records</p>
+
                 </div>
               </div>
             </div>
@@ -246,7 +246,7 @@ export function VehicleExitDialog({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-          className="flex space-x-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700"
+          className="flex space-x-3  dark:border-gray-700"
           >
             <Button
               variant="outline"
