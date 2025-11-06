@@ -305,6 +305,7 @@ export const API_ENDPOINTS = {
     SELECT_GATE: "/operators/me/select-gate",
     DESELECT_GATE: "/operators/me/deselect-gate",
     MY_SELECTED_GATE_DEVICES: "/operators/me/selected-gate/devices",
+    MY_RECENT_VEHICLES: "/operators/me/recent-vehicles",
   },
   
   // Roles endpoints

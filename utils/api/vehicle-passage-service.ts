@@ -220,8 +220,9 @@ export class VehiclePassageService {
   /**
    * Get active passages
    */
-  static async getActivePassages(): Promise<{ success: boolean; data: VehiclePassage[]; messages: string; status: number }> {
-    return get(API_ENDPOINTS.VEHICLE_PASSAGES.ACTIVE_LIST);
+  static async getActivePassages(page: number = 1, perPage: number = 15): Promise<{ success: boolean; data: VehiclePassage[] | any; messages: string; status: number; pagination?: any }> {
+    const queryParams = `?per_page=${perPage}&page=${page}`;
+    return get(`${API_ENDPOINTS.VEHICLE_PASSAGES.ACTIVE_LIST}${queryParams}`);
   }
 
   /**

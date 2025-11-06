@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { RouteGuard } from "@/components/auth/route-guard";
 import { motion } from "framer-motion";
@@ -14,43 +15,85 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
 import { useAuth } from "@/components/auth-provider";
 import { ZKTecoCameraWidget } from "@/components/camera/zkteco-camera-widget";
-import { Car, ScanLine, ParkingCircle, DollarSign, Clock } from "lucide-react";
+import { Car, ScanLine, ParkingCircle, DollarSign, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { get } from "@/utils/api/api";
+import { API_ENDPOINTS } from "@/utils/api/endpoints";
+import { formatTime, formatDateTime } from "@/utils/date-utils";
+
+interface VehiclePassage {
+  id: number;
+  passage_number: string;
+  entry_time: string;
+  exit_time: string | null;
+  total_amount: string;
+  vehicle: {
+    id: number;
+    plate_number: string;
+    body_type?: {
+      name: string;
+    };
+  };
+  entry_gate?: {
+    id: number;
+    name: string;
+  };
+  exit_gate?: {
+    id: number;
+    name: string;
+  };
+  entry_station?: {
+    id: number;
+    name: string;
+  };
+  exit_station?: {
+    id: number;
+    name: string;
+  };
+  payment_type?: {
+    name: string;
+  };
+}
+
+interface RecentVehicles {
+  parked: VehiclePassage[];
+  exited: VehiclePassage[];
+}
 
 export default function OperatorDashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const [recentVehicles, setRecentVehicles] = useState<RecentVehicles>({ parked: [], exited: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const stats = [
-    {
-      title: t("dashboard.totalParked"),
-      value: "24",
-      icon: ParkingCircle,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100 dark:bg-blue-900/20",
-    },
-    {
-      title: t("dashboard.todayRevenue"),
-      value: "Tsh. 480",
-      icon: DollarSign,
-      color: "text-green-600",
-      bgColor: "bg-green-100 dark:bg-green-900/20",
-    },
-    {
-      title: t("dashboard.totalEntries"),
-      value: "156",
-      icon: Car,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100 dark:bg-purple-900/20",
-    },
-    {
-      title: "Active Hours",
-      value: "8.5h",
-      icon: Clock,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100 dark:bg-orange-900/20",
-    },
-  ];
+  useEffect(() => {
+    const fetchRecentVehicles = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await get<{
+          success: boolean;
+          data: RecentVehicles;
+          message: string;
+        }>(`${API_ENDPOINTS.OPERATORS.MY_RECENT_VEHICLES}?limit=5`);
+        
+        if (response.success && response.data) {
+          setRecentVehicles(response.data);
+        } else {
+          throw new Error(response.message || 'Failed to fetch recent vehicles');
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(errorMessage);
+        console.error('Error fetching recent vehicles:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecentVehicles();
+  }, []);
 
   return (
     <RouteGuard>
@@ -70,33 +113,6 @@ export default function OperatorDashboard() {
             </p>
           </motion.div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <motion.div
-                key={stat.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.5 }}
-              >
-                <Card className="glass-effect border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          {stat.title}
-                        </p>
-                        <p className="text-2xl font-bold mt-2">{stat.value}</p>
-                      </div>
-                      <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                        <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
 
           {/* Quick Actions */}
           <motion.div
@@ -141,72 +157,86 @@ export default function OperatorDashboard() {
           </motion.div>
 
         
-          {/* Recent Activity */}
+          {/* Recent Vehicles - Merged Parked and Exited */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <Card className="glass-effect border-0 shadow-lg">
               <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
+                <CardTitle>Recent Vehicles</CardTitle>
                 <CardDescription>
-                  Latest vehicle entries and exits
+                  Parked and exited vehicles that you processed
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    {
-                      plate: "ABC-123",
-                      action: "Entry",
-                      time: "10:30 AM",
-                      amount: "Tsh. 5.00",
-                    },
-                    {
-                      plate: "XYZ-789",
-                      action: "Exit",
-                      time: "10:15 AM",
-                      amount: "Tsh. 12.50",
-                    },
-                    {
-                      plate: "DEF-456",
-                      action: "Entry",
-                      time: "09:45 AM",
-                      amount: "Tsh. 5.00",
-                    },
-                  ].map((activity, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + index * 0.1 }}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            activity.action === "Entry"
-                              ? "bg-green-500"
-                              : "bg-red-500"
-                          }`}
-                        />
-                        <div>
-                          <p className="font-medium">{activity.plate}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {activity.action}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">{activity.amount}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {activity.time}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8 text-red-600">
+                    <p>{error}</p>
+                  </div>
+                ) : recentVehicles.parked.length === 0 && recentVehicles.exited.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Car className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>No recent vehicles</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(() => {
+                      // Combine and sort by time (most recent first)
+                      const allVehicles = [
+                        ...recentVehicles.parked.map(v => ({ ...v, type: 'parked', sortTime: new Date(v.entry_time).getTime() })),
+                        ...recentVehicles.exited.map(v => ({ ...v, type: 'exited', sortTime: new Date(v.exit_time || v.entry_time).getTime() }))
+                      ].sort((a, b) => b.sortTime - a.sortTime);
+
+                      return allVehicles.map((vehicle, index) => (
+                        <motion.div
+                          key={`${vehicle.type}-${vehicle.id}`}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.3 + index * 0.05 }}
+                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span className="text-xl">{vehicle.type === 'parked' ? '🟢' : '🔴'}</span>
+                            <div>
+                              <p className="font-medium">{vehicle.vehicle?.plate_number || 'N/A'}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {vehicle.type === 'parked' 
+                                  ? `${vehicle.entry_gate?.name || 'Gate N/A'} • ${formatTime(vehicle.entry_time)}`
+                                  : `${vehicle.exit_gate?.name || vehicle.entry_gate?.name || 'Gate N/A'} • ${formatTime(vehicle.exit_time || vehicle.entry_time)}`
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {vehicle.type === 'parked' ? (
+                              <>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  {vehicle.vehicle?.body_type?.name || 'Unknown'}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {vehicle.passage_number}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-medium">Tsh. {parseFloat(vehicle.total_amount || '0').toFixed(2)}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {vehicle.payment_type?.name || 'N/A'}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </motion.div>
+                      ));
+                    })()}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

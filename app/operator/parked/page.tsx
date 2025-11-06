@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/components/language-provider";
-import { useCurrentGate } from "@/hooks/use-current-gate";
+import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { formatTime, formatDateTime } from "@/utils/date-utils";
 import {
   useActivePassages,
@@ -25,20 +25,26 @@ import { getVehicleTypeIcon, getVehicleTypeBadge } from "@/utils/utils";
 import {
   Search,
   Car,
-  Truck,
-  Bike,
-  Clock,
-  DollarSign,
   Grid,
   List,
   RefreshCw,
   Loader2,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
-  const { currentGate } = useCurrentGate();
+  const { selectedGate } = useOperatorGates();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedVehicle, setSelectedVehicle] = useState<ActivePassage | null>(
@@ -51,17 +57,17 @@ export default function ParkedVehicles() {
     loading,
     error,
     refreshing,
+    pagination,
+    currentPage,
+    perPage,
     fetchActivePassages,
     refreshActivePassages,
     searchActivePassages,
-    getPassageStatistics,
+    setCurrentPage,
   } = useActivePassages();
 
   // Filter vehicles based on search term
   const filteredVehicles = searchActivePassages(searchTerm);
-
-  // Get statistics
-  const statistics = getPassageStatistics();
 
   const handleProcessExit = (vehicle: ActivePassage) => {
     setSelectedVehicle(vehicle);
@@ -70,9 +76,15 @@ export default function ParkedVehicles() {
 
   const handleExitProcessed = () => {
     // Refresh the active passages list to remove the exited vehicle
-    fetchActivePassages();
+    fetchActivePassages(currentPage, perPage);
     setShowExitDialog(false);
     setSelectedVehicle(null);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchActivePassages(page, perPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -92,11 +104,19 @@ export default function ParkedVehicles() {
             <p className="text-muted-foreground mt-2">
               Currently parked vehicles and their details
             </p>
-            {!currentGate && (
+            {!selectedGate && (
               <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
                 <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
                 <span>
                   Please select a gate from the entry page to process exits
+                </span>
+              </div>
+            )}
+            {selectedGate && (
+              <div className="mt-2 flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>
+                  Active Gate: <strong>{selectedGate.name}</strong> at {selectedGate.station?.name}
                 </span>
               </div>
             )}
@@ -106,7 +126,7 @@ export default function ParkedVehicles() {
             <Button
               variant="outline"
               size="sm"
-              onClick={refreshActivePassages}
+              onClick={() => refreshActivePassages()}
               disabled={refreshing}
             >
               {refreshing ? (
@@ -134,92 +154,41 @@ export default function ParkedVehicles() {
           </div>
         </motion.div>
 
-        {/* Search and Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="lg:col-span-1"
-          >
-            <Card className="glass-effect border-0 shadow-lg">
-              <CardContent className="p-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <Input
-                    placeholder="Search by plate or spot..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 glass-effect border-0"
-                  />
+        {/* Search Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
+          <Card className="glass-effect border-0 shadow-lg">
+            <CardContent className="p-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                <Input
+                  placeholder="Search by plate number, passage number, or vehicle type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 pr-4 h-12 text-base glass-effect border-0 focus:ring-2 focus:ring-primary/20"
+                />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                  >
+                    <span className="text-muted-foreground">×</span>
+                  </Button>
+                )}
+              </div>
+              {searchTerm && (
+                <div className="mt-3 text-sm text-muted-foreground">
+                  Found {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} matching "{searchTerm}"
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="lg:col-span-3"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card className="glass-effect border-0 shadow-lg">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Total Parked
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {statistics.totalParked}
-                      </p>
-                    </div>
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-full">
-                      <Car className="w-5 h-5 text-blue-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-effect border-0 shadow-lg">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Avg Duration
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {statistics.averageDuration}
-                      </p>
-                    </div>
-                    <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
-                      <Clock className="w-5 h-5 text-green-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="glass-effect border-0 shadow-lg">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Total Revenue
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {statistics.totalRevenue}
-                      </p>
-                    </div>
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-full">
-                      <DollarSign className="w-5 h-5 text-purple-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Loading State */}
         {loading && (
@@ -245,7 +214,7 @@ export default function ParkedVehicles() {
               Error loading vehicles
             </p>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchActivePassages} variant="outline">
+            <Button onClick={() => fetchActivePassages(currentPage, perPage)} variant="outline">
               Try Again
             </Button>
           </motion.div>
@@ -461,6 +430,68 @@ export default function ParkedVehicles() {
                 ? "Try adjusting your search terms"
                 : "No vehicles are currently parked"}
             </p>
+          </motion.div>
+        )}
+
+        {/* Pagination - Only show when not searching (search is client-side) */}
+        {!loading && !error && !searchTerm && pagination && pagination.last_page > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
+            className="flex items-center justify-between"
+          >
+            <div className="text-sm text-muted-foreground">
+              Showing {((pagination.current_page - 1) * pagination.per_page) + 1} to{" "}
+              {Math.min(pagination.current_page * pagination.per_page, pagination.total)} of{" "}
+              {pagination.total} vehicles
+            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => pagination.current_page > 1 && handlePageChange(pagination.current_page - 1)}
+                    className={pagination.current_page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map((page) => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    page === 1 ||
+                    page === pagination.last_page ||
+                    (page >= pagination.current_page - 1 && page <= pagination.current_page + 1)
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(page)}
+                          isActive={page === pagination.current_page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  } else if (
+                    page === pagination.current_page - 2 ||
+                    page === pagination.current_page + 2
+                  ) {
+                    return (
+                      <PaginationItem key={page}>
+                        <span className="px-2">...</span>
+                      </PaginationItem>
+                    );
+                  }
+                  return null;
+                })}
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => pagination.current_page < pagination.last_page && handlePageChange(pagination.current_page + 1)}
+                    className={pagination.current_page === pagination.last_page ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </motion.div>
         )}
       </div>

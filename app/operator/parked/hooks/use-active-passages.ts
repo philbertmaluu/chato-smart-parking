@@ -14,6 +14,14 @@ export const useActivePassages = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pagination, setPagination] = useState<{
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(15);
 
   // Calculate duration from entry time
   const calculateDuration = (entryTime: string): string => {
@@ -79,21 +87,37 @@ export const useActivePassages = () => {
   };
 
   // Fetch active passages
-  const fetchActivePassages = async () => {
+  const fetchActivePassages = async (page: number = currentPage, itemsPerPage: number = perPage) => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Fetching active passages...');
-      const response = await VehiclePassageService.getActivePassages();
+      console.log('Fetching active passages...', { page, itemsPerPage });
+      const response = await VehiclePassageService.getActivePassages(page, itemsPerPage);
       console.log('Active passages response:', response);
       
       // Handle the API response structure
       let passages: VehiclePassage[] = [];
+      let paginationData = null;
       
-      if (response && response.success && Array.isArray(response.data)) {
-        passages = response.data;
-        console.log('Found passages:', passages.length);
+      if (response && response.success) {
+        // Check if response is paginated
+        if (response.data && response.data.data && Array.isArray(response.data.data)) {
+          // Paginated response
+          passages = response.data.data;
+          paginationData = {
+            current_page: response.data.current_page || page,
+            last_page: response.data.last_page || 1,
+            per_page: response.data.per_page || itemsPerPage,
+            total: response.data.total || 0,
+          };
+        } else if (Array.isArray(response.data)) {
+          // Non-paginated response (backward compatibility)
+          passages = response.data;
+        } else {
+          console.error('Invalid response format:', response);
+          throw new Error('Invalid response format: passages data is not available');
+        }
       } else {
         console.error('Invalid response format:', response);
         throw new Error('Invalid response format: passages data is not available');
@@ -102,6 +126,8 @@ export const useActivePassages = () => {
       const transformedPassages = passages.map(transformPassageForDisplay);
       console.log('Transformed passages:', transformedPassages.length);
       setActivePassages(transformedPassages);
+      setPagination(paginationData);
+      setCurrentPage(page);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to fetch active passages';
       setError(errorMessage);
@@ -116,7 +142,7 @@ export const useActivePassages = () => {
   const refreshActivePassages = async () => {
     setRefreshing(true);
     try {
-      await fetchActivePassages();
+      await fetchActivePassages(currentPage, perPage);
       toast.success('Active passages refreshed');
     } catch (err: any) {
       toast.error('Failed to refresh active passages');
@@ -211,7 +237,8 @@ export const useActivePassages = () => {
 
   // Load active passages on mount
   useEffect(() => {
-    fetchActivePassages();
+    fetchActivePassages(currentPage, perPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
@@ -219,10 +246,15 @@ export const useActivePassages = () => {
     loading,
     error,
     refreshing,
+    pagination,
+    currentPage,
+    perPage,
     fetchActivePassages,
     refreshActivePassages,
     processVehicleExit,
     searchActivePassages,
     getPassageStatistics,
+    setCurrentPage,
+    setPerPage,
   };
 };
