@@ -85,7 +85,7 @@ export default function VehicleEntry() {
                 Vehicle Entry
               </h1>
               <p className="text-muted-foreground mt-2">
-                Simple vehicle entry processing
+                Vehicle entry processing
               </p>
               {!selectedGate && (
                 <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
@@ -114,19 +114,19 @@ export default function VehicleEntry() {
             <div className="relative">
             {/* Camera Feed - Full Width */}
             <Card className="glass-effect">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    
-                  </div>
+              <CardHeader>
+                <div className="flex items-center justify-end">
+                 
                   
                   {/* Gate Selection and Manual Entry Buttons - Top Right */}
                   <div className="flex items-center gap-3">
-                    {/* Gate Selection/Change Button */}
+                    {/* Deselect Gate Button - Only show when gate is selected */}
                     {selectedGate && (
                       <Button
                         onClick={async () => {
                           await deselectGate();
+                          // Automatically open gate selection modal after deselecting
+                          setShowGateModal(true);
                         }}
                         variant="outline"
                         size="lg"
@@ -136,21 +136,6 @@ export default function VehicleEntry() {
                         <span>Deselect Gate</span>
                       </Button>
                     )}
-                    <Button
-                      onClick={() => setShowGateModal(true)}
-                      variant={selectedGate ? "default" : "outline"}
-                      size="lg"
-                      className={`${
-                        selectedGate
-                          ? "bg-gradient-maroon text-white border-0"
-                          : "border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
-                      } transition-all duration-200 flex items-center space-x-2`}
-                    >
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {selectedGate ? `Change Gate` : "Select Gate"}
-                      </span>
-                    </Button>
                     
                     {/* Manual Entry Button */}
                     <Button
@@ -170,7 +155,7 @@ export default function VehicleEntry() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-0">
                 {gatesLoading ? (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
                     <div className="text-white text-center">
