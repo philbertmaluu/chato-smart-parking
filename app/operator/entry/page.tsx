@@ -10,7 +10,7 @@ import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw } from "lucide-react";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
@@ -19,7 +19,7 @@ export default function VehicleEntry() {
   const imageRef = useRef<HTMLImageElement>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get camera device from gate devices
+  // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
 
   // Check if operator has selected a gate on mount - show modal automatically
@@ -29,18 +29,20 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Auto-refresh camera feed using gate device IP
+  // Auto-refresh camera feed using gate device IP - update immediately when camera device changes
   useEffect(() => {
+    // Clear any existing interval first
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
     if (!cameraDevice || !cameraDevice.ip_address) {
-      // Clear interval if no camera device
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
       return;
     }
 
-    const refreshCamera = () => {
+    // Immediately update the image source when camera device changes
+    const updateImageSource = () => {
       if (imageRef.current && cameraDevice.ip_address) {
         const timestamp = new Date().toISOString();
         const protocol = cameraDevice.use_https ? 'https' : 'http';
@@ -49,16 +51,20 @@ export default function VehicleEntry() {
       }
     };
 
-    // Start auto-refresh
-    refreshIntervalRef.current = setInterval(refreshCamera, 500);
+    // Update immediately
+    updateImageSource();
 
-    // Cleanup on unmount
+    // Then set up auto-refresh
+    refreshIntervalRef.current = setInterval(updateImageSource, 500);
+
+    // Cleanup on unmount or when camera device changes
     return () => {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
       }
     };
-  }, [cameraDevice]);
+  }, [cameraDevice, selectedGate?.id]);
 
   const handleEntrySuccess = (data: any) => {
     console.log("Entry processed successfully:", data);
@@ -132,8 +138,8 @@ export default function VehicleEntry() {
                         size="lg"
                         className="border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 flex items-center space-x-2"
                       >
-                        <X className="w-4 h-4" />
-                        <span>Deselect Gate</span>
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Change Gate</span>
                       </Button>
                     )}
                     
@@ -204,9 +210,9 @@ export default function VehicleEntry() {
                     </div>
                     
                     {/* Camera Info */}
-                    <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
+                    {/* <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
                       <p className="text-white text-sm font-mono">{cameraDevice.ip_address}</p>
-                    </div>
+                    </div> */}
                     
                     {/* Current Gate Overlay (Mobile) */}
                     {selectedGate && (

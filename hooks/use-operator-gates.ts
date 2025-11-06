@@ -150,7 +150,7 @@ export function useOperatorGates(): UseOperatorGatesReturn {
       }>(API_ENDPOINTS.OPERATORS.SELECT_GATE, { gate_id: gateId });
       
       if (response.success) {
-        // Store gate devices from response
+        // Store gate devices from response FIRST for instant camera feed update
         const gateDevices = response.data.gate_devices || [];
         setSelectedGateDevices(gateDevices);
         
@@ -161,6 +161,7 @@ export function useOperatorGates(): UseOperatorGatesReturn {
         }
         
         // Refresh available gates in background to get updated list from backend
+        // This will also fetch devices if needed, but we already have them from selectGate response
         fetchAvailableGates();
         return true;
       } else {

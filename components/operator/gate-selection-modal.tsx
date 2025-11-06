@@ -77,10 +77,10 @@ export function GateSelectionModal({ open, onGateSelected, onClose }: GateSelect
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <MapPin className="w-6 h-6 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-xl">
+        
             Select Your Gate
           </DialogTitle>
           <DialogDescription>

@@ -297,12 +297,12 @@ export default function ParkedVehicles() {
                                 </Badge>
                               </div>
                             </div>
-                            <div className="text-right">
+                            {/* <div className="text-right">
                               <p className="text-sm text-muted-foreground">
                                 Spot
                               </p>
                               <p className="font-bold">{vehicle.spot}</p>
-                            </div>
+                            </div> */}
                           </div>
 
                           <div className="space-y-2">
@@ -396,9 +396,9 @@ export default function ParkedVehicles() {
                                 >
                                   {vehicleType}
                                 </Badge>
-                                <span className="text-sm text-muted-foreground">
+                                {/* <span className="text-sm text-muted-foreground">
                                   Spot: {vehicle.spot}
-                                </span>
+                                </span> */}
                               </div>
                             </div>
                           </div>
