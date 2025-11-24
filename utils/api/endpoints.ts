@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
     ACTIVE_LIST: "/vehicle-passages/active/list",
     COMPLETED_LIST: "/vehicle-passages/completed/list",
     STATISTICS: "/vehicle-passages/statistics",
+    DASHBOARD_SUMMARY: "/vehicle-passages/dashboard-summary",
     UPDATE_STATUS: (id: string | number) => `/vehicle-passages/${id}/status`,
     SEARCH: "/vehicle-passages/search",
   },

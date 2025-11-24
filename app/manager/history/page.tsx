@@ -138,6 +138,14 @@ export default function PassageHistoryPage() {
   const [activeTab, setActiveTab] = useState("history");
   const [timeRange, setTimeRange] = useState("7d");
   const [mounted, setMounted] = useState(false);
+  const [dashboardSummary, setDashboardSummary] = useState<{
+    total_passages: number;
+    active_passages: number;
+    completed_today: number;
+    total_revenue: number;
+    revenue_today: number;
+  } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Analytics data
   const mockAnalyticsData = {
@@ -186,30 +194,215 @@ export default function PassageHistoryPage() {
     setMounted(true);
   }, []);
 
-  // Analytics calculations
-  const analytics = useMemo(() => {
-    const data = mockAnalyticsData.dailyRevenue;
-    const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
-    const totalVehicles = data.reduce((sum, item) => sum + item.vehicles, 0);
-    const avgRevenue = totalRevenue / data.length;
-    const avgVehicles = totalVehicles / data.length;
+  // Fetch dashboard summary
+  const fetchDashboardSummary = async () => {
+    setSummaryLoading(true);
+    try {
+      const response = await get<{
+        success: boolean;
+        data: {
+          total_passages: number;
+          active_passages: number;
+          completed_today: number;
+          total_revenue: number;
+          revenue_today: number;
+        };
+        message: string;
+      }>(API_ENDPOINTS.VEHICLE_PASSAGES.DASHBOARD_SUMMARY);
+      
+      if (response.success && response.data) {
+        setDashboardSummary(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard summary:', error);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
-    const revenueChange =
-      ((data[data.length - 1].revenue - data[0].revenue) / data[0].revenue) *
-      100;
-    const vehicleChange =
-      ((data[data.length - 1].vehicles - data[0].vehicles) / data[0].vehicles) *
-      100;
+  useEffect(() => {
+    fetchDashboardSummary();
+  }, []);
+
+  // Real analytics calculations from passages data
+  const analytics = useMemo(() => {
+    const passages = state.passages || [];
+    const completedPassages = passages.filter(p => p?.exit_time);
+    const activePassages = passages.filter(p => p && !p.exit_time);
+    
+    // Revenue metrics
+    const totalRevenue = passages.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    const completedRevenue = completedPassages.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    
+    // Vehicle metrics
+    const totalVehicles = passages.length;
+    const completedVehicles = completedPassages.length;
+    
+    // Duration calculations
+    const durations = completedPassages
+      .map(p => {
+        if (!p?.entry_time || !p?.exit_time) return null;
+        const entry = new Date(p.entry_time);
+        const exit = new Date(p.exit_time);
+        return (exit.getTime() - entry.getTime()) / (1000 * 60 * 60); // hours
+      })
+      .filter((d): d is number => d !== null);
+    
+    const avgDuration = durations.length > 0 
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length 
+      : 0;
+    
+    // Revenue per vehicle
+    const revenuePerVehicle = completedVehicles > 0 
+      ? completedRevenue / completedVehicles 
+      : 0;
+    
+    // Peak hours analysis
+    const hourlyData: Record<number, { count: number; revenue: number }> = {};
+    completedPassages.forEach(p => {
+      if (p?.exit_time) {
+        const hour = new Date(p.exit_time).getHours();
+        if (!hourlyData[hour]) {
+          hourlyData[hour] = { count: 0, revenue: 0 };
+        }
+        hourlyData[hour].count++;
+        hourlyData[hour].revenue += p.total_amount || 0;
+      }
+    });
+    
+    const peakHour = Object.entries(hourlyData)
+      .sort(([, a], [, b]) => b.count - a.count)[0];
+    
+    // Vehicle type distribution
+    const vehicleTypeData: Record<string, { count: number; revenue: number }> = {};
+    completedPassages.forEach(p => {
+      const type = p?.vehicle?.body_type?.name || 'Unknown';
+      if (!vehicleTypeData[type]) {
+        vehicleTypeData[type] = { count: 0, revenue: 0 };
+      }
+      vehicleTypeData[type].count++;
+      vehicleTypeData[type].revenue += p.total_amount || 0;
+    });
+    
+    // Station performance
+    const stationData: Record<string, { count: number; revenue: number }> = {};
+    completedPassages.forEach(p => {
+      const station = p?.entry_station?.name || 'Unknown';
+      if (!stationData[station]) {
+        stationData[station] = { count: 0, revenue: 0 };
+      }
+      stationData[station].count++;
+      stationData[station].revenue += p.total_amount || 0;
+    });
+    
+    // Daily breakdown for chart
+    const dailyData: Record<string, { revenue: number; vehicles: number }> = {};
+    completedPassages.forEach(p => {
+      if (p?.exit_time) {
+        const date = new Date(p.exit_time).toLocaleDateString('en-US', { weekday: 'short' });
+        if (!dailyData[date]) {
+          dailyData[date] = { revenue: 0, vehicles: 0 };
+        }
+        dailyData[date].revenue += p.total_amount || 0;
+        dailyData[date].vehicles++;
+      }
+    });
+    
+    const dailyChartData = Object.entries(dailyData).map(([date, data]) => ({
+      date,
+      revenue: data.revenue,
+      vehicles: data.vehicles,
+    }));
+    
+    // Hourly chart data
+    const hourlyChartData = Array.from({ length: 24 }, (_, i) => {
+      const hourData = hourlyData[i] || { count: 0, revenue: 0 };
+    return {
+        hour: `${i}:00`,
+        vehicles: hourData.count,
+        revenue: hourData.revenue,
+      };
+    });
+    
+    // Vehicle type chart data
+    const vehicleTypeChartData = Object.entries(vehicleTypeData).map(([name, data]) => ({
+      name,
+      value: data.count,
+      revenue: data.revenue,
+      color: name.includes('Motorcycle') ? '#10B981' : 
+             name.includes('Large') ? '#F59E0B' : 
+             name.includes('Small') ? '#3B82F6' : '#8B5CF6',
+    }));
+    
+    // Calculate trends (comparing last 7 days if available)
+    const today = new Date();
+    const last7Days = completedPassages.filter(p => {
+      if (!p?.exit_time) return false;
+      const exitDate = new Date(p.exit_time);
+      const diffDays = (today.getTime() - exitDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays <= 7;
+    });
+    
+    const last7DaysRevenue = last7Days.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    const prev7DaysRevenue = completedPassages
+      .filter(p => {
+        if (!p?.exit_time) return false;
+        const exitDate = new Date(p.exit_time);
+        const diffDays = (today.getTime() - exitDate.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays > 7 && diffDays <= 14;
+      })
+      .reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    
+    const revenueChange = prev7DaysRevenue > 0
+      ? ((last7DaysRevenue - prev7DaysRevenue) / prev7DaysRevenue) * 100
+      : 0;
+    
+    const last7DaysVehicles = last7Days.length;
+    const prev7DaysVehicles = completedPassages.filter(p => {
+      if (!p?.exit_time) return false;
+      const exitDate = new Date(p.exit_time);
+      const diffDays = (today.getTime() - exitDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays > 7 && diffDays <= 14;
+    }).length;
+    
+    const vehicleChange = prev7DaysVehicles > 0
+      ? ((last7DaysVehicles - prev7DaysVehicles) / prev7DaysVehicles) * 100
+      : 0;
 
     return {
+      // Summary metrics
       totalRevenue,
+      completedRevenue,
       totalVehicles,
-      avgRevenue: avgRevenue.toFixed(0),
-      avgVehicles: avgVehicles.toFixed(0),
+      completedVehicles,
+      activeVehicles: activePassages.length,
+      
+      // Performance metrics
+      avgDuration: avgDuration.toFixed(1),
+      revenuePerVehicle: revenuePerVehicle.toFixed(0),
+      peakHour: peakHour ? `${peakHour[0]}:00 (${peakHour[1].count} vehicles)` : 'N/A',
+      
+      // Trends
       revenueChange: revenueChange.toFixed(1),
       vehicleChange: vehicleChange.toFixed(1),
+      
+      // Chart data
+      dailyChartData: dailyChartData.length > 0 ? dailyChartData : mockAnalyticsData.dailyRevenue,
+      hourlyChartData,
+      vehicleTypeChartData: vehicleTypeChartData.length > 0 ? vehicleTypeChartData : mockAnalyticsData.vehicleTypeDistribution,
+      stationData: Object.entries(stationData).map(([name, data]) => ({
+        name,
+        vehicles: data.count,
+        revenue: data.revenue,
+      })),
+      
+      // Additional insights
+      avgRevenue: completedVehicles > 0 ? (completedRevenue / completedVehicles).toFixed(0) : '0',
+      avgVehicles: dailyChartData.length > 0 
+        ? (dailyChartData.reduce((sum, d) => sum + d.vehicles, 0) / dailyChartData.length).toFixed(0)
+        : '0',
     };
-  }, []);
+  }, [state.passages]);
 
   const exportAnalytics = () => {
     if (!mounted) return;
@@ -447,33 +640,33 @@ export default function PassageHistoryPage() {
         );
       },
     },
-    {
-      key: "status",
-      title: "Status",
-      render: (value: any, record: VehiclePassage, index: number) => {
-        if (!record) return <div className="text-muted-foreground">N/A</div>;
-        return (
-          <Badge variant={getStatusBadgeVariant(record.status || 'unknown')}>
-            {record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'Unknown'}
-          </Badge>
-        );
-      },
-    },
-    {
-      key: "payment_status",
-      title: "Payment",
-      render: (value: any, record: VehiclePassage, index: number) => {
-        if (!record) return <div className="text-muted-foreground">N/A</div>;
-        return (
-          <Badge variant={getPaymentStatusBadgeVariant(record.payment_status)}>
-            {record.payment_status ? 
-              record.payment_status.charAt(0).toUpperCase() + record.payment_status.slice(1) : 
-              'N/A'
-            }
-          </Badge>
-        );
-      },
-    },
+    // {
+    //   key: "status",
+    //   title: "Status",
+    //   render: (value: any, record: VehiclePassage, index: number) => {
+    //     if (!record) return <div className="text-muted-foreground">N/A</div>;
+    //     return (
+    //       <Badge variant={getStatusBadgeVariant(record.status || 'unknown')}>
+    //         {record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'Unknown'}
+    //       </Badge>
+    //     );
+    //   },
+    // },
+    // {
+    //   key: "payment_status",
+    //   title: "Payment",
+    //   render: (value: any, record: VehiclePassage, index: number) => {
+    //     if (!record) return <div className="text-muted-foreground">N/A</div>;
+    //     return (
+    //       <Badge variant={getPaymentStatusBadgeVariant(record.payment_status)}>
+    //         {record.payment_status ? 
+    //           record.payment_status.charAt(0).toUpperCase() + record.payment_status.slice(1) : 
+    //           'N/A'
+    //         }
+    //       </Badge>
+    //     );
+    //   },
+    // },
   ];
 
   return (
@@ -495,10 +688,13 @@ export default function PassageHistoryPage() {
             <div className="flex items-center space-x-2">
             <Button
               variant="outline"
-                onClick={() => fetchPassages(1)}
-                disabled={state.loading}
+                onClick={() => {
+                  fetchPassages(1);
+                  fetchDashboardSummary();
+                }}
+                disabled={state.loading || summaryLoading}
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${state.loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 mr-2 ${(state.loading || summaryLoading) ? 'animate-spin' : ''}`} />
                 Refresh
             </Button>
           </div>
@@ -520,73 +716,107 @@ export default function PassageHistoryPage() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
         >
           {/* Total Passages */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+          <Card className="border-0 shadow-lg glass-effect">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold">{state.pagination.total}</p>
-                  <p className="text-sm text-muted-foreground">Total Passages</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Total Passages
+                  </p>
+                  <p className="text-3xl font-bold">
+                    {summaryLoading ? (
+                      <span className="text-muted-foreground">...</span>
+                    ) : (
+                      dashboardSummary?.total_passages.toLocaleString() || '0'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    All time records
+                  </p>
                 </div>
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full">
-                  <Activity className="w-5 h-5 text-white" />
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full shadow-lg">
+                  <Activity className="w-6 h-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Active Passages */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+          <Card className="border-0 shadow-lg glass-effect">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold">
-                    {state.passages?.filter(p => p && p.status === 'active').length || 0}
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Active Now
                   </p>
-                  <p className="text-sm text-muted-foreground">Active Now</p>
+                  <p className="text-3xl font-bold">
+                    {summaryLoading ? (
+                      <span className="text-muted-foreground">...</span>
+                    ) : (
+                      dashboardSummary?.active_passages.toLocaleString() || '0'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Currently parked
+                  </p>
                 </div>
-                <div className="p-2 bg-gradient-to-br from-green-500 to-green-600 rounded-full">
-                  <Car className="w-5 h-5 text-white" />
+                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-full shadow-lg">
+                  <Car className="w-6 h-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Completed Today */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+          <Card className="border-0 shadow-lg glass-effect">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold">
-                    {state.passages?.filter(p => {
-                      if (!p) return false;
-                      const today = new Date().toDateString();
-                      return p.status === 'completed' && 
-                             new Date(p.exit_time || '').toDateString() === today;
-                    }).length || 0}
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Completed Today
                   </p>
-                  <p className="text-sm text-muted-foreground">Completed Today</p>
+                  <p className="text-3xl font-bold">
+                    {summaryLoading ? (
+                      <span className="text-muted-foreground">...</span>
+                    ) : (
+                      dashboardSummary?.completed_today.toLocaleString() || '0'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Exited today
+                  </p>
                 </div>
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full">
-                  <BarChart3 className="w-5 h-5 text-white" />
+                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full shadow-lg">
+                  <BarChart3 className="w-6 h-6 text-white" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Total Revenue */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+          <Card className="border-0 shadow-lg glass-effect">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Total Revenue
+                  </p>
                   <p className="text-2xl font-bold">
-                    {formatCurrency(
-                      state.passages?.reduce((sum, p) => sum + (p?.total_amount || 0), 0) || 0
+                    {summaryLoading ? (
+                      <span className="text-muted-foreground">...</span>
+                    ) : (
+                      formatCurrency(dashboardSummary?.total_revenue || 0)
                     )}
                   </p>
-                  <p className="text-sm text-muted-foreground">Total Revenue</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dashboardSummary?.revenue_today ? 
+                      `Today: ${formatCurrency(dashboardSummary.revenue_today)}` : 
+                      'All time revenue'
+                    }
+                  </p>
                 </div>
-                <div className="p-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full">
-                  <DollarSign className="w-5 h-5 text-white" />
+                <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full shadow-lg">
+                  <DollarSign className="w-6 h-6 text-white" />
                 </div>
               </div>
             </CardContent>
@@ -666,16 +896,9 @@ export default function PassageHistoryPage() {
               initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4"
             >
-                                <div>
-                <h1 className="text-3xl font-bold text-gradient">
-                  Analytics Dashboard
-                </h1>
-                <p className="text-muted-foreground mt-2">
-                  Comprehensive parking analytics and insights
-                </p>
-                                </div>
+               
               <div className="flex gap-2">
                 <Select value={timeRange} onValueChange={setTimeRange}>
                   <SelectTrigger className="w-32">
@@ -699,13 +922,14 @@ export default function PassageHistoryPage() {
                           </div>
         </motion.div>
 
-            {/* Key Metrics */}
+            {/* Key Metrics - Comprehensive KPIs */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
             >
+              {/* Total Revenue */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -714,7 +938,7 @@ export default function PassageHistoryPage() {
                         Total Revenue
                       </p>
                       <p className="text-2xl font-bold mt-2">
-                        Tsh. {analytics.totalRevenue.toLocaleString()}
+                        {formatCurrency(analytics.completedRevenue)}
                       </p>
                       <div className="flex items-center mt-2">
                         {parseFloat(analytics.revenueChange) >= 0 ? (
@@ -729,23 +953,122 @@ export default function PassageHistoryPage() {
                               : "text-red-600"
                           }`}
                         >
-                          {analytics.revenueChange}%
+                          {analytics.revenueChange}% vs last week
                         </span>
                       </div>
                       </div>
-                    <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-full">
-                      <DollarSign className="w-6 h-6 text-green-600" />
+                    <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-full">
+                      <DollarSign className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Total Vehicles */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                   <div>
                       <p className="text-sm font-medium text-muted-foreground">
-                        Total Vehicles
+                        Completed Vehicles
+                      </p>
+                      <p className="text-2xl font-bold mt-2">
+                        {analytics.completedVehicles.toLocaleString()}
+                      </p>
+                      <div className="flex items-center mt-2">
+                        <span className="text-sm text-muted-foreground">
+                          {analytics.activeVehicles} active now
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full">
+                      <Car className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Revenue Per Vehicle */}
+              <Card className="glass-effect border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Avg Revenue/Vehicle
+                      </p>
+                      <p className="text-2xl font-bold mt-2">
+                        {formatCurrency(parseFloat(analytics.revenuePerVehicle))}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Per completed passage
+                      </p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full">
+                      <TrendingUp className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Average Stay Duration */}
+              <Card className="glass-effect border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Avg Stay Duration
+                      </p>
+                      <p className="text-2xl font-bold mt-2">
+                        {analytics.avgDuration}h
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Average parking time
+                      </p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Secondary Metrics */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              {/* Peak Hour */}
+              <Card className="glass-effect border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Peak Hour
+                      </p>
+                      <p className="text-xl font-bold mt-2">
+                        {analytics.peakHour}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Highest traffic time
+                      </p>
+                    </div>
+                    <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full">
+                      <Activity className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Total Passages */}
+              <Card className="glass-effect border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Total Passages
                       </p>
                       <p className="text-2xl font-bold mt-2">
                         {analytics.totalVehicles.toLocaleString()}
@@ -763,17 +1086,18 @@ export default function PassageHistoryPage() {
                               : "text-red-600"
                           }`}
                         >
-                          {analytics.vehicleChange}%
+                          {analytics.vehicleChange}% vs last week
                         </span>
                       </div>
                       </div>
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-full">
-                      <Car className="w-6 h-6 text-blue-600" />
+                    <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-full">
+                      <BarChart3 className="w-6 h-6 text-white" />
                       </div>
                     </div>
                 </CardContent>
               </Card>
 
+              {/* Avg Daily Revenue */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -782,19 +1106,20 @@ export default function PassageHistoryPage() {
                         Avg Daily Revenue
                       </p>
                       <p className="text-2xl font-bold mt-2">
-                        Tsh. {analytics.avgRevenue}
+                        {formatCurrency(parseFloat(analytics.avgRevenue))}
                       </p>
                       <p className="text-sm text-muted-foreground mt-2">
                         Per day average
                       </p>
                       </div>
-                    <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-full">
-                      <TrendingUp className="w-6 h-6 text-purple-600" />
+                    <div className="p-3 bg-gradient-to-br from-pink-500 to-pink-600 rounded-full">
+                      <DollarSign className="w-6 h-6 text-white" />
                       </div>
                     </div>
                 </CardContent>
               </Card>
 
+              {/* Avg Daily Vehicles */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -809,8 +1134,8 @@ export default function PassageHistoryPage() {
                         Per day average
                       </p>
                       </div>
-                    <div className="p-3 bg-orange-100 dark:bg-orange-900/20 rounded-full">
-                      <Clock className="w-6 h-6 text-orange-600" />
+                    <div className="p-3 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-full">
+                      <Car className="w-6 h-6 text-white" />
                       </div>
                       </div>
                 </CardContent>
@@ -834,12 +1159,12 @@ export default function PassageHistoryPage() {
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={mockAnalyticsData.dailyRevenue}>
+                      <AreaChart data={analytics.dailyChartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" />
                         <YAxis />
                         <Tooltip
-                          formatter={(value) => [`Tsh. ${value}`, "Revenue"]}
+                          formatter={(value: any) => [formatCurrency(value), "Revenue"]}
                         />
                         <Area
                           type="monotone"
@@ -869,12 +1194,14 @@ export default function PassageHistoryPage() {
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={mockAnalyticsData.dailyRevenue}>
+                      <BarChart data={analytics.dailyChartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="date" />
                         <YAxis />
                         <Tooltip />
-                        <Bar dataKey="vehicles" fill="#10B981" />
+                        <Legend />
+                        <Bar dataKey="vehicles" fill="#10B981" name="Vehicles" />
+                        <Bar dataKey="revenue" fill="#3B82F6" name="Revenue" />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -899,16 +1226,25 @@ export default function PassageHistoryPage() {
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={mockAnalyticsData.hourlyTraffic}>
+                      <LineChart data={analytics.hourlyChartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="hour" />
                         <YAxis />
                         <Tooltip />
+                        <Legend />
                         <Line
                           type="monotone"
                           dataKey="vehicles"
                           stroke="#3B82F6"
                           strokeWidth={2}
+                          name="Vehicles"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="#10B981"
+                          strokeWidth={2}
+                          name="Revenue"
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -931,24 +1267,30 @@ export default function PassageHistoryPage() {
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={mockAnalyticsData.vehicleTypeDistribution}
+                          data={analytics.vehicleTypeChartData}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
                           label={({ name, percent }) =>
-                            `${name} ${((percent || 0) * 100).toFixed(0)}%`
+                            `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                           }
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {mockAnalyticsData.vehicleTypeDistribution.map(
+                          {analytics.vehicleTypeChartData.map(
                             (entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             )
                           )}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip formatter={(value: any, name: string) => {
+                          const entry = analytics.vehicleTypeChartData.find((e: any) => e.value === value);
+                          return [
+                            `${value} vehicles (${formatCurrency((entry as any)?.revenue || 0)})`,
+                            name
+                          ];
+                        }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -956,9 +1298,9 @@ export default function PassageHistoryPage() {
               </motion.div>
               </div>
 
-            {/* Monthly Revenue and Operator Performance */}
+            {/* Station Performance and Vehicle Type Revenue */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Monthly Revenue */}
+              {/* Station Performance */}
                       <motion.div
                 initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -966,31 +1308,39 @@ export default function PassageHistoryPage() {
               >
                 <Card className="glass-effect border-0 shadow-lg">
                   <CardHeader>
-                    <CardTitle>Monthly Revenue</CardTitle>
+                    <CardTitle>Station Performance</CardTitle>
                     <CardDescription>
-                      Revenue trends over the past 6 months
+                      Revenue and traffic by station
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
+                    {analytics.stationData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={mockAnalyticsData.monthlyRevenue}>
+                        <BarChart data={analytics.stationData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
+                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
                         <YAxis />
                         <Tooltip
-                          formatter={(value) => [
-                            `Tsh. ${value.toLocaleString()}`,
-                            "Revenue",
-                          ]}
-                        />
-                        <Bar dataKey="revenue" fill="#8B5CF6" />
+                            formatter={(value: any) => [
+                              typeof value === 'number' ? formatCurrency(value) : value,
+                              "Revenue"
+                            ]}
+                          />
+                          <Legend />
+                          <Bar dataKey="revenue" fill="#8B5CF6" name="Revenue" />
+                          <Bar dataKey="vehicles" fill="#10B981" name="Vehicles" />
                       </BarChart>
                     </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                        <p>No station data available</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
 
-              {/* Operator Performance */}
+              {/* Vehicle Type Revenue */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -998,46 +1348,58 @@ export default function PassageHistoryPage() {
               >
                 <Card className="glass-effect border-0 shadow-lg">
                   <CardHeader>
-                    <CardTitle>Operator Performance</CardTitle>
+                    <CardTitle>Vehicle Type Revenue</CardTitle>
                     <CardDescription>
-                      Operator efficiency and revenue generation
+                      Revenue breakdown by vehicle type
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {mockAnalyticsData.operatorPerformance.map(
-                        (operator, index) => (
-                          <div
-                            key={operator.name}
+                      {analytics.vehicleTypeChartData.length > 0 ? (
+                        analytics.vehicleTypeChartData
+                          .sort((a: any, b: any) => (b.revenue || 0) - (a.revenue || 0))
+                          .map((type: any, index: number) => (
+                            <div
+                              key={type.name}
                             className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
                           >
                             <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                                <Users className="w-4 h-4 text-white" />
-                              </div>
+                                <div 
+                                  className="w-4 h-4 rounded-full"
+                                  style={{ backgroundColor: type.color }}
+                                />
                               <div>
-                                <p className="font-medium">{operator.name}</p>
+                                  <p className="font-medium">{type.name}</p>
                               <p className="text-sm text-muted-foreground">
-                                  {operator.vehicles} vehicles
+                                    {type.value} vehicles
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
                               <p className="font-bold text-green-600">
-                                Tsh. {operator.revenue}
+                                  {formatCurrency(type.revenue || 0)}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                {operator.efficiency}% efficiency
+                                  {type.value > 0 
+                                    ? formatCurrency((type.revenue || 0) / type.value)
+                                    : formatCurrency(0)
+                                  } avg
                               </p>
                               </div>
                             </div>
-                        )
+                          ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>No vehicle type data available</p>
+                        </div>
                       )}
                           </div>
                   </CardContent>
                 </Card>
                       </motion.div>
                 </div>
+
+
           </TabsContent>
         </Tabs>
               </div>

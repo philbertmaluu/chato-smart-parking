@@ -150,16 +150,9 @@ export default function Analytics() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4"
         >
-          <div>
-            <h1 className="text-3xl font-bold text-gradient">
-              Analytics Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Comprehensive parking analytics and insights
-            </p>
-          </div>
+         
           <div className="flex gap-2">
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-32">
@@ -420,7 +413,7 @@ export default function Analytics() {
                       cy="50%"
                       labelLine={false}
                       label={({ name, percent }) =>
-                        `${name} ${(percent * 100).toFixed(0)}%`
+                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
                       }
                       outerRadius={80}
                       fill="#8884d8"
