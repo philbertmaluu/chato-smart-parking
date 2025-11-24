@@ -313,6 +313,11 @@ export const API_ENDPOINTS = {
   ROLES: {
     LIST: "/roles",
   },
+
+  // Camera detection endpoints
+  CAMERA_DETECTION: {
+    FETCH: "/camera-detection/fetch",
+  },
 } as const;
 
 // Type for endpoint parameters

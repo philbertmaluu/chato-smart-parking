@@ -32,6 +32,7 @@ import {
   CreditCard,
   UserCheck,
   Shield,
+  Camera,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -156,6 +157,11 @@ export function Sidebar({ className }: SidebarProps) {
       title: t("nav.history"),
       href: "/manager/history",
       icon: History,
+    },
+    {
+      title: t("nav.detectionLogs"),
+      href: "/manager/detection-logs",
+      icon: Camera,
     },
     // {
     //   title: t("nav.analytics"),
