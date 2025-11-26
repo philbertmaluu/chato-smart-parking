@@ -16,6 +16,8 @@ import {
   MapPin,
   TrendingUp,
   Eye,
+  Car,
+  CheckCircle,
 } from "lucide-react";
 import { useDetectionLogs, type CameraDetection } from "@/hooks/use-detection-logs";
 import { useLanguage } from "@/components/language-provider";
@@ -30,14 +32,62 @@ import {
 
 export default function DetectionLogsPage() {
   const { t } = useLanguage();
-  const { detections, loading, error, count, fetchDetectionLogs } = useDetectionLogs();
+  const { detections, loading, error, count, fetchDetectionLogs, checkForNewData } = useDetectionLogs();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDetection, setSelectedDetection] = useState<CameraDetection | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [newDataArrived, setNewDataArrived] = useState(false);
+  const [showNewCarPopup, setShowNewCarPopup] = useState(false);
+  const [latestDetection, setLatestDetection] = useState<CameraDetection | null>(null);
 
+  // Initial fetch
   useEffect(() => {
     fetchDetectionLogs();
   }, [fetchDetectionLogs]);
+
+  // Smart polling: Only refresh UI when new data is detected
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    let previousCount = count;
+
+    const pollForNewData = async () => {
+      try {
+        // Lightweight check - only fetches count, not full data
+        const currentCount = await checkForNewData();
+        
+        // Only fetch and update full data if count increased
+        if (currentCount > previousCount) {
+          await fetchDetectionLogs();
+          setLastUpdate(new Date());
+          setNewDataArrived(true);
+          setTimeout(() => setNewDataArrived(false), 2000);
+          
+          // Show new car popup
+          setShowNewCarPopup(true);
+          setTimeout(() => setShowNewCarPopup(false), 3000);
+          
+          previousCount = currentCount;
+        }
+      } catch (err) {
+        console.error('Error polling for new data:', err);
+      }
+    };
+
+    // Poll every 2 seconds for new data
+    const interval = setInterval(pollForNewData, 2000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, checkForNewData, fetchDetectionLogs, count]);
+
+  // Track latest detection for popup
+  useEffect(() => {
+    if (detections.length > 0) {
+      setLatestDetection(detections[0]);
+    }
+  }, [detections]);
 
   // Filter detections based on search term
   const filteredDetections = useMemo(() => {
@@ -51,8 +101,8 @@ export default function DetectionLogsPage() {
   }, [detections, searchTerm]);
 
   // Get confidence badge color
-  const getConfidenceColor = (confidence: string) => {
-    const conf = parseFloat(confidence);
+  const getConfidenceColor = (confidence: string | number) => {
+    const conf = typeof confidence === 'string' ? parseFloat(confidence) : confidence;
     if (conf >= 90) return "bg-green-500";
     if (conf >= 70) return "bg-yellow-500";
     return "bg-red-500";
@@ -68,18 +118,31 @@ export default function DetectionLogsPage() {
       align: "center",
     },
     {
+      key: "gate",
+      title: t("detectionLogs.gate") || "Gate",
+      render: (_, record) => (
+        <Badge variant="default" className="font-medium">
+          {record.gate?.name || "N/A"}
+        </Badge>
+      ),
+      width: 120,
+    },
+    {
       key: "timestamp",
       title: t("detectionLogs.timestamp") || "Timestamp",
-      render: (_, record) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">
-            {formatDate(record.timestamp)}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatTime(record.timestamp)}
-          </span>
-        </div>
-      ),
+      render: (_, record) => {
+        const timestamp = record.detection_timestamp || record.timestamp;
+        return (
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">
+              {formatDate(timestamp)}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {formatTime(timestamp)}
+            </span>
+          </div>
+        );
+      },
       width: 150,
     },
     {
@@ -110,23 +173,26 @@ export default function DetectionLogsPage() {
     {
       key: "confidence",
       title: t("detectionLogs.confidence") || "Confidence",
-      render: (_, record) => (
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1">
-            <div
-              className={`w-2 h-2 rounded-full ${getConfidenceColor(record.globalconfidence)}`}
-            />
-            <span className="font-medium">{record.globalconfidence}%</span>
+      render: (_, record) => {
+        const confidence = record.global_confidence || record.globalconfidence || '0';
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1">
+              <div
+                className={`w-2 h-2 rounded-full ${getConfidenceColor(confidence)}`}
+              />
+              <span className="font-medium">{confidence}%</span>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
       width: 130,
     },
     {
       key: "lane",
       title: t("detectionLogs.lane") || "Lane",
       render: (_, record) => (
-        <Badge variant="outline">Lane {record.laneid}</Badge>
+        <Badge variant="outline">Lane {record.lane_id || record.laneid}</Badge>
       ),
       width: 100,
     },
@@ -163,6 +229,66 @@ export default function DetectionLogsPage() {
 
   return (
     <MainLayout>
+      {/* New Car Detection Popup */}
+      {showNewCarPopup && latestDetection && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: -50 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: -50 }}
+          transition={{ type: "spring", damping: 20, stiffness: 300 }}
+          className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50"
+        >
+          <Card className="bg-gradient-to-r from-green-500 to-emerald-600 border-0 shadow-2xl shadow-green-500/50 min-w-[400px]">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-white/30 rounded-full animate-ping" />
+                    <div className="relative bg-white rounded-full p-3">
+                      <Car className="w-8 h-8 text-green-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <CheckCircle className="w-5 h-5 text-white" />
+                    <h3 className="text-xl font-bold text-white">
+                      New Vehicle Detected!
+                    </h3>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-white/90 text-sm font-medium">Plate Number:</span>
+                      <span className="text-white font-bold text-lg font-mono bg-white/20 px-3 py-1 rounded">
+                        {latestDetection.numberplate}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-xs text-white/80">
+                      {latestDetection.gate && (
+                        <>
+                          <span className="bg-white/30 px-2 py-1 rounded font-semibold">{latestDetection.gate.name}</span>
+                          <span>•</span>
+                        </>
+                      )}
+                      <span>Lane {latestDetection.lane_id || latestDetection.laneid}</span>
+                      <span>•</span>
+                      <span>Confidence: {latestDetection.global_confidence || latestDetection.globalconfidence || '0'}%</span>
+                      <span>•</span>
+                      <span>{parseFloat(latestDetection.speed).toFixed(0)} km/h</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-shrink-0">
+                  <div className="bg-white/20 rounded-full p-2">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       <div className="space-y-6">
         {/* Header */}
         <motion.div
@@ -175,11 +301,35 @@ export default function DetectionLogsPage() {
             <h1 className="text-3xl font-bold text-gradient">
               {t("detectionLogs.title") || "Detection Logs"}
             </h1>
-            <p className="text-muted-foreground mt-2">
-              {t("detectionLogs.description") || "View camera detection logs and vehicle plate recognition data"}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-muted-foreground mt-2">
+                {t("detectionLogs.description") || "View stored camera detection logs and vehicle plate recognition data from database"}
+              </p>
+              {autoRefresh && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                  <Clock className="w-3 h-3" />
+                  <span>Last update: {lastUpdate.toLocaleTimeString()}</span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center space-x-2">
+            <Button
+              variant={autoRefresh ? "default" : "outline"}
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              size="sm"
+            >
+              {autoRefresh ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-2" />
+                  {t("detectionLogs.autoRefreshOn") || "Auto-Refresh ON"}
+                </>
+              ) : (
+                <>
+                  {t("detectionLogs.autoRefreshOff") || "Auto-Refresh OFF"}
+                </>
+              )}
+            </Button>
             <Button
               variant="outline"
               onClick={() => fetchDetectionLogs()}
@@ -198,15 +348,20 @@ export default function DetectionLogsPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <Card>
+            <Card className={newDataArrived ? "border-green-500 shadow-lg shadow-green-500/20" : ""}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {t("detectionLogs.totalDetections") || "Total Detections"}
                 </CardTitle>
-                <Camera className="h-4 w-4 text-muted-foreground" />
+                <Camera className={`h-4 w-4 ${newDataArrived ? "text-green-500" : "text-muted-foreground"}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{count}</div>
+                <div className={`text-2xl font-bold ${newDataArrived ? "text-green-500" : ""}`}>
+                  {count}
+                  {newDataArrived && (
+                    <span className="ml-2 text-xs text-green-500 animate-pulse">NEW!</span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {t("detectionLogs.allTime") || "All time"}
                 </p>
@@ -252,7 +407,7 @@ export default function DetectionLogsPage() {
                   {filteredDetections.length > 0
                     ? (
                         filteredDetections.reduce(
-                          (sum, d) => sum + parseFloat(d.globalconfidence || "0"),
+                          (sum, d) => sum + parseFloat(String(d.global_confidence || d.globalconfidence || "0")),
                           0
                         ) / filteredDetections.length
                       ).toFixed(1)
@@ -364,8 +519,12 @@ export default function DetectionLogsPage() {
                       <span className="font-medium">{selectedDetection.id}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t("detectionLogs.gate") || "Gate"}:</span>
+                      <span className="font-medium">{selectedDetection.gate?.name || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.timestamp") || "Timestamp"}:</span>
-                      <span className="font-medium">{formatDate(selectedDetection.timestamp)} {formatTime(selectedDetection.timestamp)}</span>
+                      <span className="font-medium">{formatDate(selectedDetection.detection_timestamp || selectedDetection.timestamp)} {formatTime(selectedDetection.detection_timestamp || selectedDetection.timestamp)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.plateNumber") || "Plate Number"}:</span>
@@ -386,11 +545,11 @@ export default function DetectionLogsPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.confidence") || "Confidence"}:</span>
-                      <span className="font-medium">{selectedDetection.globalconfidence}%</span>
+                      <span className="font-medium">{selectedDetection.global_confidence || selectedDetection.globalconfidence || '0'}%</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.lane") || "Lane"}:</span>
-                      <span className="font-medium">Lane {selectedDetection.laneid}</span>
+                      <span className="font-medium">Lane {selectedDetection.lane_id || selectedDetection.laneid}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.speed") || "Speed"}:</span>
@@ -398,7 +557,7 @@ export default function DetectionLogsPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.processTime") || "Process Time"}:</span>
-                      <span className="font-medium">{selectedDetection.processtime}ms</span>
+                      <span className="font-medium">{selectedDetection.process_time || selectedDetection.processtime}ms</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.direction") || "Direction"}:</span>
@@ -436,11 +595,11 @@ export default function DetectionLogsPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.imagePath") || "Image Path"}:</span>
-                      <span className="font-mono text-xs truncate max-w-[200px]">{selectedDetection.imagepath}</span>
+                      <span className="font-mono text-xs truncate max-w-[200px]">{selectedDetection.image_path || selectedDetection.imagepath}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t("detectionLogs.retailPath") || "Retail Path"}:</span>
-                      <span className="font-mono text-xs truncate max-w-[200px]">{selectedDetection.imageretailpath}</span>
+                      <span className="font-mono text-xs truncate max-w-[200px]">{selectedDetection.image_retail_path || selectedDetection.imageretailpath}</span>
                     </div>
                   </div>
                 </div>

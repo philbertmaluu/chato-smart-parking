@@ -15,12 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/components/language-provider";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
-import { formatTime, formatDateTime } from "@/utils/date-utils";
-import {
-  useActivePassages,
-  type ActivePassage,
-} from "./hooks/use-active-passages";
-import { VehicleExitDialog } from "./components/vehicle-exit-dialog";
+import { formatTime } from "@/utils/date-utils";
+import { useDetectionLogs, type CameraDetection } from "@/hooks/use-detection-logs";
 import { getVehicleTypeIcon, getVehicleTypeBadge } from "@/utils/utils";
 import {
   Search,
@@ -30,61 +26,33 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
   const { selectedGate } = useOperatorGates();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [selectedVehicle, setSelectedVehicle] = useState<ActivePassage | null>(
+  const [selectedVehicle, setSelectedVehicle] = useState<CameraDetection | null>(
     null
   );
-  const [showExitDialog, setShowExitDialog] = useState(false);
 
+  // Fetch camera detections for the selected gate
   const {
-    activePassages,
+    detections,
     loading,
     error,
-    refreshing,
-    pagination,
-    currentPage,
-    perPage,
-    fetchActivePassages,
-    refreshActivePassages,
-    searchActivePassages,
-    setCurrentPage,
-  } = useActivePassages();
+    count,
+    fetchDetectionLogs,
+    checkForNewData,
+  } = useDetectionLogs(selectedGate?.id);
 
-  // Filter vehicles based on search term
-  const filteredVehicles = searchActivePassages(searchTerm);
+  // Use detections directly
+  const filteredVehicles = detections;
 
-  const handleProcessExit = (vehicle: ActivePassage) => {
-    setSelectedVehicle(vehicle);
-    setShowExitDialog(true);
-  };
-
-  const handleExitProcessed = () => {
-    // Refresh the active passages list to remove the exited vehicle
-    fetchActivePassages(currentPage, perPage);
-    setShowExitDialog(false);
-    setSelectedVehicle(null);
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    fetchActivePassages(page, perPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleProcessExit = (vehicle: CameraDetection) => {
+    // For now, just show an alert with detection details
+    alert(`Vehicle detected: ${vehicle.numberplate}\nConfidence: ${vehicle.global_confidence || vehicle.globalconfidence}%\nTime: ${vehicle.detection_timestamp}\nSpeed: ${vehicle.speed} km/h`);
   };
 
   return (
@@ -99,10 +67,10 @@ export default function ParkedVehicles() {
         >
           <div>
             <h1 className="text-3xl font-bold text-gradient">
-              {t("nav.parked")}
+              {t("nav.parked") || "Detected Vehicles"}
             </h1>
             <p className="text-muted-foreground mt-2">
-              Currently parked vehicles and their details
+              Currently detected vehicles at your gate
             </p>
             {!selectedGate && (
               <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
@@ -125,15 +93,11 @@ export default function ParkedVehicles() {
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
-              size="sm"
-              onClick={() => refreshActivePassages()}
-              disabled={refreshing}
+              onClick={() => fetchDetectionLogs()}
+              disabled={loading}
             >
-              {refreshing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              {t("common.refresh") || "Refresh"}
             </Button>
             <Button
               variant={viewMode === "grid" ? "default" : "outline"}
@@ -214,7 +178,7 @@ export default function ParkedVehicles() {
               Error loading vehicles
             </p>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={() => fetchActivePassages(currentPage, perPage)} variant="outline">
+            <Button onClick={() => fetchDetectionLogs()} variant="outline">
               Try Again
             </Button>
           </motion.div>
@@ -230,8 +194,7 @@ export default function ParkedVehicles() {
             {viewMode === "grid" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredVehicles.map((vehicle, index) => {
-                  const vehicleType =
-                    vehicle.vehicle?.body_type?.name || "Unknown";
+                  const vehicleType = vehicle.veclass_str || "Unknown";
                   const vehicleIcon = getVehicleTypeIcon(vehicleType);
                   const vehicleBadge = getVehicleTypeBadge(vehicleType);
 
@@ -257,7 +220,7 @@ export default function ParkedVehicles() {
                               </div>
                               <div>
                                 <h3 className="font-bold text-lg">
-                                  {vehicle.vehicle?.plate_number}
+                                  {vehicle.numberplate}
                                 </h3>
                                 <Badge
                                   className={`${vehicleIcon.bgColor} ${vehicleIcon.color} border-0`}
@@ -266,45 +229,39 @@ export default function ParkedVehicles() {
                                 </Badge>
                               </div>
                             </div>
-                            {/* <div className="text-right">
-                              <p className="text-sm text-muted-foreground">
-                                Spot
-                              </p>
-                              <p className="font-bold">{vehicle.spot}</p>
-                            </div> */}
                           </div>
 
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Entry Time:
+                                Detection Time:
                               </span>
                               <span className="text-sm font-medium">
-                                {formatTime(vehicle.entry_time)}
+                                {formatTime(vehicle.detection_timestamp)}
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Duration:
+                                Confidence:
                               </span>
                               <span className="text-sm font-medium">
-                                {vehicle.duration}
+                                {vehicle.global_confidence || vehicle.globalconfidence || '0'}%
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Fee:
+                                Speed:
                               </span>
                               <span className="text-sm font-bold text-primary">
-                                {vehicle.currentFee}
+                                {parseFloat(vehicle.speed).toFixed(2)} km/h
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Passage:
+                                Lane:
                               </span>
                               <span className="text-sm font-mono text-xs">
-                                {vehicle.passage_number}
+                                {vehicle.lane_id || vehicle.laneid}
                               </span>
                             </div>
                           </div>
@@ -313,7 +270,7 @@ export default function ParkedVehicles() {
                             className="w-full mt-4 gradient-maroon hover:opacity-90 transition-opacity"
                             onClick={() => handleProcessExit(vehicle)}
                           >
-                            Process Exit
+                            Process Entry
                           </Button>
                         </CardContent>
                       </Card>
@@ -324,16 +281,15 @@ export default function ParkedVehicles() {
             ) : (
               <Card className="glass-effect border-0 shadow-lg">
                 <CardHeader>
-                  <CardTitle>Parked Vehicles List</CardTitle>
+                  <CardTitle>Detected Vehicles List</CardTitle>
                   <CardDescription>
-                    Detailed view of all currently parked vehicles
+                    Vehicles detected at your gate
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {filteredVehicles.map((vehicle, index) => {
-                      const vehicleType =
-                        vehicle.vehicle?.body_type?.name || "Unknown";
+                      const vehicleType = vehicle.veclass_str || "Unknown";
                       const vehicleIcon = getVehicleTypeIcon(vehicleType);
 
                       return (
@@ -357,7 +313,7 @@ export default function ParkedVehicles() {
                             </div>
                             <div>
                               <h3 className="font-bold">
-                                {vehicle.vehicle?.plate_number}
+                                {vehicle.numberplate}
                               </h3>
                               <div className="flex items-center space-x-2 mt-1">
                                 <Badge
@@ -365,9 +321,6 @@ export default function ParkedVehicles() {
                                 >
                                   {vehicleType}
                                 </Badge>
-                                {/* <span className="text-sm text-muted-foreground">
-                                  Spot: {vehicle.spot}
-                                </span> */}
                               </div>
                             </div>
                           </div>
@@ -375,24 +328,24 @@ export default function ParkedVehicles() {
                           <div className="flex items-center space-x-6">
                             <div className="text-center">
                               <p className="text-sm text-muted-foreground">
-                                Entry
+                                Detection
                               </p>
                               <p className="font-medium">
-                                {formatTime(vehicle.entry_time)}
+                                {formatTime(vehicle.detection_timestamp)}
                               </p>
                             </div>
                             <div className="text-center">
                               <p className="text-sm text-muted-foreground">
-                                Duration
+                                Confidence
                               </p>
-                              <p className="font-medium">{vehicle.duration}</p>
+                              <p className="font-medium">{vehicle.global_confidence || vehicle.globalconfidence || '0'}%</p>
                             </div>
                             <div className="text-center">
                               <p className="text-sm text-muted-foreground">
-                                Fee
+                                Speed
                               </p>
                               <p className="font-bold text-primary">
-                                {vehicle.currentFee}
+                                {parseFloat(vehicle.speed).toFixed(0)} km/h
                               </p>
                             </div>
                             <Button
@@ -400,7 +353,7 @@ export default function ParkedVehicles() {
                               className="gradient-maroon hover:opacity-90 transition-opacity"
                               onClick={() => handleProcessExit(vehicle)}
                             >
-                              Exit
+                              View Details
                             </Button>
                           </div>
                         </motion.div>
@@ -428,81 +381,15 @@ export default function ParkedVehicles() {
             <p className="text-sm text-muted-foreground">
               {searchTerm
                 ? "Try adjusting your search terms"
-                : "No vehicles are currently parked"}
+                : "No vehicles detected at your gate"}
             </p>
           </motion.div>
         )}
 
-        {/* Pagination - Only show when not searching (search is client-side) */}
-        {!loading && !error && !searchTerm && pagination && pagination.last_page > 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.5 }}
-            className="flex items-center justify-between"
-          >
-            <div className="text-sm text-muted-foreground">
-              Showing {((pagination.current_page - 1) * pagination.per_page) + 1} to{" "}
-              {Math.min(pagination.current_page * pagination.per_page, pagination.total)} of{" "}
-              {pagination.total} vehicles
-            </div>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => pagination.current_page > 1 && handlePageChange(pagination.current_page - 1)}
-                    className={pagination.current_page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-                {Array.from({ length: pagination.last_page }, (_, i) => i + 1).map((page) => {
-                  // Show first page, last page, current page, and pages around current
-                  if (
-                    page === 1 ||
-                    page === pagination.last_page ||
-                    (page >= pagination.current_page - 1 && page <= pagination.current_page + 1)
-                  ) {
-                    return (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          onClick={() => handlePageChange(page)}
-                          isActive={page === pagination.current_page}
-                          className="cursor-pointer"
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    );
-                  } else if (
-                    page === pagination.current_page - 2 ||
-                    page === pagination.current_page + 2
-                  ) {
-                    return (
-                      <PaginationItem key={page}>
-                        <span className="px-2">...</span>
-                      </PaginationItem>
-                    );
-                  }
-                  return null;
-                })}
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => pagination.current_page < pagination.last_page && handlePageChange(pagination.current_page + 1)}
-                    className={pagination.current_page === pagination.last_page ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </motion.div>
-        )}
+
       </div>
 
-      {/* Vehicle Exit Dialog */}
-      <VehicleExitDialog
-        open={showExitDialog}
-        onOpenChange={setShowExitDialog}
-        vehicle={selectedVehicle}
-        onExitProcessed={handleExitProcessed}
-      />
+
     </MainLayout>
   );
 }
