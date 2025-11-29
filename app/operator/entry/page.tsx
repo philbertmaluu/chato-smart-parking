@@ -8,19 +8,58 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
+import { VehicleTypeSelectionModal } from "./components/vehicle-type-selection-modal";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
+import { usePendingDetections } from "@/hooks/use-pending-detections";
+import { useMJPEGStream } from "@/hooks/use-mjpeg-stream";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw } from "lucide-react";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
   const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  const isPageVisible = usePageVisibility();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
+
+  // Camera stream hook - uses snapshot mode (MJPEG has CORS issues)
+  const {
+    streamContainerRef,
+    isStreaming,
+    error: streamError,
+    isFallback,
+    stopStream,
+    refreshStream,
+  } = useMJPEGStream(cameraDevice || null, {
+    enabled: isPageVisible && !!cameraDevice && !!selectedGate,
+    useSnapshotOnly: true, // Use snapshot mode directly (MJPEG blocked by CORS)
+    fallbackToSnapshot: true,
+    onError: (error) => {
+      // Silently handle - snapshot mode works fine
+      console.log('Camera stream:', error);
+    },
+  });
+
+  // Poll for pending detections that need vehicle type (1.5 second polling as requested)
+  const { latestDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
+    enabled: isPageVisible,
+    pollInterval: 1500, // 1.5 seconds polling for new vehicle detection
+    useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
+    onNewDetection: (detection) => {
+      setShowVehicleTypeModal(true);
+    },
+  });
+
+  // Show modal if there's a pending detection on initial load or when latestDetection changes
+  useEffect(() => {
+    if (latestDetection) {
+      setShowVehicleTypeModal(true);
+    }
+  }, [latestDetection]);
 
   // Check if operator has selected a gate on mount - show modal automatically
   useEffect(() => {
@@ -29,46 +68,41 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Auto-refresh camera feed using gate device IP - update immediately when camera device changes
+  // Auto-refresh stream when page becomes visible again
+  const refreshStreamRef = useRef(refreshStream);
+  
   useEffect(() => {
-    // Clear any existing interval first
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-      refreshIntervalRef.current = null;
+    refreshStreamRef.current = refreshStream;
+  }, [refreshStream]);
+  
+  useEffect(() => {
+    // When page becomes visible and we have a camera, refresh the stream
+    if (isPageVisible && cameraDevice && selectedGate && refreshStreamRef.current) {
+      // Small delay to ensure everything is ready
+      const timer = setTimeout(() => {
+        if (refreshStreamRef.current) {
+          refreshStreamRef.current();
+        }
+      }, 200);
+      return () => clearTimeout(timer);
     }
+  }, [isPageVisible, cameraDevice, selectedGate]);
 
-    if (!cameraDevice || !cameraDevice.ip_address) {
-      return;
-    }
-
-    // Immediately update the image source when camera device changes
-    const updateImageSource = () => {
-      if (imageRef.current && cameraDevice.ip_address) {
-        const timestamp = new Date().toISOString();
-        const protocol = cameraDevice.use_https ? 'https' : 'http';
-        const port = cameraDevice.http_port || 80;
-        imageRef.current.src = `${protocol}://${cameraDevice.ip_address}:${port}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${timestamp}`;
-      }
-    };
-
-    // Update immediately
-    updateImageSource();
-
-    // Then set up auto-refresh
-    refreshIntervalRef.current = setInterval(updateImageSource, 500);
-
-    // Cleanup on unmount or when camera device changes
+  // Cleanup stream on unmount
+  useEffect(() => {
     return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
+      stopStream();
     };
-  }, [cameraDevice, selectedGate?.id]);
+  }, [stopStream]);
 
   const handleEntrySuccess = (data: any) => {
     console.log("Entry processed successfully:", data);
     // Handle success - could show receipt, update UI, etc.
+  };
+
+  const handleVehicleTypeModalSuccess = () => {
+    clearLatestDetection();
+    fetchPendingDetections(); // Refresh to get updated list
   };
 
   const handleGateSelect = async (gateId: number) => {
@@ -126,6 +160,24 @@ export default function VehicleEntry() {
                   
                   {/* Gate Selection and Manual Entry Buttons - Top Right */}
                   <div className="flex items-center gap-3">
+                    {/* Refresh Camera Button - Only show when gate is selected */}
+                    {selectedGate && cameraDevice && refreshStream && (
+                      <Button
+                        onClick={() => {
+                          if (refreshStream) {
+                            refreshStream();
+                          }
+                        }}
+                        variant="outline"
+                        size="lg"
+                        className="border-blue-500 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 flex items-center space-x-2"
+                        title="Refresh camera feed"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Refresh</span>
+                      </Button>
+                    )}
+                    
                     {/* Deselect Gate Button - Only show when gate is selected */}
                     {selectedGate && (
                       <Button
@@ -179,40 +231,45 @@ export default function VehicleEntry() {
                   </div>
                 ) : (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
-                    <img
-                      ref={imageRef}
-                      src={`${cameraDevice.use_https ? 'https' : 'http'}://${cameraDevice.ip_address}:${cameraDevice.http_port || 80}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`}
-                      alt="Camera Feed"
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = 'none';
-                        const errorDiv = target.nextElementSibling as HTMLElement;
-                        if (errorDiv && errorDiv.classList.contains('error-message')) {
-                          errorDiv.style.display = 'flex';
-                        }
-                      }}
+                    {/* MJPEG Stream Container */}
+                    <div
+                      ref={streamContainerRef}
+                      className="w-full h-full"
+                      style={{ minHeight: '500px' }}
                     />
-                    <div className="error-message absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4" style={{ display: 'none' }}>
-                      <div className="text-center space-y-2">
-                        <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-                        <p className="font-semibold">Cannot connect to camera</p>
-                        <p className="text-sm text-gray-400">
-                          Camera at {cameraDevice.ip_address} is not accessible from this browser.
-                        </p>
+                    
+                    {/* Error Message */}
+                    {streamError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4">
+                        <div className="text-center space-y-2">
+                          <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
+                          <p className="font-semibold">Cannot connect to camera</p>
+                          <p className="text-sm text-gray-400">
+                            {streamError}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    
+                    {/* Loading Indicator */}
+                    {!isStreaming && !streamError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4">
+                        <div className="text-center space-y-2">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+                          <p className="text-sm">Connecting to camera...</p>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Live Indicator */}
-                    <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                      <span className="text-white font-medium text-sm">LIVE</span>
-                    </div>
-                    
-                    {/* Camera Info */}
-                    {/* <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                      <p className="text-white text-sm font-mono">{cameraDevice.ip_address}</p>
-                    </div> */}
+                    {isStreaming && (
+                      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-white font-medium text-sm">
+                          LIVE
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Current Gate Overlay (Mobile) */}
                     {selectedGate && (
@@ -257,6 +314,19 @@ export default function VehicleEntry() {
           // The selectedGate state will update automatically via the hook
           // Camera config will be fetched automatically via useEffect
         }}
+      />
+
+      {/* Vehicle Type Selection Modal */}
+      <VehicleTypeSelectionModal
+        open={showVehicleTypeModal && latestDetection !== null}
+        onOpenChange={(open) => {
+          setShowVehicleTypeModal(open);
+          if (!open) {
+            clearLatestDetection();
+          }
+        }}
+        detection={latestDetection}
+        onSuccess={handleVehicleTypeModalSuccess}
       />
     </MainLayout>
   );
