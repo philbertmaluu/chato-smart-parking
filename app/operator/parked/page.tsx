@@ -30,39 +30,73 @@ import {
 } from "lucide-react";
 import { ActivePassage, useActivePassages } from "./hooks/use-active-passages";
 import { VehicleExitDialog } from "./components/vehicle-exit-dialog";
+import { CameraExitDialog } from "@/app/operator/entry/components/camera-exit-dialog";
 import { usePendingDetections } from "@/hooks/use-pending-detections";
+import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { VehicleTypeSelectionModal } from "@/app/operator/entry/components/vehicle-type-selection-modal";
+import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
+import { useDetectionContext } from "@/contexts/detection-context";
+import { CameraDetection } from "@/hooks/use-detection-logs";
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
   const { selectedGate } = useOperatorGates();
+  const { latestNewDetection, clearLatestDetection: clearContextDetection } = useDetectionContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedPassage, setSelectedPassage] = useState<ActivePassage | null>(
     null
   );
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showCameraExitDialog, setShowCameraExitDialog] = useState(false);
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  const [contextDetection, setContextDetection] = useState<CameraDetection | null>(null);
   const isPageVisible = usePageVisibility();
 
   // Poll for pending detections that need vehicle type (1.5 second polling)
+  // Polling continues even when page is not visible to keep detecting new entries/exits
   const { latestDetection: pendingDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: isPageVisible,
+    enabled: true, // Always enabled - polling continues in background
     pollInterval: 1500, // 1.5 seconds polling
     useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
     onNewDetection: (detection) => {
-      setShowVehicleTypeModal(true);
+      // Only show modal if page is visible
+      if (isPageVisible) {
+        setShowVehicleTypeModal(true);
+      }
+    },
+  });
+
+  // Poll for pending exit detections (1.5 second polling)
+  // Polling continues even when page is not visible to keep detecting new entries/exits
+  const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
+    enabled: true, // Always enabled - polling continues in background
+    pollInterval: 1500, // 1.5 seconds polling for exit detections
+    onNewDetection: (detection) => {
+      // Only show dialog if page is visible
+      if (isPageVisible) {
+        setShowCameraExitDialog(true);
+      }
     },
   });
 
   // Show modal if there's a pending detection on initial load or when pendingDetection changes
+  // Only show if page is visible
   useEffect(() => {
-    if (pendingDetection) {
+    if (pendingDetection && isPageVisible) {
       setShowVehicleTypeModal(true);
     }
-  }, [pendingDetection]);
+  }, [pendingDetection, isPageVisible]);
+
+  // Show exit dialog if there's a pending exit detection
+  // Only show if page is visible
+  useEffect(() => {
+    if (latestExitDetection && isPageVisible) {
+      setShowCameraExitDialog(true);
+    }
+  }, [latestExitDetection, isPageVisible]);
 
   const { 
     activePassages, 
@@ -72,6 +106,48 @@ export default function ParkedVehicles() {
     processVehicleExit,
     searchActivePassages,
   } = useActivePassages();
+
+  // Watch for new detections from detection logs page via context
+  useEffect(() => {
+    if (!latestNewDetection || !isPageVisible) return;
+
+    const detection = latestNewDetection;
+    console.log('[Parked Page] New detection from context:', detection.id, 'Plate:', detection.numberplate, 'Status:', detection.processing_status);
+
+    // Store detection for modal use
+    setContextDetection(detection);
+
+    // Check processing_status first
+    if (detection.processing_status === 'pending_exit') {
+      console.log('[Parked Page] Detection is pending exit, showing exit dialog');
+      setShowCameraExitDialog(true);
+      clearContextDetection();
+      return;
+    }
+
+    if (detection.processing_status === 'pending_vehicle_type') {
+      console.log('[Parked Page] Detection needs vehicle type, showing vehicle type modal');
+      setShowVehicleTypeModal(true);
+      clearContextDetection();
+      return;
+    }
+
+    // Fallback: Check if vehicle has active passage
+    // Check if plate number matches any active passage
+    const hasActivePassage = activePassages.some(
+      (passage) => passage.vehicle?.plate_number?.toLowerCase() === detection.numberplate?.toLowerCase()
+    );
+
+    if (hasActivePassage) {
+      console.log('[Parked Page] Vehicle has active passage, showing exit dialog');
+      setShowCameraExitDialog(true);
+      clearContextDetection();
+    } else {
+      console.log('[Parked Page] Vehicle has no active passage, showing vehicle type modal');
+      setShowVehicleTypeModal(true);
+      clearContextDetection();
+    }
+  }, [latestNewDetection, isPageVisible, activePassages, clearContextDetection]);
 
   // Filter passages based on search term
   const filteredPassages = useMemo(() => {
@@ -448,17 +524,52 @@ export default function ParkedVehicles() {
           onExitProcessed={handleExitProcessed}
         />
 
+        {/* Camera Exit Dialog */}
+        <CameraExitDialog
+          open={showCameraExitDialog && (latestExitDetection !== null || contextDetection !== null)}
+          onOpenChange={(open) => {
+            setShowCameraExitDialog(open);
+            if (!open) {
+              clearLatestExitDetection();
+              if (contextDetection) {
+                setContextDetection(null);
+                clearContextDetection();
+              }
+            }
+          }}
+          detection={latestExitDetection || (contextDetection ? contextDetection as any : null)}
+          onExitProcessed={() => {
+            fetchPendingExitDetections();
+            fetchActivePassages(); // Refresh active passages list
+            clearLatestExitDetection();
+            if (contextDetection) {
+              setContextDetection(null);
+              clearContextDetection();
+            }
+          }}
+        />
+
         {/* Vehicle Type Selection Modal */}
         <VehicleTypeSelectionModal
-          open={showVehicleTypeModal && pendingDetection !== null}
+          open={showVehicleTypeModal && (pendingDetection !== null || contextDetection !== null)}
           onOpenChange={(open) => {
             setShowVehicleTypeModal(open);
             if (!open) {
               clearLatestDetection();
+              if (contextDetection) {
+                setContextDetection(null);
+                clearContextDetection();
+              }
             }
           }}
-          detection={pendingDetection}
-          onSuccess={handleVehicleTypeModalSuccess}
+          detection={pendingDetection || (contextDetection ? contextDetection as any : null)}
+          onSuccess={() => {
+            handleVehicleTypeModalSuccess();
+            if (contextDetection) {
+              setContextDetection(null);
+              clearContextDetection();
+            }
+          }}
         />
       </div>
     </MainLayout>
