@@ -58,8 +58,8 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
 
   // Fetch function - simplified and more reliable
   const fetchPendingDetectionsInternal = useCallback(async () => {
-    if (!enabledRef.current || !isPageVisibleRef.current) {
-      console.log('[Polling] Skipped - enabled:', enabledRef.current, 'visible:', isPageVisibleRef.current);
+    if (!enabledRef.current) {
+      console.log('[Polling] Skipped - enabled:', enabledRef.current);
       return;
     }
 
@@ -73,7 +73,22 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
     setError(null);
     
     try {
-      console.log('[Polling] Fetching pending detections...');
+      // Step 1: Poll camera API to fetch new detections and store them in DB
+      // This compares camera detections with DB and stores new ones
+      console.log('[Polling] Fetching from camera API and storing new detections...');
+      try {
+        const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
+        if (fetchResult.success && fetchResult.data) {
+          const { fetched, stored } = fetchResult.data;
+          console.log('[Polling] Camera poll result:', { fetched, stored });
+        }
+      } catch (cameraErr) {
+        console.warn('[Polling] Camera fetch error (continuing with DB check):', cameraErr);
+        // Continue even if camera fetch fails - still check DB for existing pending detections
+      }
+
+      // Step 2: Check for pending detections that need vehicle type selection
+      console.log('[Polling] Fetching pending detections from DB...');
       const detections = await CameraDetectionService.getPendingVehicleTypeDetections();
       console.log('[Polling] Received', detections.length, 'detections');
       
@@ -136,15 +151,16 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
 
   // Initial fetch
   useEffect(() => {
-    if (enabled && isPageVisible) {
+    if (enabled) {
       fetchPendingDetections();
     }
-  }, [enabled, isPageVisible, fetchPendingDetections]);
+  }, [enabled, fetchPendingDetections]);
 
   // Set up polling with adaptive interval
+  // Polling continues even when page is not visible to keep detecting new entries/exits
   useEffect(() => {
-    if (!enabled || !isPageVisible) {
-      console.log('[Polling] Stopping - enabled:', enabled, 'visible:', isPageVisible);
+    if (!enabled) {
+      console.log('[Polling] Stopping - enabled:', enabled);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
