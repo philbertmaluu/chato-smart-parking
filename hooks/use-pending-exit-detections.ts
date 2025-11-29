@@ -53,51 +53,63 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
     setError(null);
     
     try {
-      // Step 1: Poll camera API to fetch new detections and store them in DB
-      // This compares camera detections with DB and stores new ones
-      console.log('[Exit Polling] Fetching from camera API and storing new detections...');
-      try {
-        const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
-        if (fetchResult.success && fetchResult.data) {
-          const { fetched, stored } = fetchResult.data;
-          console.log('[Exit Polling] Camera poll result:', { fetched, stored });
+      // Step 1: Check DB for existing pending exit detections FIRST (priority: process queue before fetching new)
+      // This ensures existing queue is processed before fetching new detections
+      console.log('[Exit Polling] Checking DB for existing pending exit detections...');
+      let detections = await CameraDetectionService.getPendingExitDetections();
+      console.log('[Exit Polling] Received', detections.length, 'pending exit detections from DB');
+      
+      // Step 2: Only fetch from camera API if no pending exit detections exist in DB
+      // This ensures queue is processed first before adding new detections
+      if (detections.length === 0) {
+        console.log('[Exit Polling] No pending exit detections in queue, fetching from camera API...');
+        try {
+          const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
+          if (fetchResult.success && fetchResult.data) {
+            const { fetched, stored } = fetchResult.data;
+            console.log('[Exit Polling] Camera poll result:', { fetched, stored });
+            
+            // After fetching from camera, check DB again for newly stored detections
+            if (stored > 0) {
+              const newDetections = await CameraDetectionService.getPendingExitDetections();
+              console.log('[Exit Polling] Found', newDetections.length, 'pending exit detections after camera fetch');
+              // Update detections with newly fetched ones
+              detections = newDetections;
+            }
+          }
+        } catch (cameraErr) {
+          console.warn('[Exit Polling] Camera fetch error:', cameraErr);
+          // Continue even if camera fetch fails
         }
-      } catch (cameraErr) {
-        console.warn('[Exit Polling] Camera fetch error (continuing with DB check):', cameraErr);
-        // Continue even if camera fetch fails - still check DB for existing pending detections
+      } else {
+        console.log('[Exit Polling] Queue has', detections.length, 'pending exit detections, processing queue first (skipping camera fetch)');
       }
-
-      // Step 2: Check for pending exit detections
-      console.log('[Exit Polling] Fetching pending exit detections from DB...');
-      const detections = await CameraDetectionService.getPendingExitDetections();
-      console.log('[Exit Polling] Received', detections.length, 'exit detections');
       
-      // Check for new detections
-      const currentIds = new Set(detections.map(d => d.id));
-      const previousIds = previousDetectionIdsRef.current;
-      const isInitialLoad = previousIds.size === 0;
-      
-      // Find new detections (or all detections on initial load)
-      const detectionsToShow = isInitialLoad 
-        ? detections
-        : detections.filter(d => !previousIds.has(d.id));
-      
-      if (detectionsToShow.length > 0) {
-        console.log('[Exit Polling] Found', detectionsToShow.length, 'new exit detection(s)');
-
-        // Get the most recent detection
-        const latest = detectionsToShow.sort((a, b) => 
-          new Date(b.detection_timestamp).getTime() - new Date(a.detection_timestamp).getTime()
-        )[0];
+      // Always process the first (oldest) detection from queue if it exists
+      // Compare against current latestDetection to avoid re-showing the same detection
+      if (detections.length > 0) {
+        const firstDetection = detections[0]; // Oldest (FIFO - backend returns ASC order)
         
-        setLatestDetection(latest);
-        onNewDetectionRef.current?.(latest);
-      } else if (isInitialLoad && detections.length === 0) {
+        // Only show if it's different from what we're currently showing
+        // This ensures we don't re-show the same detection, but we do show the next one in queue
+        setLatestDetection((currentLatest) => {
+          if (!currentLatest || currentLatest.id !== firstDetection.id) {
+            console.log('[Exit Polling] Processing exit detection from queue:', firstDetection.id, 'Plate:', firstDetection.numberplate, 'Total pending:', detections.length);
+            // Trigger callback to show modal
+            onNewDetectionRef.current?.(firstDetection);
+            return firstDetection;
+          }
+          // Same detection still pending, keep showing it
+          return currentLatest;
+        });
+      } else {
+        // No pending exit detections, clear latest
+        console.log('[Exit Polling] No pending exit detections in queue');
         setLatestDetection(null);
       }
       
       setPendingExitDetections(detections);
-      previousDetectionIdsRef.current = currentIds;
+      // Don't update previousDetectionIdsRef here - only update when detection is actually processed
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Request was cancelled, ignore
@@ -182,9 +194,17 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
   }, []);
 
   // Clear latest detection after it's been handled
+  // This allows the next detection in queue to be shown
   const clearLatestDetection = useCallback(() => {
+    console.log('[Exit Polling] Clearing latest exit detection, will fetch next in queue');
     setLatestDetection(null);
-  }, []);
+    // Clear the previous IDs ref so next detection can be shown
+    previousDetectionIdsRef.current.clear();
+    // Immediately fetch next detection in queue
+    setTimeout(() => {
+      fetchPendingExitDetectionsInternal();
+    }, 100);
+  }, [fetchPendingExitDetectionsInternal]);
 
   return {
     pendingExitDetections,
