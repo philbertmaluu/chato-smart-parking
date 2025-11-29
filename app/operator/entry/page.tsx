@@ -9,11 +9,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
 import { VehicleTypeSelectionModal } from "./components/vehicle-type-selection-modal";
+import { CameraExitDialog } from "./components/camera-exit-dialog";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { usePendingDetections } from "@/hooks/use-pending-detections";
+import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { useMJPEGStream } from "@/hooks/use-mjpeg-stream";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
+import { useDetectionContext } from "@/contexts/detection-context";
+import { CameraDetection } from "@/hooks/use-detection-logs";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw } from "lucide-react";
 
 export default function VehicleEntry() {
@@ -21,6 +25,7 @@ export default function VehicleEntry() {
   const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
   const isPageVisible = usePageVisibility();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
@@ -45,21 +50,47 @@ export default function VehicleEntry() {
   });
 
   // Poll for pending detections that need vehicle type (1.5 second polling as requested)
+  // Polling continues even when page is not visible to keep detecting new entries/exits
   const { latestDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: isPageVisible,
+    enabled: true, // Always enabled - polling continues in background
     pollInterval: 1500, // 1.5 seconds polling for new vehicle detection
     useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
     onNewDetection: (detection) => {
-      setShowVehicleTypeModal(true);
+      // Only show modal if page is visible
+      if (isPageVisible) {
+        setShowVehicleTypeModal(true);
+      }
+    },
+  });
+
+  // Poll for pending exit detections (1.5 second polling)
+  // Polling continues even when page is not visible to keep detecting new entries/exits
+  const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
+    enabled: true, // Always enabled - polling continues in background
+    pollInterval: 1500, // 1.5 seconds polling for exit detections
+    onNewDetection: (detection) => {
+      // Only show dialog if page is visible
+      if (isPageVisible) {
+        setShowExitDialog(true);
+      }
     },
   });
 
   // Show modal if there's a pending detection on initial load or when latestDetection changes
+  // Only show if page is visible
   useEffect(() => {
-    if (latestDetection) {
+    if (latestDetection && isPageVisible) {
       setShowVehicleTypeModal(true);
     }
-  }, [latestDetection]);
+  }, [latestDetection, isPageVisible]);
+
+  // Show exit dialog if there's a pending exit detection
+  // Only show if page is visible
+  useEffect(() => {
+    if (latestExitDetection && isPageVisible) {
+      setShowExitDialog(true);
+    }
+  }, [latestExitDetection, isPageVisible]);
 
   // Check if operator has selected a gate on mount - show modal automatically
   useEffect(() => {
