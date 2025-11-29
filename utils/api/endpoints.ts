@@ -317,6 +317,10 @@ export const API_ENDPOINTS = {
   // Camera detection endpoints
   CAMERA_DETECTION: {
     FETCH: "/camera-detection/fetch",
+    LOGS: "/camera-detection/logs",
+    LOGS_UNPROCESSED: "/camera-detection/logs/unprocessed",
+    LOGS_PENDING_VEHICLE_TYPE: "/camera-detection/logs/pending-vehicle-type",
+    PROCESS_WITH_VEHICLE_TYPE: (id: string | number) => `/camera-detection/logs/${id}/process-with-vehicle-type`,
   },
 } as const;
 
