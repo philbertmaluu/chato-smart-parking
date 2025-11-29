@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -59,7 +60,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -67,7 +68,7 @@ export default function LoginPage() {
         className="w-full max-w-md mx-auto"
       >
         {/* Header Controls */}
-        <div className="flex justify-center items-center mb-8 space-x-4">
+        <div className="flex justify-center items-center mb-2 space-x-4">
           <Button
             variant="outline"
             size="sm"
@@ -93,14 +94,21 @@ export default function LoginPage() {
         </div>
 
         <Card className="glass-effect border-0 shadow-2xl">
-          <CardHeader className="text-center">
+          <CardHeader className="text-center px-4 py-1">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="w-16 h-16 mx-auto bg-primary rounded-full flex items-center justify-center mb-4"
+              className="w-64 mx-auto h-36 flex items-center justify-center"
             >
-              <Car className="w-8 h-8 text-white" />
+              <Image
+                src="/chato-logo.png"
+                alt="Chato Logo"
+                width={288}
+                height={288}
+                className="object-contain"
+                priority
+              />
             </motion.div>
             <CardTitle className="text-2xl font-bold text-gradient">
               Smart Parking
@@ -108,7 +116,7 @@ export default function LoginPage() {
             <CardDescription>{t("auth.login")}</CardDescription>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">{t("auth.email")}</Label>
@@ -163,7 +171,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center space-y-2">
+            <div className="mt-2 text-center space-y-2">
               <Link
                 href="/auth/forgot-password"
                 className="text-sm text-primary hover:underline"
