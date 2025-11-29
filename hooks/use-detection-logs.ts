@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_ENDPOINTS } from '@/utils/api/endpoints';
 import { get } from '@/utils/api/api';
 import { generateCacheKey, getCached, setCached, invalidateCache } from '@/utils/data-cache';
+import { CameraDetectionService } from '@/utils/api/camera-detection-service';
 
 export interface CameraDetection {
   id: number;
@@ -81,8 +82,9 @@ export const useDetectionLogs = (gateId?: number) => {
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const latestIdRef = useRef<number>(0);
 
-  const fetchDetectionLogs = useCallback(async (): Promise<void> => {
+  const fetchDetectionLogs = useCallback(async (silent: boolean = false): Promise<void> => {
     // Cancel previous request if still pending
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -90,31 +92,77 @@ export const useDetectionLogs = (gateId?: number) => {
 
     abortControllerRef.current = new AbortController();
 
-    setLoading(true);
+    // Only show loading state if not a silent background fetch
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
-      const queryParams = gateId ? `?gate_id=${gateId}` : '';
+      // Build query parameters correctly
+      const params = new URLSearchParams();
+      if (gateId) {
+        params.append('gate_id', gateId.toString());
+      }
       // Add timestamp to bypass cache and get fresh data
-      const cacheBuster = `&_=${Date.now()}`;
-      const response = await get<DetectionLogsResponse>(
-        `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}${queryParams}${cacheBuster}`
-      );
+      params.append('_', Date.now().toString());
+      
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}?${queryString}`
+        : `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}?_=${Date.now()}`;
+      
+      const response = await get<DetectionLogsResponse>(url);
       
       if (response.success && response.data) {
         // Don't cache - always get fresh data for real-time updates
-        setDetections(response.data.detections || []);
+        const newDetections = response.data.detections || [];
+        setDetections(newDetections);
         setCount(response.data.count || 0);
+        
+        // Update latest ID ref
+        if (newDetections.length > 0 && newDetections[0].id) {
+          latestIdRef.current = newDetections[0].id;
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Request was cancelled, ignore
         return;
       }
-      setError(err instanceof Error ? err.message : 'Failed to fetch detection logs');
+      // Only set error if not silent (to avoid showing errors on background polls)
+      if (!silent) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch detection logs');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
       abortControllerRef.current = null;
+    }
+  }, [gateId]);
+
+  // Lightweight check for new detections (returns true if new data exists)
+  const checkForNewDetections = useCallback(async (): Promise<boolean> => {
+    try {
+      const latestInfo = await CameraDetectionService.getLatestDetectionInfo(gateId);
+      
+      if (!latestInfo) {
+        return false;
+      }
+
+      // Compare latest ID with current latest detection ID
+      const currentLatestId = latestIdRef.current;
+      const hasNewData = latestInfo.latest_id > currentLatestId;
+
+      if (hasNewData) {
+        console.log('[Detection Logs] New detection found via lightweight check. Latest ID:', latestInfo.latest_id, 'Current:', currentLatestId);
+      }
+
+      return hasNewData;
+    } catch (err) {
+      console.error('[Detection Logs] Error checking for new detections:', err);
+      return false;
     }
   }, [gateId]);
 
@@ -162,6 +210,7 @@ export const useDetectionLogs = (gateId?: number) => {
     count,
     fetchDetectionLogs,
     checkForNewData,
+    checkForNewDetections,
   };
 };
 
