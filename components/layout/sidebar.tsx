@@ -37,6 +37,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface SidebarProps {
   className?: string;
@@ -203,8 +204,14 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 gradient-maroon rounded-lg flex items-center justify-center">
-              <Shield className="w-6 h-6 text-white" />
+            <div className="w-16 h-16 flex items-center justify-center flex-shrink-0">
+              <Image
+                src="/chato-logo.png"
+                alt="Chato Logo"
+                width={68}
+                height={68}
+                className="object-contain"
+              />
             </div>
             <div>
               <h2 className="font-bold text-lg text-gradient">Chato Parking</h2>
