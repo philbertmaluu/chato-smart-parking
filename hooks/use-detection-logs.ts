@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_ENDPOINTS } from '@/utils/api/endpoints';
 import { get } from '@/utils/api/api';
+import { generateCacheKey, getCached, setCached, invalidateCache } from '@/utils/data-cache';
 
 export interface CameraDetection {
   id: number;
@@ -59,6 +60,7 @@ export interface CameraDetection {
   processed: boolean;
   processed_at: string | null;
   processing_notes: string | null;
+  processing_status?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,24 +80,41 @@ export const useDetectionLogs = (gateId?: number) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [count, setCount] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchDetectionLogs = useCallback(async (): Promise<void> => {
+    // Cancel previous request if still pending
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
+
     setLoading(true);
     setError(null);
+    
     try {
       const queryParams = gateId ? `?gate_id=${gateId}` : '';
+      // Add timestamp to bypass cache and get fresh data
+      const cacheBuster = `&_=${Date.now()}`;
       const response = await get<DetectionLogsResponse>(
-        `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}${queryParams}`
+        `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}${queryParams}${cacheBuster}`
       );
       
       if (response.success && response.data) {
+        // Don't cache - always get fresh data for real-time updates
         setDetections(response.data.detections || []);
         setCount(response.data.count || 0);
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Request was cancelled, ignore
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch detection logs');
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, [gateId]);
 
@@ -103,11 +122,20 @@ export const useDetectionLogs = (gateId?: number) => {
   const checkForNewData = useCallback(async (): Promise<number> => {
     try {
       const queryParams = gateId ? `?gate_id=${gateId}&per_page=1` : '?per_page=1';
+      const cacheKey = generateCacheKey(`${API_ENDPOINTS.CAMERA_DETECTION.FETCH}${queryParams}`);
+      const cached = getCached<DetectionLogsResponse>(cacheKey);
+      
+      if (cached && cached.success && cached.data) {
+        return cached.data.count || 0;
+      }
+
       const response = await get<DetectionLogsResponse>(
         `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}${queryParams}`
       );
       
       if (response.success && response.data) {
+        // Cache the count check result
+        setCached(cacheKey, response, 3000); // 3 second cache
         return response.data.count || 0;
       }
       return count;
@@ -115,6 +143,17 @@ export const useDetectionLogs = (gateId?: number) => {
       return count;
     }
   }, [count, gateId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      // Invalidate cache when component unmounts
+      invalidateCache(API_ENDPOINTS.CAMERA_DETECTION.FETCH);
+    };
+  }, []);
 
   return {
     detections,
