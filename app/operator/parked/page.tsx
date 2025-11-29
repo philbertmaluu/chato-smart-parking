@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -30,6 +30,9 @@ import {
 } from "lucide-react";
 import { ActivePassage, useActivePassages } from "./hooks/use-active-passages";
 import { VehicleExitDialog } from "./components/vehicle-exit-dialog";
+import { usePendingDetections } from "@/hooks/use-pending-detections";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
+import { VehicleTypeSelectionModal } from "@/app/operator/entry/components/vehicle-type-selection-modal";
 import { toast } from "sonner";
 
 export default function ParkedVehicles() {
@@ -41,6 +44,25 @@ export default function ParkedVehicles() {
     null
   );
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  const isPageVisible = usePageVisibility();
+
+  // Poll for pending detections that need vehicle type (1.5 second polling)
+  const { latestDetection: pendingDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
+    enabled: isPageVisible,
+    pollInterval: 1500, // 1.5 seconds polling
+    useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
+    onNewDetection: (detection) => {
+      setShowVehicleTypeModal(true);
+    },
+  });
+
+  // Show modal if there's a pending detection on initial load or when pendingDetection changes
+  useEffect(() => {
+    if (pendingDetection) {
+      setShowVehicleTypeModal(true);
+    }
+  }, [pendingDetection]);
 
   const { 
     activePassages, 
@@ -74,6 +96,13 @@ export default function ParkedVehicles() {
     fetchActivePassages();
     setShowExitDialog(false);
     setSelectedPassage(null);
+  };
+
+  // Handle vehicle type modal success
+  const handleVehicleTypeModalSuccess = () => {
+    clearLatestDetection();
+    fetchPendingDetections(); // Refresh to get updated list
+    fetchActivePassages(); // Also refresh active passages
   };
 
 
@@ -417,6 +446,19 @@ export default function ParkedVehicles() {
           onOpenChange={setShowExitDialog}
           vehicle={selectedPassage}
           onExitProcessed={handleExitProcessed}
+        />
+
+        {/* Vehicle Type Selection Modal */}
+        <VehicleTypeSelectionModal
+          open={showVehicleTypeModal && pendingDetection !== null}
+          onOpenChange={(open) => {
+            setShowVehicleTypeModal(open);
+            if (!open) {
+              clearLatestDetection();
+            }
+          }}
+          detection={pendingDetection}
+          onSuccess={handleVehicleTypeModalSuccess}
         />
       </div>
     </MainLayout>
