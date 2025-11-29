@@ -20,10 +20,12 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useDetectionLogs, type CameraDetection } from "@/hooks/use-detection-logs";
+import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { useAdaptivePolling } from "@/hooks/use-adaptive-polling";
 import { useLanguage } from "@/components/language-provider";
 import { formatDate, formatTime } from "@/utils/date-utils";
+import { useDetectionContext } from "@/contexts/detection-context";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +39,8 @@ const POLL_INTERVAL = 1500; // 1.5 seconds
 
 export default function DetectionLogsPage() {
   const { t } = useLanguage();
-  const { detections, loading, error, count, fetchDetectionLogs, checkForNewData } = useDetectionLogs();
+  const { detections, loading, error, count, fetchDetectionLogs, checkForNewData, checkForNewDetections } = useDetectionLogs();
+  const { setLatestNewDetection } = useDetectionContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDetection, setSelectedDetection] = useState<CameraDetection | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -57,27 +60,52 @@ export default function DetectionLogsPage() {
     }
   }, [isPageVisible, fetchDetectionLogs]);
 
-  // Polling: Check for new detections every 1.5 seconds
+  // Polling: Fetch from camera API and compare with DB every 1.5 seconds
   useEffect(() => {
     if (!autoRefresh || !isPageVisible) return;
 
     let intervalId: NodeJS.Timeout | null = null;
 
-    const pollForNewData = async () => {
+    const pollCameraAndUpdate = async () => {
       try {
-        console.log('[Detection Logs] Polling for new data...');
-        // Always fetch fresh data
-        await fetchDetectionLogs();
+        console.log('[Detection Logs] Polling camera API and checking DB...');
+        // Step 1: Fetch from camera API and store new detections
+        // This compares camera detections with DB and stores new ones
+        const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
+        
+        if (fetchResult.success && fetchResult.data) {
+          const { fetched, stored, skipped } = fetchResult.data;
+          console.log('[Detection Logs] Camera poll result:', { fetched, stored, skipped });
+          
+          // Step 2: If new detections were stored, fetch updated list from DB
+          if (stored > 0) {
+            console.log('[Detection Logs] New detections stored, fetching updated list from DB...');
+            await fetchDetectionLogs(true); // Silent mode to avoid loading spinner
+          } else {
+            // Even if no new detections, refresh from DB to ensure we have latest data
+            await fetchDetectionLogs(true);
+          }
+        } else {
+          // If fetch-and-store failed, still try to get data from DB
+          console.warn('[Detection Logs] Camera fetch failed, fetching from DB only');
+          await fetchDetectionLogs(true);
+        }
       } catch (err) {
-        console.error('[Detection Logs] Error polling for new data:', err);
+        console.error('[Detection Logs] Error polling camera and DB:', err);
+        // On error, still try to fetch from DB
+        try {
+          await fetchDetectionLogs(true);
+        } catch (dbErr) {
+          console.error('[Detection Logs] Error fetching from DB:', dbErr);
+        }
       }
     };
 
     // Poll every 1.5 seconds
-    intervalId = setInterval(pollForNewData, POLL_INTERVAL);
+    intervalId = setInterval(pollCameraAndUpdate, POLL_INTERVAL);
     
-    // Also poll immediately
-    pollForNewData();
+    // Don't poll immediately - initial fetch is handled separately
+    // This prevents duplicate fetches and race conditions
 
     return () => {
       if (intervalId) {
@@ -120,6 +148,10 @@ export default function DetectionLogsPage() {
       setLastUpdate(new Date());
       setNewDataArrived(true);
       setShowNewCarPopup(true);
+      
+      // Notify other pages (parked/entry) about the new detection via context
+      setLatestNewDetection(currentLatestDetection);
+      
       setTimeout(() => {
         setNewDataArrived(false);
         setShowNewCarPopup(false);
