@@ -77,18 +77,30 @@ export default function VehicleEntry() {
   });
 
   // Show modal if there's a pending detection on initial load or when latestDetection changes
-  // Only show if page is visible
+  // Show immediately when page becomes visible if there's a pending detection
   useEffect(() => {
-    if (latestDetection && isPageVisible) {
-      setShowVehicleTypeModal(true);
+    if (latestDetection) {
+      if (isPageVisible) {
+        console.log('[Entry Page] Showing vehicle type modal for pending detection:', latestDetection.id);
+        setShowVehicleTypeModal(true);
+      } else {
+        // If page is not visible, modal will show when page becomes visible
+        console.log('[Entry Page] Pending detection found but page not visible. Will show when page becomes visible.');
+      }
     }
   }, [latestDetection, isPageVisible]);
 
   // Show exit dialog if there's a pending exit detection
-  // Only show if page is visible
+  // Show immediately when page becomes visible if there's a pending exit detection
   useEffect(() => {
-    if (latestExitDetection && isPageVisible) {
-      setShowExitDialog(true);
+    if (latestExitDetection) {
+      if (isPageVisible) {
+        console.log('[Entry Page] Showing exit dialog for pending exit detection:', latestExitDetection.id);
+        setShowExitDialog(true);
+      } else {
+        // If page is not visible, dialog will show when page becomes visible
+        console.log('[Entry Page] Pending exit detection found but page not visible. Will show when page becomes visible.');
+      }
     }
   }, [latestExitDetection, isPageVisible]);
 
@@ -98,6 +110,16 @@ export default function VehicleEntry() {
       setShowGateModal(true);
     }
   }, [gatesLoading, selectedGate]);
+
+  // Immediately fetch pending detections when page becomes visible
+  useEffect(() => {
+    if (isPageVisible) {
+      console.log('[Entry Page] Page is now visible, fetching pending detections immediately...');
+      // Fetch both types of pending detections immediately
+      fetchPendingDetections();
+      fetchPendingExitDetections();
+    }
+  }, [isPageVisible, fetchPendingDetections, fetchPendingExitDetections]);
 
   // Auto-refresh stream when page becomes visible again
   const refreshStreamRef = useRef(refreshStream);
@@ -132,8 +154,11 @@ export default function VehicleEntry() {
   };
 
   const handleVehicleTypeModalSuccess = () => {
-    clearLatestDetection();
-    fetchPendingDetections(); // Refresh to get updated list
+    clearLatestDetection(); // Clear first to allow next in queue
+    // Refresh after a short delay to allow next detection to be fetched
+    setTimeout(() => {
+      fetchPendingDetections(); // This will fetch next in queue
+    }, 200);
   };
 
   const handleGateSelect = async (gateId: number) => {
@@ -358,6 +383,25 @@ export default function VehicleEntry() {
         }}
         detection={latestDetection}
         onSuccess={handleVehicleTypeModalSuccess}
+      />
+
+      {/* Camera Exit Dialog */}
+      <CameraExitDialog
+        open={showExitDialog && latestExitDetection !== null}
+        onOpenChange={(open) => {
+          setShowExitDialog(open);
+          if (!open) {
+            clearLatestExitDetection();
+          }
+        }}
+        detection={latestExitDetection}
+        onExitProcessed={() => {
+          clearLatestExitDetection(); // Clear first to allow next in queue
+          // Refresh after a short delay to allow next detection to be fetched
+          setTimeout(() => {
+            fetchPendingExitDetections(); // This will fetch next in queue
+          }, 200);
+        }}
       />
     </MainLayout>
   );
