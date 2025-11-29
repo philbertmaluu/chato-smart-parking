@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosError, InternalAxiosRequestConfig, AxiosHeaders } from "axios";
 import { API_BASE_URL } from "../config/config";
 import { getAuthToken, logout } from "../auth/auth";
+import { throttleRequest } from "../request-throttle";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -78,8 +79,11 @@ export const API_ENDPOINTS = {
 
 export async function get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
+    // Throttle GET requests to prevent overload
+    return await throttleRequest(async () => {
     const response: AxiosResponse<T> = await api.get(url, config);
     return response.data;
+    }, `get_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -87,8 +91,11 @@ export async function get<T = unknown>(url: string, config?: AxiosRequestConfig)
 
 export async function post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
+    // Throttle POST requests (but allow more concurrency for mutations)
+    return await throttleRequest(async () => {
     const response: AxiosResponse<T> = await api.post(url, data, config);
     return response.data;
+    }, `post_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -96,8 +103,10 @@ export async function post<T = unknown>(url: string, data?: unknown, config?: Ax
 
 export async function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
+    return await throttleRequest(async () => {
     const response: AxiosResponse<T> = await api.put(url, data, config);
     return response.data;
+    }, `put_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -105,8 +114,10 @@ export async function put<T = unknown>(url: string, data?: unknown, config?: Axi
 
 export async function patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
+    return await throttleRequest(async () => {
     const response: AxiosResponse<T> = await api.patch(url, data, config);
     return response.data;
+    }, `patch_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -114,8 +125,10 @@ export async function patch<T = unknown>(url: string, data?: unknown, config?: A
 
 export async function del<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
+    return await throttleRequest(async () => {
     const response: AxiosResponse<T> = await api.delete(url, config);
     return response.data;
+    }, `del_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
