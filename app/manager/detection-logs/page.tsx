@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useDetectionLogs, type CameraDetection } from "@/hooks/use-detection-logs";
+import { usePageVisibility } from "@/hooks/use-page-visibility";
+import { useAdaptivePolling } from "@/hooks/use-adaptive-polling";
 import { useLanguage } from "@/components/language-provider";
 import { formatDate, formatTime } from "@/utils/date-utils";
 import {
@@ -29,6 +31,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+// Fixed polling interval: 1.5 seconds as requested
+const POLL_INTERVAL = 1500; // 1.5 seconds
 
 export default function DetectionLogsPage() {
   const { t } = useLanguage();
@@ -41,52 +46,89 @@ export default function DetectionLogsPage() {
   const [newDataArrived, setNewDataArrived] = useState(false);
   const [showNewCarPopup, setShowNewCarPopup] = useState(false);
   const [latestDetection, setLatestDetection] = useState<CameraDetection | null>(null);
+  const isPageVisible = usePageVisibility();
+  const previousLatestIdRef = useRef<number>(0);
+  const isInitialLoadRef = useRef<boolean>(true);
 
   // Initial fetch
   useEffect(() => {
-    fetchDetectionLogs();
-  }, [fetchDetectionLogs]);
+    if (isPageVisible) {
+      fetchDetectionLogs();
+    }
+  }, [isPageVisible, fetchDetectionLogs]);
 
-  // Smart polling: Only refresh UI when new data is detected
+  // Polling: Check for new detections every 1.5 seconds
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh || !isPageVisible) return;
 
-    let previousCount = count;
+    let intervalId: NodeJS.Timeout | null = null;
 
     const pollForNewData = async () => {
       try {
-        // Lightweight check - only fetches count, not full data
-        const currentCount = await checkForNewData();
-        
-        // Only fetch and update full data if count increased
-        if (currentCount > previousCount) {
-          await fetchDetectionLogs();
-          setLastUpdate(new Date());
-          setNewDataArrived(true);
-          setTimeout(() => setNewDataArrived(false), 2000);
-          
-          // Show new car popup
-          setShowNewCarPopup(true);
-          setTimeout(() => setShowNewCarPopup(false), 3000);
-          
-          previousCount = currentCount;
-        }
+        console.log('[Detection Logs] Polling for new data...');
+        // Always fetch fresh data
+        await fetchDetectionLogs();
       } catch (err) {
-        console.error('Error polling for new data:', err);
+        console.error('[Detection Logs] Error polling for new data:', err);
       }
     };
 
-    // Poll every 2 seconds for new data
-    const interval = setInterval(pollForNewData, 2000);
+    // Poll every 1.5 seconds
+    intervalId = setInterval(pollForNewData, POLL_INTERVAL);
+    
+    // Also poll immediately
+    pollForNewData();
 
-    return () => clearInterval(interval);
-  }, [autoRefresh, checkForNewData, fetchDetectionLogs, count]);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [autoRefresh, isPageVisible, fetchDetectionLogs]);
 
-  // Track latest detection for popup
+  // Watch for new detections and show popup
   useEffect(() => {
-    if (detections.length > 0) {
-      setLatestDetection(detections[0]);
+    if (!detections || !Array.isArray(detections) || detections.length === 0) {
+      // Reset initial load flag if no detections
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+      }
+      return;
     }
+    
+    const currentLatestDetection = detections[0];
+    if (!currentLatestDetection || typeof currentLatestDetection.id !== 'number') {
+      return;
+    }
+    
+    const currentLatestId = currentLatestDetection.id;
+    const previousId = previousLatestIdRef.current;
+    const isInitialLoad = isInitialLoadRef.current;
+    
+    // On initial load, just set the ref and return
+    if (isInitialLoad) {
+      previousLatestIdRef.current = currentLatestId;
+      setLatestDetection(currentLatestDetection);
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    // Check if we have a new detection
+    if (currentLatestId > previousId) {
+      // New detection found
+      console.log('[Detection Logs] New detection found! ID:', currentLatestId, 'Plate:', currentLatestDetection.numberplate);
+      setLastUpdate(new Date());
+      setNewDataArrived(true);
+      setShowNewCarPopup(true);
+      setTimeout(() => {
+        setNewDataArrived(false);
+        setShowNewCarPopup(false);
+      }, 3000);
+    }
+    
+    // Update ref for next comparison
+    previousLatestIdRef.current = currentLatestId;
+    setLatestDetection(currentLatestDetection);
   }, [detections]);
 
   // Filter detections based on search term
