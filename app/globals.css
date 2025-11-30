@@ -131,6 +131,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Hide Next.js development watermark */
+  #__next-build-watcher,
+  [data-nextjs-toast],
+  [data-nextjs-dialog] {
+    display: none !important;
+  }
 }
 
 .glass-effect {

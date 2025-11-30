@@ -12,6 +12,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Disable Next.js development indicators/watermarks
+  devIndicators: {
+    buildActivity: false,
+    buildActivityPosition: 'bottom-right',
+  },
   // Add experimental features for better performance
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
