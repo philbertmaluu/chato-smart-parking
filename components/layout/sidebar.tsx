@@ -191,6 +191,11 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       ? managerNavItems
       : operatorNavItems;
 
+  // Don't render sidebar at all on mobile when closed
+  if (isMobile && !isOpen) {
+    return null;
+  }
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -201,9 +206,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           exit={{ opacity: 0 }}
           onClick={(e) => {
             e.stopPropagation();
-            onClose();
+            if (onClose) onClose();
           }}
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          className="fixed inset-0 bg-black/50 z-[35] md:hidden"
           style={{ pointerEvents: 'auto' }}
         />
       )}
@@ -214,8 +219,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
-          isMobile && !isOpen && "hidden",
+          "fixed left-0 top-0 z-[45] h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
           className
         )}
         onClick={(e) => e.stopPropagation()}

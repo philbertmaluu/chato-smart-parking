@@ -76,7 +76,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       >
         {/* Mobile Menu Button */}
         {isMobile && (
-          <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 md:hidden">
+          <div className="sticky top-0 z-[50] bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 md:hidden">
             <Button
               variant="ghost"
               size="icon"
