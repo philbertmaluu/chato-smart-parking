@@ -224,9 +224,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         )}
         onClick={(e) => e.stopPropagation()}
       >
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-700 relative">
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Header - Fixed */}
+        <div className="border-b border-gray-200 dark:border-gray-700 relative flex-shrink-0">
           {/* Mobile Close Button */}
           {isMobile && onClose && (
             <Button
@@ -251,8 +251,12 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           </div>
         </div>  
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+        {/* Navigation - Scrollable on mobile/web, fixed on desktop */}
+        <nav className={cn(
+          "flex-1 p-4 space-y-2",
+          "overflow-y-auto overflow-x-hidden", // Scrollable on mobile/web
+          "md:overflow-y-visible" // Not scrollable on desktop (md and above)
+        )}>
           {navItems.map((item, index) => {
             // Improved active state detection
             const isActive =
@@ -286,7 +290,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* Controls */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3 flex-shrink-0">
           <div className="flex space-x-2">
             <Button
               variant="outline"
