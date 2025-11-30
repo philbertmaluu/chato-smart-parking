@@ -41,24 +41,22 @@ import Image from "next/image";
 
 interface SidebarProps {
   className?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   // Check if mobile on mount and resize
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setIsCollapsed(true);
-      }
     };
 
     checkMobile();
@@ -66,8 +64,11 @@ export function Sidebar({ className }: SidebarProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed);
+  // Close sidebar when clicking a link on mobile
+  const handleLinkClick = () => {
+    if (isMobile && onClose) {
+      onClose();
+    }
   };
 
   const toggleFullscreen = () => {
@@ -191,18 +192,48 @@ export function Sidebar({ className }: SidebarProps) {
       : operatorNavItems;
 
   return (
-    <motion.div
-      initial={{ x: -300 }}
-      animate={{ x: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
-        className
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && isOpen && onClose && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          style={{ pointerEvents: 'auto' }}
+        />
       )}
-    >
+      <motion.div
+        initial={{ x: isMobile ? -300 : 0 }}
+        animate={{ 
+          x: isMobile ? (isOpen ? 0 : -300) : 0 
+        }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
+          isMobile && !isOpen && "hidden",
+          className
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
+        <div className="border-b border-gray-200 dark:border-gray-700 relative">
+          {/* Mobile Close Button */}
+          {isMobile && onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="absolute top-2 right-2 z-50 md:hidden"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          )}
           <div className="flex items-center justify-center w-full">
             <div className="w-full h-46 py-0 flex items-center justify-center">
               <Image
@@ -233,7 +264,7 @@ export function Sidebar({ className }: SidebarProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <Link href={item.href}>
+                <Link href={item.href} onClick={handleLinkClick}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
@@ -310,5 +341,6 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </div>
     </motion.div>
+    </>
   );
 }

@@ -30,6 +30,7 @@ export interface TableColumn<T = any> {
   align?: "left" | "center" | "right";
   sortable?: boolean;
   searchable?: boolean;
+  hidden?: boolean; // Hide column on mobile
 }
 
 export interface DataTableProps<T = any> {
@@ -578,7 +579,8 @@ function DataTable<T extends Record<string, any>>({
         </div>
       </div>
 
-      <div className="">
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <Table>
           <TableHeader>
             <motion.tr
@@ -706,6 +708,93 @@ function DataTable<T extends Record<string, any>>({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4 p-4">
+        {loading ? (
+          <motion.div
+            className="flex items-center justify-center py-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <motion.div
+              className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"
+              animate={{ rotate: 360 }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            />
+            <span className="ml-2 text-gray-600 dark:text-gray-400">
+              Loading...
+            </span>
+          </motion.div>
+        ) : filteredData.length === 0 ? (
+          <motion.div
+            className="text-center py-12 text-gray-500 dark:text-gray-400"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            {searchText
+              ? "No items found matching your search."
+              : "No items found."}
+          </motion.div>
+        ) : (
+          <AnimatePresence>
+            {filteredData.map((item, index) => (
+              <motion.div
+                key={index}
+                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                transition={{
+                  duration: 0.4,
+                  delay: index * 0.05,
+                  ease: "easeOut",
+                }}
+              >
+                <div className="space-y-3">
+                  {columns
+                    .filter((col) => col.key !== "actions" && !col.hidden)
+                    .map((column) => (
+                      <div
+                        key={column.key}
+                        className="flex flex-col space-y-1 border-b border-gray-100 dark:border-gray-700 last:border-0 pb-2 last:pb-0"
+                      >
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                          {column.title}
+                        </div>
+                        <div className="text-sm text-gray-900 dark:text-gray-100">
+                          {column.render
+                            ? column.render(
+                                column.dataIndex ? item[column.dataIndex] : null,
+                                item,
+                                index
+                              )
+                            : column.dataIndex
+                            ? String(item[column.dataIndex] || "-")
+                            : "-"}
+                        </div>
+                      </div>
+                    ))}
+                  {/* Actions column if exists */}
+                  {columns.find((col) => col.key === "actions") && (
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                      {columns
+                        .find((col) => col.key === "actions")
+                        ?.render?.(null, item, index)}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
       </div>
 
       {pagination && (
