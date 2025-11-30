@@ -565,7 +565,7 @@ export function CameraInterface({
                     <Button
                       onClick={handleOpenInBrowser}
                       variant="outline"
-                      className="border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
+                      className="border-gray-500 text-gray-600 hover:gradient-maroon hover:text-white"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Open in Browser
@@ -790,7 +790,7 @@ export function CameraInterface({
                         <Button
                           onClick={handleOpenInBrowser}
                           variant="outline"
-                          className="w-full border-maroon-500 text-maroon-600 hover:bg-gradient-maroon hover:text-white"
+                          className="w-full border-gray-500 text-gray-600 hover:gradient-maroon hover:text-white"
                         >
                           <ExternalLink className="w-3 h-3 mr-2" />
                           Open in Browser (Fallback)

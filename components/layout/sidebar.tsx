@@ -202,26 +202,16 @@ export function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-16 h-16 flex items-center justify-center flex-shrink-0">
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-center w-full">
+            <div className="w-full h-46 py-0 flex items-center justify-center">
               <Image
                 src="/chato-logo.png"
                 alt="Chato Logo"
-                width={68}
-                height={68}
-                className="object-contain"
+                width={120}
+                height={120}
+                className="object-contain w-full "
               />
-            </div>
-            <div>
-              <h2 className="font-bold text-lg text-gradient">Chato Parking</h2>
-              <p className="text-sm text-muted-foreground capitalize">
-                {user?.role?.name === "System Administrator"
-                  ? "Admin Panel"
-                  : user?.role?.name === "Stations Manager"
-                  ? "Manager Panel"
-                  : `${user?.role?.name} Panel`}
-              </p>
             </div>
           </div>
         </div>  
