@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Smart Car Parking System",
+  title: "Chato Parking System",
   description: "Modern parking management system with real-time monitoring",
   generator: "v0.dev",
 };

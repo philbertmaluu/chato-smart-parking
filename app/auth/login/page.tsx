@@ -111,7 +111,7 @@ export default function LoginPage() {
               />
             </motion.div>
             <CardTitle className="text-2xl font-bold text-gradient">
-              Smart Parking
+              Chato Parking
             </CardTitle>
             <CardDescription>{t("auth.login")}</CardDescription>
           </CardHeader>
