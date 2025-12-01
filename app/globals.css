@@ -239,3 +239,77 @@
     opacity: 0.6;
   }
 }
+
+/* Register Page - Different Parking Pattern */
+.parking-pattern-register {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    /* Circular wave pattern */
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+    /* Hexagonal grid pattern */
+    repeating-linear-gradient(
+      60deg,
+      transparent,
+      transparent 50px,
+      rgba(255, 255, 255, 0.04) 50px,
+      rgba(255, 255, 255, 0.04) 52px
+    ),
+    repeating-linear-gradient(
+      -60deg,
+      transparent,
+      transparent 50px,
+      rgba(255, 255, 255, 0.04) 50px,
+      rgba(255, 255, 255, 0.04) 52px
+    ),
+    /* Vertical lines */
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 80px,
+      rgba(255, 255, 255, 0.03) 80px,
+      rgba(255, 255, 255, 0.03) 82px
+    );
+  background-size: 400px 400px, 400px 400px, 600px 600px, 100px 100px, 100px 100px, 160px 160px;
+  animation: pattern-shift-register 25s linear infinite;
+}
+
+@keyframes pattern-shift-register {
+  0% {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  100% {
+    background-position: 400px 400px, -400px -400px, 600px 600px, 100px 100px, -100px -100px, 160px 160px;
+  }
+}
+
+/* Register page parking indicators */
+.parking-pattern-register::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.12) 3px, transparent 3px),
+    radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.1) 3px, transparent 3px),
+    radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.1) 3px, transparent 3px),
+    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.12) 3px, transparent 3px);
+  background-size: 300px 300px, 350px 350px, 280px 280px, 320px 320px;
+  animation: parking-pulse 5s ease-in-out infinite alternate;
+}
+
+@keyframes parking-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
