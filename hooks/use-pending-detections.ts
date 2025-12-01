@@ -56,10 +56,9 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
     adaptivePollingRef.current = adaptivePolling;
   }, [enabled, isPageVisible, useAdaptive, onNewDetection, adaptivePolling]);
 
-  // Fetch function - simplified and more reliable
+  // Fetch function - simplified, no polling noise
   const fetchPendingDetectionsInternal = useCallback(async () => {
     if (!enabledRef.current) {
-      console.log('[Polling] Skipped - enabled:', enabledRef.current);
       return;
     }
 
@@ -73,37 +72,9 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
     setError(null);
     
     try {
-      // Step 1: Check DB for existing pending detections FIRST (priority: process queue before fetching new)
-      // This ensures existing queue is processed before fetching new detections
-      console.log('[Polling] Checking DB for existing pending detections...');
-      let detections = await CameraDetectionService.getPendingVehicleTypeDetections();
-      console.log('[Polling] Received', detections.length, 'pending detections from DB');
-      
-      // Step 2: Only fetch from camera API if no pending detections exist in DB
-      // This ensures queue is processed first before adding new detections
-      if (detections.length === 0) {
-        console.log('[Polling] No pending detections in queue, fetching from camera API...');
-        try {
-          const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
-          if (fetchResult.success && fetchResult.data) {
-            const { fetched, stored } = fetchResult.data;
-            console.log('[Polling] Camera poll result:', { fetched, stored });
-            
-            // After fetching from camera, check DB again for newly stored detections
-            if (stored > 0) {
-              const newDetections = await CameraDetectionService.getPendingVehicleTypeDetections();
-              console.log('[Polling] Found', newDetections.length, 'pending detections after camera fetch');
-              // Update detections with newly fetched ones
-              detections = newDetections;
-            }
-          }
-        } catch (cameraErr) {
-          console.warn('[Polling] Camera fetch error:', cameraErr);
-          // Continue even if camera fetch fails
-        }
-      } else {
-        console.log('[Polling] Queue has', detections.length, 'pending detections, processing queue first (skipping camera fetch)');
-      }
+      // Only read from DB-backed queue. Camera fetching is handled by the backend scheduler
+      // (fetch:camera-data), which keeps the queue up to date.
+      const detections = await CameraDetectionService.getPendingVehicleTypeDetections();
       
       // Always process the first (oldest) detection from queue if it exists
       // Compare against current latestDetection to avoid re-showing the same detection
@@ -114,11 +85,6 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
         // This ensures we don't re-show the same detection, but we do show the next one in queue
         setLatestDetection((currentLatest) => {
           if (!currentLatest || currentLatest.id !== firstDetection.id) {
-            console.log('[Polling] Processing detection from queue:', firstDetection.id, 'Plate:', firstDetection.numberplate, 'Total pending:', detections.length);
-            // Signal activity to adaptive polling
-            if (useAdaptiveRef.current) {
-              adaptivePollingRef.current.signalActivity();
-            }
             // Trigger callback to show modal
             onNewDetectionRef.current?.(firstDetection);
             return firstDetection;
@@ -128,7 +94,6 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
         });
       } else {
         // No pending detections, clear latest
-        console.log('[Polling] No pending detections in queue');
         setLatestDetection(null);
       }
       
@@ -137,10 +102,8 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Request was cancelled, ignore
-        console.log('[Polling] Request cancelled');
         return;
       }
-      console.error('[Polling] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch pending detections');
     } finally {
       setLoading(false);
@@ -168,11 +131,11 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
     }
   }, [enabled, fetchPendingDetections]);
 
-  // Set up polling with adaptive interval
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // NO POLLING - Only fetch on mount or when explicitly called
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // This keeps the UI clean and responsive without continuous polling noise
   useEffect(() => {
     if (!enabled) {
-      console.log('[Polling] Stopping - enabled:', enabled);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -180,36 +143,21 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
       return;
     }
 
-    console.log('[Polling] Starting with interval:', currentPollInterval, 'ms');
-
-    // Clear any existing interval first
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    // Set up new interval
-    intervalRef.current = setInterval(() => {
-      console.log('[Polling] Interval tick - fetching...');
-      fetchPendingDetections();
-    }, currentPollInterval);
-
-    // Also fetch immediately when enabled/visible
-    console.log('[Polling] Initial fetch...');
+    // Only fetch once on mount - no continuous polling
+    // The Laravel scheduler handles camera detection fetching in the background
     fetchPendingDetections();
 
     return () => {
-      console.log('[Polling] Cleanup - clearing interval');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [enabled, isPageVisible, currentPollInterval, fetchPendingDetections]);
+  }, [enabled, fetchPendingDetections]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('[Polling] Component unmounting - cleanup');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -222,7 +170,6 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
   // Clear latest detection after it's been handled
   // This allows the next detection in queue to be shown
   const clearLatestDetection = useCallback(() => {
-    console.log('[Polling] Clearing latest detection, will fetch next in queue');
     setLatestDetection(null);
     // Clear the previous IDs ref so next detection can be shown
     previousDetectionIdsRef.current.clear();

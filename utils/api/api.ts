@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout (increased for slower endpoints)
 });
 
 // Add auth token to requests
@@ -33,7 +33,13 @@ api.interceptors.response.use(
 
 // Helper function to handle API errors
 function handleApiError(error: AxiosError): never {
+  // Check if it's a timeout or network error
   if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+    // Check if it's a localhost connection for better error message
+    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+    if (isLocalhost) {
+      throw new Error(`Unable to connect to local server at ${API_BASE_URL}. Please ensure the backend server is running.`);
+    }
     throw new Error('Unable to connect to server. Please check your internet connection and try again.');
   }
   
@@ -41,12 +47,19 @@ function handleApiError(error: AxiosError): never {
     // Server responded with error status
     const status = error.response.status;
     const data = error.response.data as any;
+    const requestUrl = error.config?.url || '';
+    const isLoginRequest = requestUrl.includes('/login') || requestUrl.endsWith('/login');
     
     switch (status) {
       case 400:
         throw new Error(data?.message || 'Invalid request. Please check your input.');
       case 401:
-        throw new Error('Invalid credentials. Please check your email and password.');
+        // Distinguish between login 401 and protected endpoint 401
+        if (isLoginRequest) {
+          throw new Error('Invalid credentials. Please check your email and password.');
+        } else {
+          throw new Error('Your session has expired. Please log in again.');
+        }
       case 403:
         throw new Error('Access denied. You do not have permission to perform this action.');
       case 404:
@@ -61,6 +74,10 @@ function handleApiError(error: AxiosError): never {
   }
   
   // Network or other error
+  const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+  if (isLocalhost) {
+    throw new Error(`Network error connecting to local server at ${API_BASE_URL}. Please ensure the backend server is running.`);
+  }
   throw new Error('Network error. Please check your connection and try again.');
 }
 

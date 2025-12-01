@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable static export to enable API routes
-  // output: 'export', // Commented out to enable API routes for camera streaming
+  // Use static export for Tauri desktop builds
+  output: 'export',
+  distDir: 'out',
   trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,

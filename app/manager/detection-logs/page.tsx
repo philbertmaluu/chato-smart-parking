@@ -34,8 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Fixed polling interval: 1.5 seconds as requested
-const POLL_INTERVAL = 1500; // 1.5 seconds
+// Optimized polling interval: 5 seconds (camera detection takes 10-25s, so 1.5s was too frequent)
+const POLL_INTERVAL = 5000; // 5 seconds - reduced frequency to prevent server overload
 
 export default function DetectionLogsPage() {
   const { t } = useLanguage();
@@ -60,13 +60,26 @@ export default function DetectionLogsPage() {
     }
   }, [isPageVisible, fetchDetectionLogs]);
 
-  // Polling: Fetch from camera API and compare with DB every 1.5 seconds
+  // Track camera availability to skip polling when unavailable
+  const cameraAvailableRef = useRef<boolean>(true);
+  const consecutiveCameraFailuresRef = useRef<number>(0);
+
+  // Polling: Fetch from camera API and compare with DB every 5 seconds
   useEffect(() => {
     if (!autoRefresh || !isPageVisible) return;
 
     let intervalId: NodeJS.Timeout | null = null;
 
     const pollCameraAndUpdate = async () => {
+      // Skip camera polling if camera has been unavailable multiple times
+      // This prevents 10-second timeouts on every poll
+      if (!cameraAvailableRef.current && consecutiveCameraFailuresRef.current >= 3) {
+        // Only fetch from DB, skip camera API call
+        console.log('[Detection Logs] Camera unavailable, skipping camera poll, fetching from DB only');
+        await fetchDetectionLogs(true);
+        return;
+      }
+
       try {
         console.log('[Detection Logs] Polling camera API and checking DB...');
         // Step 1: Fetch from camera API and store new detections
@@ -77,6 +90,10 @@ export default function DetectionLogsPage() {
           const { fetched, stored, skipped } = fetchResult.data;
           console.log('[Detection Logs] Camera poll result:', { fetched, stored, skipped });
           
+          // Reset failure counter on success
+          cameraAvailableRef.current = true;
+          consecutiveCameraFailuresRef.current = 0;
+          
           // Step 2: If new detections were stored, fetch updated list from DB
           if (stored > 0) {
             console.log('[Detection Logs] New detections stored, fetching updated list from DB...');
@@ -86,12 +103,21 @@ export default function DetectionLogsPage() {
             await fetchDetectionLogs(true);
           }
         } else {
-          // If fetch-and-store failed, still try to get data from DB
-          console.warn('[Detection Logs] Camera fetch failed, fetching from DB only');
+          // If fetch-and-store failed (e.g., camera unreachable), still try to get data from DB
+          // Don't log as error - camera unavailability is expected in some scenarios
+          if (fetchResult.data?.camera_unavailable) {
+            console.log('[Detection Logs] Camera unavailable, fetching from DB only');
+            cameraAvailableRef.current = false;
+            consecutiveCameraFailuresRef.current += 1;
+          } else {
+            console.warn('[Detection Logs] Camera fetch failed, fetching from DB only');
+            consecutiveCameraFailuresRef.current += 1;
+          }
           await fetchDetectionLogs(true);
         }
       } catch (err) {
         console.error('[Detection Logs] Error polling camera and DB:', err);
+        consecutiveCameraFailuresRef.current += 1;
         // On error, still try to fetch from DB
         try {
           await fetchDetectionLogs(true);
@@ -101,7 +127,7 @@ export default function DetectionLogsPage() {
       }
     };
 
-    // Poll every 1.5 seconds
+    // Poll every 5 seconds
     intervalId = setInterval(pollCameraAndUpdate, POLL_INTERVAL);
     
     // Don't poll immediately - initial fetch is handled separately

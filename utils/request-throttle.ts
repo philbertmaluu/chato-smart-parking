@@ -74,8 +74,8 @@ class RequestThrottler {
   }
 }
 
-// Global throttler instance
-const globalThrottler = new RequestThrottler(3);
+// Global throttler instance - increased concurrency for better performance
+const globalThrottler = new RequestThrottler(5);
 
 /**
  * Throttle a function call - ensures max N concurrent requests

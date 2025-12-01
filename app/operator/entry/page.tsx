@@ -16,9 +16,10 @@ import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { useMJPEGStream } from "@/hooks/use-mjpeg-stream";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
+import { GateControlService } from "@/utils/api/vehicle-passage-service";
 import { useDetectionContext } from "@/contexts/detection-context";
 import { CameraDetection } from "@/hooks/use-detection-logs";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw, KeySquare } from "lucide-react";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
@@ -26,6 +27,8 @@ export default function VehicleEntry() {
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [openGateLoading, setOpenGateLoading] = useState(false);
+  const [openGateError, setOpenGateError] = useState<string | null>(null);
   const isPageVisible = usePageVisibility();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
@@ -45,16 +48,15 @@ export default function VehicleEntry() {
     fallbackToSnapshot: true,
     onError: (error) => {
       // Silently handle - snapshot mode works fine
-      console.log('Camera stream:', error);
+      // Error handling is done internally by the hook
     },
   });
 
-  // Poll for pending detections that need vehicle type (1.5 second polling as requested)
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // Check for pending detections - NO POLLING
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // Only checks on page load and when page becomes visible
   const { latestDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: true, // Always enabled - polling continues in background
-    pollInterval: 1500, // 1.5 seconds polling for new vehicle detection
-    useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
+    enabled: true, // Enabled but no polling - only checks on mount
     onNewDetection: (detection) => {
       // Only show modal if page is visible
       if (isPageVisible) {
@@ -63,11 +65,11 @@ export default function VehicleEntry() {
     },
   });
 
-  // Poll for pending exit detections (1.5 second polling)
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // Check for pending exit detections - NO POLLING
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // Only checks on page load and when page becomes visible
   const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
-    enabled: true, // Always enabled - polling continues in background
-    pollInterval: 1500, // 1.5 seconds polling for exit detections
+    enabled: true, // Enabled but no polling - only checks on mount
     onNewDetection: (detection) => {
       // Only show dialog if page is visible
       if (isPageVisible) {
@@ -81,11 +83,7 @@ export default function VehicleEntry() {
   useEffect(() => {
     if (latestDetection) {
       if (isPageVisible) {
-        console.log('[Entry Page] Showing vehicle type modal for pending detection:', latestDetection.id);
         setShowVehicleTypeModal(true);
-      } else {
-        // If page is not visible, modal will show when page becomes visible
-        console.log('[Entry Page] Pending detection found but page not visible. Will show when page becomes visible.');
       }
     }
   }, [latestDetection, isPageVisible]);
@@ -95,11 +93,7 @@ export default function VehicleEntry() {
   useEffect(() => {
     if (latestExitDetection) {
       if (isPageVisible) {
-        console.log('[Entry Page] Showing exit dialog for pending exit detection:', latestExitDetection.id);
         setShowExitDialog(true);
-      } else {
-        // If page is not visible, dialog will show when page becomes visible
-        console.log('[Entry Page] Pending exit detection found but page not visible. Will show when page becomes visible.');
       }
     }
   }, [latestExitDetection, isPageVisible]);
@@ -111,11 +105,11 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Immediately fetch pending detections when page becomes visible
+  // Fetch pending detections when page becomes visible (no continuous polling)
   useEffect(() => {
     if (isPageVisible) {
-      console.log('[Entry Page] Page is now visible, fetching pending detections immediately...');
-      // Fetch both types of pending detections immediately
+      // Fetch both types of pending detections when page becomes visible
+      // Background processing is handled by Laravel scheduler
       fetchPendingDetections();
       fetchPendingExitDetections();
     }
@@ -164,6 +158,31 @@ export default function VehicleEntry() {
   const handleGateSelect = async (gateId: number) => {
     await selectGate(gateId);
     setShowGateModal(false);
+  };
+
+  const handleOpenGate = async () => {
+    if (!selectedGate) {
+      setOpenGateError("Please select a gate first.");
+      return;
+    }
+
+    try {
+      setOpenGateLoading(true);
+      setOpenGateError(null);
+
+      await GateControlService.manualControl({
+        gate_id: selectedGate.id,
+        action: "open",
+        reason: "Operator one-click open from entry screen",
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to send open gate command";
+      setOpenGateError(message);
+      console.error("[Entry Page] Error sending open gate command:", err);
+    } finally {
+      setOpenGateLoading(false);
+    }
   };
 
   return (
@@ -233,7 +252,22 @@ export default function VehicleEntry() {
                         <span>Refresh</span>
                       </Button>
                     )}
-                    
+
+                    {/* One-click Open Gate Button - uses existing manual gate control API */}
+                    {selectedGate && (
+                      <Button
+                        onClick={handleOpenGate}
+                        variant="default"
+                        size="lg"
+                        disabled={openGateLoading}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg flex items-center space-x-2"
+                        title="Send open command to this gate"
+                      >
+                        <KeySquare className="w-4 h-4" />
+                        <span>{openGateLoading ? "Opening..." : "Open Gate"}</span>
+                      </Button>
+                    )}
+
                     {/* Deselect Gate Button - Only show when gate is selected */}
                     {selectedGate && (
                       <Button
@@ -250,7 +284,7 @@ export default function VehicleEntry() {
                         <span>Change Gate</span>
                       </Button>
                     )}
-                    
+
                     {/* Manual Entry Button */}
                     <Button
                       size="lg"
@@ -336,13 +370,22 @@ export default function VehicleEntry() {
                   </div>
                 )}
                 
-                <div className="flex items-center justify-between">
-                  {!cameraDevice && selectedGate && (
-                    <Alert className="flex-1" variant="destructive">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    {!cameraDevice && selectedGate && (
+                      <Alert className="flex-1" variant="destructive">
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertDescription>
+                          <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  {openGateError && (
+                    <Alert variant="destructive">
                       <AlertCircle className="w-4 h-4" />
-                      <AlertDescription>
-                        <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
-                      </AlertDescription>
+                      <AlertDescription>{openGateError}</AlertDescription>
                     </Alert>
                   )}
                 </div>

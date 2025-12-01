@@ -35,14 +35,14 @@ import { usePendingDetections } from "@/hooks/use-pending-detections";
 import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { VehicleTypeSelectionModal } from "@/app/operator/entry/components/vehicle-type-selection-modal";
-import { CameraDetectionService } from "@/utils/api/camera-detection-service";
+// CameraDetectionService import removed - no longer needed for polling
 import { toast } from "sonner";
 import { useDetectionContext } from "@/contexts/detection-context";
 import { CameraDetection } from "@/hooks/use-detection-logs";
 import { useRef } from "react";
 
 // Fixed polling interval: 1.5 seconds as requested
-const POLL_INTERVAL = 1500; // 1.5 seconds
+// Polling removed - background processing handled by Laravel scheduler
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
@@ -58,15 +58,12 @@ export default function ParkedVehicles() {
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [contextDetection, setContextDetection] = useState<CameraDetection | null>(null);
   const isPageVisible = usePageVisibility();
-  const previousPendingCountRef = useRef<{ vehicleType: number; exit: number }>({ vehicleType: 0, exit: 0 });
-  const processingRef = useRef(false);
 
-  // Poll for pending detections that need vehicle type (1.5 second polling)
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // Check for pending detections - NO POLLING
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // Only checks on page load and when page becomes visible
   const { latestDetection: pendingDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: true, // Always enabled - polling continues in background
-    pollInterval: 1500, // 1.5 seconds polling
-    useAdaptive: false, // Disable adaptive polling for consistent 1.5s interval
+    enabled: true, // Enabled but no polling - only checks on mount
     onNewDetection: (detection) => {
       // Only show modal if page is visible
       if (isPageVisible) {
@@ -75,11 +72,11 @@ export default function ParkedVehicles() {
     },
   });
 
-  // Poll for pending exit detections (1.5 second polling)
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // Check for pending exit detections - NO POLLING
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // Only checks on page load and when page becomes visible
   const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
-    enabled: true, // Always enabled - polling continues in background
-    pollInterval: 1500, // 1.5 seconds polling for exit detections
+    enabled: true, // Enabled but no polling - only checks on mount
     onNewDetection: (detection) => {
       // Only show dialog if page is visible
       if (isPageVisible) {
@@ -93,11 +90,7 @@ export default function ParkedVehicles() {
   useEffect(() => {
     if (pendingDetection) {
       if (isPageVisible) {
-        console.log('[Parked Page] Showing vehicle type modal for pending detection:', pendingDetection.id);
         setShowVehicleTypeModal(true);
-      } else {
-        // If page is not visible, modal will show when page becomes visible
-        console.log('[Parked Page] Pending detection found but page not visible. Will show when page becomes visible.');
       }
     }
   }, [pendingDetection, isPageVisible]);
@@ -107,11 +100,7 @@ export default function ParkedVehicles() {
   useEffect(() => {
     if (latestExitDetection) {
       if (isPageVisible) {
-        console.log('[Parked Page] Showing exit dialog for pending exit detection:', latestExitDetection.id);
         setShowCameraExitDialog(true);
-      } else {
-        // If page is not visible, dialog will show when page becomes visible
-        console.log('[Parked Page] Pending exit detection found but page not visible. Will show when page becomes visible.');
       }
     }
   }, [latestExitDetection, isPageVisible]);
@@ -125,111 +114,14 @@ export default function ParkedVehicles() {
     searchActivePassages,
   } = useActivePassages();
 
-  // Immediately fetch pending detections when page becomes visible
+  // Fetch pending detections when page becomes visible (no continuous polling)
   useEffect(() => {
     if (isPageVisible) {
-      console.log('[Parked Page] Page is now visible, fetching pending detections immediately...');
-      // Fetch both types of pending detections immediately
+      // Fetch both types of pending detections when page becomes visible
+      // Background processing is handled by Laravel scheduler
       fetchPendingDetections();
       fetchPendingExitDetections();
     }
-  }, [isPageVisible, fetchPendingDetections, fetchPendingExitDetections]);
-
-  // Lightweight polling: Check for new pending detections every 1.5 seconds
-  // Similar to detection-logs page polling mechanism
-  useEffect(() => {
-    if (!isPageVisible) return;
-
-    let intervalId: NodeJS.Timeout | null = null;
-
-    const pollForPendingDetections = async () => {
-      // Skip if already processing to avoid race conditions
-      if (processingRef.current) {
-        console.log('[Parked Page] Skipping poll - already processing');
-        return;
-      }
-
-      try {
-        console.log('[Parked Page] Polling for pending detections...');
-        
-        // Step 1: Fetch from camera API and store new detections
-        const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
-        
-        if (fetchResult.success && fetchResult.data) {
-          const { fetched, stored, skipped } = fetchResult.data;
-          console.log('[Parked Page] Camera poll result:', { fetched, stored, skipped });
-        }
-
-        // Step 2: Check for pending detections in DB
-        // Fetch both types of pending detections
-        const [pendingVehicleType, pendingExit] = await Promise.all([
-          CameraDetectionService.getPendingVehicleTypeDetections(),
-          CameraDetectionService.getPendingExitDetections(),
-        ]);
-
-        const vehicleTypeCount = pendingVehicleType.length;
-        const exitCount = pendingExit.length;
-
-        console.log('[Parked Page] Pending counts - Vehicle Type:', vehicleTypeCount, 'Exit:', exitCount);
-
-        // Check if we have new pending detections
-        const hasNewVehicleType = vehicleTypeCount > previousPendingCountRef.current.vehicleType;
-        const hasNewExit = exitCount > previousPendingCountRef.current.exit;
-        const hasAnyPending = vehicleTypeCount > 0 || exitCount > 0;
-
-        // Update previous counts
-        previousPendingCountRef.current = { vehicleType: vehicleTypeCount, exit: exitCount };
-
-        // If we have pending detections, process them immediately
-        if (hasAnyPending && !processingRef.current) {
-          processingRef.current = true;
-          console.log('[Parked Page] Found pending detections, processing...');
-
-          // Process pending_vehicle_type first (FIFO - oldest first)
-          if (pendingVehicleType.length > 0) {
-            const oldestVehicleType = pendingVehicleType[0]; // Backend returns ASC order (oldest first)
-            console.log('[Parked Page] Processing oldest pending vehicle type detection:', oldestVehicleType.id, 'Plate:', oldestVehicleType.numberplate);
-            
-            // Trigger the hook to set this detection
-            // The hook will handle showing the modal
-            await fetchPendingDetections();
-          } 
-          // Then process pending_exit (FIFO - oldest first)
-          else if (pendingExit.length > 0) {
-            const oldestExit = pendingExit[0]; // Backend returns ASC order (oldest first)
-            console.log('[Parked Page] Processing oldest pending exit detection:', oldestExit.id, 'Plate:', oldestExit.numberplate);
-            
-            // Trigger the hook to set this detection
-            // The hook will handle showing the dialog
-            await fetchPendingExitDetections();
-          }
-
-          processingRef.current = false;
-        } else if (hasNewVehicleType || hasNewExit) {
-          // New detections detected, fetch to update hooks
-          console.log('[Parked Page] New pending detections detected, fetching...');
-          await Promise.all([
-            fetchPendingDetections(),
-            fetchPendingExitDetections(),
-          ]);
-        }
-      } catch (err) {
-        console.error('[Parked Page] Error polling for pending detections:', err);
-        processingRef.current = false;
-      }
-    };
-
-    // Initial poll
-    pollForPendingDetections();
-
-    // Set up interval polling
-    intervalId = setInterval(pollForPendingDetections, POLL_INTERVAL);
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
   }, [isPageVisible, fetchPendingDetections, fetchPendingExitDetections]);
 
   // Watch for new detections from detection logs page via context
@@ -237,21 +129,18 @@ export default function ParkedVehicles() {
     if (!latestNewDetection || !isPageVisible) return;
 
     const detection = latestNewDetection;
-    console.log('[Parked Page] New detection from context:', detection.id, 'Plate:', detection.numberplate, 'Status:', detection.processing_status);
 
     // Store detection for modal use
     setContextDetection(detection);
 
     // Check processing_status first
     if (detection.processing_status === 'pending_exit') {
-      console.log('[Parked Page] Detection is pending exit, showing exit dialog');
       setShowCameraExitDialog(true);
       clearContextDetection();
       return;
     }
 
     if (detection.processing_status === 'pending_vehicle_type') {
-      console.log('[Parked Page] Detection needs vehicle type, showing vehicle type modal');
       setShowVehicleTypeModal(true);
       clearContextDetection();
       return;
@@ -264,11 +153,9 @@ export default function ParkedVehicles() {
     );
 
     if (hasActivePassage) {
-      console.log('[Parked Page] Vehicle has active passage, showing exit dialog');
       setShowCameraExitDialog(true);
       clearContextDetection();
     } else {
-      console.log('[Parked Page] Vehicle has no active passage, showing vehicle type modal');
       setShowVehicleTypeModal(true);
       clearContextDetection();
     }
@@ -659,7 +546,6 @@ export default function ParkedVehicles() {
             setShowCameraExitDialog(open);
             if (!open) {
               clearLatestExitDetection();
-              processingRef.current = false; // Allow next processing
               if (contextDetection) {
                 setContextDetection(null);
                 clearContextDetection();

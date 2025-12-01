@@ -36,10 +36,9 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
     onNewDetectionRef.current = onNewDetection;
   }, [enabled, isPageVisible, onNewDetection]);
 
-  // Fetch function
+  // Fetch function - no polling noise
   const fetchPendingExitDetectionsInternal = useCallback(async () => {
     if (!enabledRef.current) {
-      console.log('[Exit Polling] Skipped - enabled:', enabledRef.current);
       return;
     }
 
@@ -53,37 +52,9 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
     setError(null);
     
     try {
-      // Step 1: Check DB for existing pending exit detections FIRST (priority: process queue before fetching new)
-      // This ensures existing queue is processed before fetching new detections
-      console.log('[Exit Polling] Checking DB for existing pending exit detections...');
-      let detections = await CameraDetectionService.getPendingExitDetections();
-      console.log('[Exit Polling] Received', detections.length, 'pending exit detections from DB');
-      
-      // Step 2: Only fetch from camera API if no pending exit detections exist in DB
-      // This ensures queue is processed first before adding new detections
-      if (detections.length === 0) {
-        console.log('[Exit Polling] No pending exit detections in queue, fetching from camera API...');
-        try {
-          const fetchResult = await CameraDetectionService.fetchAndStoreFromCamera();
-          if (fetchResult.success && fetchResult.data) {
-            const { fetched, stored } = fetchResult.data;
-            console.log('[Exit Polling] Camera poll result:', { fetched, stored });
-            
-            // After fetching from camera, check DB again for newly stored detections
-            if (stored > 0) {
-              const newDetections = await CameraDetectionService.getPendingExitDetections();
-              console.log('[Exit Polling] Found', newDetections.length, 'pending exit detections after camera fetch');
-              // Update detections with newly fetched ones
-              detections = newDetections;
-            }
-          }
-        } catch (cameraErr) {
-          console.warn('[Exit Polling] Camera fetch error:', cameraErr);
-          // Continue even if camera fetch fails
-        }
-      } else {
-        console.log('[Exit Polling] Queue has', detections.length, 'pending exit detections, processing queue first (skipping camera fetch)');
-      }
+      // Only read from DB-backed exit queue. Camera fetching is handled by the backend scheduler
+      // (fetch:camera-data), which keeps the queue up to date.
+      const detections = await CameraDetectionService.getPendingExitDetections();
       
       // Always process the first (oldest) detection from queue if it exists
       // Compare against current latestDetection to avoid re-showing the same detection
@@ -94,7 +65,6 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
         // This ensures we don't re-show the same detection, but we do show the next one in queue
         setLatestDetection((currentLatest) => {
           if (!currentLatest || currentLatest.id !== firstDetection.id) {
-            console.log('[Exit Polling] Processing exit detection from queue:', firstDetection.id, 'Plate:', firstDetection.numberplate, 'Total pending:', detections.length);
             // Trigger callback to show modal
             onNewDetectionRef.current?.(firstDetection);
             return firstDetection;
@@ -104,7 +74,6 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
         });
       } else {
         // No pending exit detections, clear latest
-        console.log('[Exit Polling] No pending exit detections in queue');
         setLatestDetection(null);
       }
       
@@ -113,10 +82,8 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Request was cancelled, ignore
-        console.log('[Exit Polling] Request cancelled');
         return;
       }
-      console.error('[Exit Polling] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch pending exit detections');
     } finally {
       setLoading(false);
@@ -142,11 +109,11 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
     }
   }, [enabled, fetchPendingExitDetections]);
 
-  // Set up polling with fixed interval
-  // Polling continues even when page is not visible to keep detecting new entries/exits
+  // NO POLLING - Only fetch on mount or when explicitly called
+  // Background processing is handled by Laravel scheduler (cron jobs)
+  // This keeps the UI clean and responsive without continuous polling noise
   useEffect(() => {
     if (!enabled) {
-      console.log('[Exit Polling] Stopping - enabled:', enabled);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -154,36 +121,21 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
       return;
     }
 
-    console.log('[Exit Polling] Starting with interval:', pollInterval, 'ms');
-
-    // Clear any existing interval first
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    // Set up new interval
-    intervalRef.current = setInterval(() => {
-      console.log('[Exit Polling] Interval tick - fetching...');
-      fetchPendingExitDetections();
-    }, pollInterval);
-
-    // Also fetch immediately when enabled/visible
-    console.log('[Exit Polling] Initial fetch...');
+    // Only fetch once on mount - no continuous polling
+    // The Laravel scheduler handles camera detection fetching in the background
     fetchPendingExitDetections();
 
     return () => {
-      console.log('[Exit Polling] Cleanup - clearing interval');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [enabled, isPageVisible, pollInterval, fetchPendingExitDetections]);
+  }, [enabled, fetchPendingExitDetections]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('[Exit Polling] Component unmounting - cleanup');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -196,7 +148,6 @@ export const usePendingExitDetections = (options: UsePendingExitDetectionsOption
   // Clear latest detection after it's been handled
   // This allows the next detection in queue to be shown
   const clearLatestDetection = useCallback(() => {
-    console.log('[Exit Polling] Clearing latest exit detection, will fetch next in queue');
     setLatestDetection(null);
     // Clear the previous IDs ref so next detection can be shown
     previousDetectionIdsRef.current.clear();

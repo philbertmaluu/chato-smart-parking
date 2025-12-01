@@ -104,13 +104,13 @@ export const useDetectionLogs = (gateId?: number) => {
       if (gateId) {
         params.append('gate_id', gateId.toString());
       }
+      // Reduced default per_page from 100 to 15 for faster loading
+      params.append('per_page', '15');
       // Add timestamp to bypass cache and get fresh data
       params.append('_', Date.now().toString());
       
       const queryString = params.toString();
-      const url = queryString 
-        ? `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}?${queryString}`
-        : `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}?_=${Date.now()}`;
+      const url = `${API_ENDPOINTS.CAMERA_DETECTION.FETCH}?${queryString}`;
       
       const response = await get<DetectionLogsResponse>(url);
       
@@ -159,7 +159,7 @@ export const useDetectionLogs = (gateId?: number) => {
         console.log('[Detection Logs] New detection found via lightweight check. Latest ID:', latestInfo.latest_id, 'Current:', currentLatestId);
       }
 
-      return hasNewData;
+      return hasNewData;  
     } catch (err) {
       console.error('[Detection Logs] Error checking for new detections:', err);
       return false;
@@ -209,7 +209,7 @@ export const useDetectionLogs = (gateId?: number) => {
     error,
     count,
     fetchDetectionLogs,
-    checkForNewData,
+    checkForNewData, 
     checkForNewDetections,
   };
 };
