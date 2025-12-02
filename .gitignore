@@ -1,0 +1,40 @@
+﻿# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+smart-parking-front/out/
+smart-parking-front/.next/
+smart-parking-front/src-tauri/target/
+installer/build/
+installer/output/
+installer/*.zip
+installer/innosetup_installer.exe
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+storage/logs/
+
+# Cache
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database
+*.sqlite
