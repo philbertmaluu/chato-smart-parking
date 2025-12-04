@@ -1,0 +1,315 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.18 0.01 250);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.22 0.01 250);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.22 0.01 250);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.98 0 0);
+  --primary-foreground: oklch(0.18 0.01 250);
+  --secondary: oklch(0.28 0.01 250);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.26 0.01 250);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: oklch(0.30 0.01 250);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.32 0.01 250);
+  --input: oklch(0.26 0.01 250);
+  --ring: oklch(0.50 0.01 250);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.20 0.01 250);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.28 0.01 250);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.32 0.01 250);
+  --sidebar-ring: oklch(0.50 0.01 250);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Black gradient theme colors */
+  --color-black-50: #0a0a0a;
+  --color-black-100: #1a1a1a;
+  --color-black-200: #2a2a2a;
+  --color-black-300: #3a3a3a;
+  --color-black-400: #4a4a4a;
+  --color-black-500: #000000;
+  --color-black-600: #0f0f0f;
+  --color-black-700: #1f1f1f;
+  --color-black-800: #2f2f2f;
+  --color-black-900: #3f3f3f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Hide Next.js development watermark */
+  #__next-build-watcher,
+  [data-nextjs-toast],
+  [data-nextjs-dialog] {
+    display: none !important;
+  }
+}
+
+.glass-effect {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-effect {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gradient-maroon {
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+}
+
+.dark .gradient-maroon {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  color: white;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .text-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Parking Pattern Background */
+.parking-pattern {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    /* Grid pattern */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 60px,
+      rgba(255, 255, 255, 0.05) 60px,
+      rgba(255, 255, 255, 0.05) 62px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 60px,
+      rgba(255, 255, 255, 0.05) 60px,
+      rgba(255, 255, 255, 0.05) 62px
+    ),
+    /* Diagonal lines */
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 100px,
+      rgba(255, 255, 255, 0.02) 100px,
+      rgba(255, 255, 255, 0.02) 102px
+    );
+  background-size: 120px 120px, 120px 120px, 200px 200px;
+  animation: pattern-shift 20s linear infinite;
+}
+
+@keyframes pattern-shift {
+  0% {
+    background-position: 0 0, 0 0, 0 0;
+  }
+  100% {
+    background-position: 120px 120px, -120px -120px, 200px 200px;
+  }
+}
+
+/* Parking space indicators */
+.parking-pattern::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.1) 2px, transparent 2px),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08) 2px, transparent 2px),
+    radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.1) 2px, transparent 2px);
+  background-size: 200px 200px, 250px 250px, 180px 180px;
+  animation: parking-glow 4s ease-in-out infinite alternate;
+}
+
+@keyframes parking-glow {
+  0% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* Register Page - Different Parking Pattern */
+.parking-pattern-register {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    /* Circular wave pattern */
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+    /* Hexagonal grid pattern */
+    repeating-linear-gradient(
+      60deg,
+      transparent,
+      transparent 50px,
+      rgba(255, 255, 255, 0.04) 50px,
+      rgba(255, 255, 255, 0.04) 52px
+    ),
+    repeating-linear-gradient(
+      -60deg,
+      transparent,
+      transparent 50px,
+      rgba(255, 255, 255, 0.04) 50px,
+      rgba(255, 255, 255, 0.04) 52px
+    ),
+    /* Vertical lines */
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 80px,
+      rgba(255, 255, 255, 0.03) 80px,
+      rgba(255, 255, 255, 0.03) 82px
+    );
+  background-size: 400px 400px, 400px 400px, 600px 600px, 100px 100px, 100px 100px, 160px 160px;
+  animation: pattern-shift-register 25s linear infinite;
+}
+
+@keyframes pattern-shift-register {
+  0% {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  100% {
+    background-position: 400px 400px, -400px -400px, 600px 600px, 100px 100px, -100px -100px, 160px 160px;
+  }
+}
+
+/* Register page parking indicators */
+.parking-pattern-register::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.12) 3px, transparent 3px),
+    radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.1) 3px, transparent 3px),
+    radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.1) 3px, transparent 3px),
+    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.12) 3px, transparent 3px);
+  background-size: 300px 300px, 350px 350px, 280px 280px, 320px 320px;
+  animation: parking-pulse 5s ease-in-out infinite alternate;
+}
+
+@keyframes parking-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}

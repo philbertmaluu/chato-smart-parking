@@ -1,0 +1,40 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background circle with #a00000 -->
+    <circle cx="256" cy="256" r="240" fill="#a00000" stroke="#800000" stroke-width="8" />
+
+    <!-- Main car body -->
+    <path
+        d="M 160 280 L 352 280 L 352 240 Q 352 220 332 220 L 180 220 Q 160 220 160 240 L 160 280 Z"
+        fill="#ffffff" />
+
+    <!-- Car roof -->
+    <path
+        d="M 180 220 L 332 220 L 332 180 Q 332 160 312 160 L 200 160 Q 180 160 180 180 L 180 220 Z"
+        fill="#ffffff" />
+
+    <!-- Car windows -->
+    <rect x="200" y="180" width="112" height="32" rx="4" fill="#e5e7eb" />
+    <rect x="220" y="240" width="72" height="32" rx="4" fill="#e5e7eb" />
+
+    <!-- Car wheels -->
+    <circle cx="200" cy="280" r="24" fill="#1f2937" />
+    <circle cx="312" cy="280" r="24" fill="#1f2937" />
+    <circle cx="200" cy="280" r="16" fill="#374151" />
+    <circle cx="312" cy="280" r="16" fill="#374151" />
+
+    <!-- Car headlights -->
+    <circle cx="180" cy="240" r="8" fill="#fbbf24" />
+    <circle cx="332" cy="240" r="8" fill="#fbbf24" />
+
+    <!-- Car grill -->
+    <rect x="190" y="260" width="132" height="8" rx="4" fill="#374151" />
+
+    <!-- Parking "P" symbol in background -->
+    <path
+        d="M 240 140 L 240 200 L 272 200 Q 300 200 300 170 L 300 150 Q 300 140 272 140 L 240 140 Z M 272 150 L 272 170 L 280 170 L 280 150 L 272 150 Z"
+        fill="#a00000" opacity="0.3" />
+
+    <!-- Decorative lines -->
+    <line x1="256" y1="120" x2="256" y2="140" stroke="#ffffff" stroke-width="4" opacity="0.5" />
+    <line x1="256" y1="380" x2="256" y2="400" stroke="#ffffff" stroke-width="4" opacity="0.5" />
+</svg> 
