@@ -438,7 +438,7 @@ export function VehicleBodyTypes() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Edit Vehicle Body Type</DialogTitle>
             <DialogDescription>
