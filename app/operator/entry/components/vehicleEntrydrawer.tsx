@@ -102,7 +102,7 @@ export function VehicleEntryDrawer({
   const [isSearching, setIsSearching] = useState(false);
   const [showVehicleForm, setShowVehicleForm] = useState(false);
   const [vehicleFormData, setVehicleFormData] = useState<CreateVehicleData>({
-    body_type_id: 0,
+    body_type_id: undefined, // Optional on entry - will be required on exit if needed
     plate_number: "",
     make: "",
     model: "",
@@ -205,6 +205,7 @@ export function VehicleEntryDrawer({
           setVehicleFormData((prev) => ({
             ...prev,
             plate_number: plateToSearch,
+            body_type_id: undefined, // Optional on entry
           }));
           toast.info("Vehicle not found. Please register new vehicle.");
         }
@@ -225,12 +226,13 @@ export function VehicleEntryDrawer({
   ]);
 
   const handleCreateVehicle = useCallback(async () => {
-    if (!vehicleFormData.body_type_id || !vehicleFormData.plate_number) {
+    if (!vehicleFormData.plate_number) {
       toast.error(
-        "Please fill in required fields (Body Type and Plate Number)"
+        "Please enter a plate number"
       );
       return;
     }
+    // body_type_id is optional on entry - will be required on exit if needed
 
     try {
       const newVehicle = await createVehicle(vehicleFormData);
@@ -285,7 +287,7 @@ export function VehicleEntryDrawer({
       const passageData: VehiclePassageData = {
         plate_number: foundVehicle.plate_number,
         gate_id: selectedGateId,
-        body_type_id: foundVehicle.body_type_id,
+        body_type_id: foundVehicle.body_type_id || undefined, // Optional on entry
         make: foundVehicle.make || undefined,
         model: foundVehicle.model || undefined,
         year: foundVehicle.year || undefined,
@@ -327,7 +329,7 @@ export function VehicleEntryDrawer({
     setFoundVehicle(null);
     setShowVehicleForm(false);
     setVehicleFormData({
-      body_type_id: 0,
+      body_type_id: undefined, // Optional on entry
       plate_number: "",
       make: "",
       model: "",
