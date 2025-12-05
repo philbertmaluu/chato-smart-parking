@@ -217,18 +217,20 @@ export default function PassageHistoryPage() {
       
       console.log('Dashboard summary response', response);
 
-      if (response?.success) {
-        // Some endpoints may return { data: {...} } or nested structures
-        const summary =
-          (response.data as any)?.data ||
-          response.data ||
-          null;
+      if (response?.success && response.data) {
+        // Extract summary data - API returns it directly in response.data
+        const summary = response.data as {
+          total_passages: number;
+          active_passages: number;
+          completed_today: number;
+          total_revenue: number;
+          revenue_today: number;
+        };
 
-        if (summary) {
-          setDashboardSummary(summary);
-        } else {
-          console.warn('Dashboard summary missing data payload', response);
-        }
+        console.log('Extracted dashboard summary:', summary);
+        setDashboardSummary(summary);
+      } else {
+        console.warn('Dashboard summary missing data payload', response);
       }
     } catch (error) {
       console.error('Error fetching dashboard summary:', error);
@@ -295,12 +297,11 @@ export default function PassageHistoryPage() {
   }, [processedPassages, state.pagination?.total]);
 
   const displaySummary = useMemo(() => {
-    if (!dashboardSummary) return derivedSummary;
-    const allZero = Object.values(dashboardSummary || {}).every(v => v === 0);
-    if (allZero && derivedSummary.total_passages > 0) {
-      return derivedSummary;
+    // Always prefer API data when available, fall back to derived only if API data is null/undefined
+    if (dashboardSummary) {
+      return dashboardSummary;
     }
-    return dashboardSummary;
+    return derivedSummary;
   }, [dashboardSummary, derivedSummary]);
 
   // Periodic refresh for real-time counts (dashboard cards + list)

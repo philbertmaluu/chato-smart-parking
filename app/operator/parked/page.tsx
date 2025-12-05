@@ -209,10 +209,10 @@ export default function ParkedVehicles() {
         >
           <div>
             <h1 className="text-3xl font-bold text-gradient">
-              {t("nav.parked") || "Detected Vehicles"}
+              {t("nav.parked") || "Active Vehicle Passages"}
             </h1>
             <p className="text-muted-foreground mt-2">
-              Currently detected vehicles at your gate
+              Vehicles with active parking passages at your station
             </p>
             {!selectedGate && (
               <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
