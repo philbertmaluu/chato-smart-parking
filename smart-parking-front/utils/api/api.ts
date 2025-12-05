@@ -67,9 +67,11 @@ function handleApiError(error: AxiosError): never {
       case 422:
         throw new Error(data?.message || 'Validation error. Please check your input.');
       case 500:
-        throw new Error('Server error. Please try again later.');
+        // Show more details for debugging
+        const errorDetail = data?.message || data?.error || data?.exception || 'Unknown server error';
+        throw new Error(`Server error: ${errorDetail}`);
       default:
-        throw new Error(data?.message || `Server error (${status}). Please try again.`);
+        throw new Error(data?.message || data?.error || `Server error (${status}). Please try again.`);
     }
   }
   

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { useLanguage } from "@/components/language-provider";
 import { useAuth } from "@/components/auth-provider";
-import { Car, DollarSign, Users, ParkingCircle } from "lucide-react";
+import { Car, DollarSign, Users, ParkingCircle, RefreshCw } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -27,40 +27,48 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { Button } from "@/components/ui/button";
 
 export default function ManagerDashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { totalParked, todayRevenue, totalEntries, activeOperators, loading, refresh } = useDashboardStats();
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return `Tsh. ${amount.toLocaleString()}`;
+  };
 
   const stats = [
     {
       title: t("dashboard.totalParked"),
-      value: "47",
-      change: "+12%",
+      value: loading ? "..." : totalParked.toString(),
+      change: "Currently parked",
       icon: ParkingCircle,
       color: "text-blue-600",
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
     },
     {
       title: t("dashboard.todayRevenue"),
-      value: "Tsh. 1,247",
-      change: "+8.2%",
+      value: loading ? "..." : formatCurrency(todayRevenue),
+      change: "Today's earnings",
       icon: DollarSign,
       color: "text-green-600",
       bgColor: "bg-green-100 dark:bg-green-900/20",
     },
     {
       title: t("dashboard.totalEntries"),
-      value: "324",
-      change: "+15%",
+      value: loading ? "..." : totalEntries.toString(),
+      change: "Today's entries",
       icon: Car,
       color: "text-purple-600",
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
     },
     {
       title: "Active Operators",
-      value: "8",
-      change: "+2",
+      value: loading ? "..." : activeOperators.toString(),
+      change: "On duty",
       icon: Users,
       color: "text-orange-600",
       bgColor: "bg-orange-100 dark:bg-orange-900/20",
@@ -104,13 +112,26 @@ export default function ManagerDashboard() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
+            className="flex items-center justify-between"
           >
-            <h1 className="text-3xl font-bold text-gradient">
-              {t("dashboard.welcome")}, {user?.username}!
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Manager Dashboard - Real-time parking analytics and management
-            </p>
+            <div>
+              <h1 className="text-3xl font-bold text-gradient">
+                {t("dashboard.welcome")}, {user?.username}!
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Manager Dashboard - Real-time parking analytics and management
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </motion.div>
 
           {/* Stats Grid */}

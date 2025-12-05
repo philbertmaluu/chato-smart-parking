@@ -396,12 +396,25 @@ export function GateDevices() {
 
   const isCamera = formData.device_type === "camera";
 
+  // Show error if gates failed to load
+  const gatesError = gates.length === 0 && !loading;
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-muted-foreground">
           Manage camera devices integrated with parking gates
         </p>
+        {gatesError && (
+          <p className="text-amber-500 text-sm mt-2">
+            ⚠️ No gates found. Please add gates in "Gates and Stations" tab first.
+          </p>
+        )}
+        {error && (
+          <p className="text-red-500 text-sm mt-2">
+            ❌ Error: {error}
+          </p>
+        )}
       </div>
 
       <DataTable
