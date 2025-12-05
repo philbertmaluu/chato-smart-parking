@@ -73,6 +73,7 @@ Source: "build\php\*"; DestDir: "{app}\php"; Flags: ignoreversion recursesubdirs
 Source: "build\StartSmartParking.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\start-backend.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\setup-first-run.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\RepairSetup.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 ; Create data directories
@@ -93,6 +94,7 @@ Name: "{app}\backend\bootstrap\cache"; Permissions: users-full
 ; Start Menu
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\frontend\Smart Parking System.exe"
 Name: "{group}\Start Backend Server"; Filename: "{app}\start-backend.bat"; WorkingDir: "{app}"
+Name: "{group}\Repair Setup"; Filename: "{app}\RepairSetup.bat"; WorkingDir: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 ; Desktop
