@@ -43,45 +43,17 @@ export const useActivePassages = () => {
     return !!paidUntil && paidUntil.getTime() > Date.now();
   };
 
-  // Calculate current fee based on duration and rate using the same logic as backend
+  // Use the total amount from backend (already calculated with daily rate × days)
   const calculateCurrentFee = (passage: VehiclePassage): string => {
+    // Check if vehicle has an active paid pass
     if (isPaidPassActive(passage)) {
       return 'Paid (within 24h)';
     }
-    const entry = new Date(passage.entry_time);
-    const now = new Date();
-    const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);
+
+    // Use the total_amount from backend which is already calculated correctly
+    const totalAmount = parseFloat(passage.total_amount?.toString() || '0');
     
-    // Use the base amount as hourly rate, or default to 5 Tsh per hour
-    const hourlyRate = parseFloat(passage.base_amount?.toString() || '5');
-    
-    // Apply the same rounding rules as backend
-    const hoursToCharge = calculateHoursToCharge(diffHours);
-    const currentFee = hourlyRate * hoursToCharge;
-    
-    return `Tsh. ${currentFee.toFixed(2)}`;
-  };
-
-  // Calculate total billable hours based on parking time and smart charging rules.
-  // Same logic as backend for consistency
-  const calculateHoursToCharge = (hoursSpent: number): number => {
-    // Minimum charge — always 1 hour
-    if (hoursSpent <= 0) {
-      return 1;
-    }
-
-    // Up to 1 hour 30 minutes → Still charge only 1 hour
-    if (hoursSpent <= 1.5) {
-      return 1;
-    }
-
-    // From 1 hour 31 minutes up to 2 hours → Charge double = 2 hours
-    if (hoursSpent < 2.0) {
-      return 2;
-    }
-
-    // More than 2 hours → Round up to the next full hour
-    return Math.ceil(hoursSpent);
+    return `Tsh. ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Transform passage data for display

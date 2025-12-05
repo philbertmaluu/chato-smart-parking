@@ -79,8 +79,11 @@ export function VehicleExitDialog({
       return;
     }
 
+    // Check if vehicle has body_type_id
+    const vehicleBodyTypeId = vehicle.vehicle?.body_type_id;
+    
     // Check if vehicle has body_type_id, if not, show selection modal
-    if (!vehicle.vehicle?.body_type_id && !bodyTypeId) {
+    if (!vehicleBodyTypeId && !bodyTypeId) {
       setShowVehicleTypeModal(true);
       return;
     }
@@ -94,10 +97,11 @@ export function VehicleExitDialog({
         "@/utils/api/vehicle-passage-service"
       );
 
+      const vehicleBodyTypeId = vehicle.vehicle?.body_type_id;
       const result = await VehiclePassageService.processExit({
         plate_number: vehicle.vehicle?.plate_number || "",
         gate_id: selectedGate.id,
-        body_type_id: bodyTypeId || vehicle.vehicle?.body_type_id,
+        body_type_id: bodyTypeId || vehicleBodyTypeId,
       });
 
       setExitResult(result);
@@ -127,7 +131,7 @@ export function VehicleExitDialog({
               gate: selectedGate?.name || "",
               passageType: result.data.passage_type || "toll",
               paymentMethod: receipt.payment_method || "Cash",
-              amount: receipt.amount || result.data.total_amount || 0,
+              amount: receipt.amount || pricingPreview?.total_amount || result.data.total_amount || 0,
             };
             const htmlContent = generateReceiptHTML(receiptData);
             await printContent({
@@ -171,9 +175,10 @@ export function VehicleExitDialog({
         "@/utils/api/vehicle-passage-service"
       );
 
+      const vehicleBodyTypeId = vehicle?.vehicle?.body_type_id;
       const preview = await VehiclePassageService.getExitPricingPreview({
         plate_number: vehicle?.vehicle?.plate_number || "",
-        body_type_id: bodyTypeId || vehicle?.vehicle?.body_type_id || undefined,
+        body_type_id: bodyTypeId || vehicleBodyTypeId || undefined,
       });
 
       if (preview.success && preview.data) {
@@ -199,31 +204,60 @@ export function VehicleExitDialog({
   const handleVehicleTypeSelected = async (bodyTypeId: number) => {
     setSelectedBodyTypeId(bodyTypeId);
     setShowVehicleTypeModal(false);
+    setIsLoadingPricing(true);
     await fetchPricingPreview(bodyTypeId);
   };
+
+  // Reset state when dialog opens or closes
+  useEffect(() => {
+    if (!open) {
+      // Reset all state when dialog closes
+      setShowPricingPreview(false);
+      setPricingPreview(null);
+      setPreviewVehicleKey(null);
+      setSelectedBodyTypeId(null);
+      setExitResult(null);
+      setShowVehicleTypeModal(false);
+    }
+  }, [open]);
+
+  // Reset preview when vehicle changes
+  useEffect(() => {
+    if (!vehicle) return;
+    const key = `${vehicle.vehicle?.plate_number || ''}-${vehicle.entry_time}`;
+    if (previewVehicleKey !== key) {
+      setShowPricingPreview(false);
+      setPricingPreview(null);
+      setPreviewVehicleKey(null);
+      setSelectedBodyTypeId(null);
+    }
+  }, [vehicle, previewVehicleKey]);
 
   // Auto-fetch pricing preview on first open when vehicle already has body type
   useEffect(() => {
     if (!open || !vehicle) return;
     const key = `${vehicle.vehicle?.plate_number || ''}-${vehicle.entry_time}`;
     if (previewVehicleKey === key) return;
-    if (vehicle.vehicle?.body_type_id) {
-      fetchPricingPreview(vehicle.vehicle.body_type_id);
+    const vehicleBodyTypeId = vehicle.vehicle?.body_type_id;
+    if (vehicleBodyTypeId) {
+      fetchPricingPreview(vehicleBodyTypeId);
     }
   }, [open, vehicle, previewVehicleKey]);
 
   const handleConfirmExit = async () => {
     if (!pricingPreview) return;
     
+    const vehicleBodyTypeId = vehicle?.vehicle?.body_type_id;
     // Process exit with the selected vehicle type
-    await handleProcessExit(selectedBodyTypeId || vehicle?.vehicle?.body_type_id || undefined);
+    await handleProcessExit(selectedBodyTypeId || vehicleBodyTypeId || undefined);
   };
 
   if (!vehicle) return null;
 
   const vehicleType = vehicle.vehicle?.body_type?.name || "Unknown";
   const vehicleIcon = getVehicleTypeIcon(vehicleType);
-  const needsVehicleType = !vehicle.vehicle?.body_type_id;
+  const vehicleBodyTypeId = vehicle.vehicle?.body_type_id;
+  const needsVehicleType = !vehicleBodyTypeId;
   
   // Check for paid pass status from vehicle (paid_until), pricing preview, or exit result
   const paidUntil = vehicle.vehicle?.paid_until ? new Date(vehicle.vehicle.paid_until) : null;
