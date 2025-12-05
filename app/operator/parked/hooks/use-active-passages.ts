@@ -38,8 +38,16 @@ export const useActivePassages = () => {
     return `${minutes}m`;
   };
 
+  const isPaidPassActive = (passage: VehiclePassage): boolean => {
+    const paidUntil = passage?.vehicle?.paid_until ? new Date(passage.vehicle.paid_until) : null;
+    return !!paidUntil && paidUntil.getTime() > Date.now();
+  };
+
   // Calculate current fee based on duration and rate using the same logic as backend
   const calculateCurrentFee = (passage: VehiclePassage): string => {
+    if (isPaidPassActive(passage)) {
+      return 'Paid (within 24h)';
+    }
     const entry = new Date(passage.entry_time);
     const now = new Date();
     const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);

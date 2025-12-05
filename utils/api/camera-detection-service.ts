@@ -29,6 +29,7 @@ export interface ProcessWithVehicleTypeResponse {
 
 export interface ProcessExitDetectionRequest {
   payment_confirmed?: boolean;
+  body_type_id?: number; // Required if vehicle doesn't have body_type_id
 }
 
 export interface ProcessExitDetectionResponse {

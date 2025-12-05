@@ -1,0 +1,50 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'chato-smart-parking/**'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chato-smart-parking/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        working-directory: chato-smart-parking
+        run: npm ci
+
+      - name: Build Windows app
+        working-directory: chato-smart-parking
+        run: npm run build:windows
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: |
+            chato-smart-parking/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            chato-smart-parking/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            chato-smart-parking/src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
+
+
+

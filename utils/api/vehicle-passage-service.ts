@@ -56,10 +56,13 @@ export interface VehiclePassageResponse {
   success: boolean;
   message: string;
   data?: any;
-  gate_action?: 'open' | 'deny';
+  gate_action?: 'open' | 'deny' | 'require_payment' | 'require_vehicle_type';
   vehicle?: any;
   account_info?: any;
   receipt?: any;
+  requires_vehicle_type?: boolean;
+  days_charged?: number;
+  payment_valid?: boolean;
 }
 
 export interface GateControlResponse {
@@ -148,6 +151,16 @@ export class VehiclePassageService {
   }
 
   /**
+   * Get exit pricing preview (before processing exit)
+   */
+  static async getExitPricingPreview(data: {
+    plate_number: string;
+    body_type_id?: number;
+  }): Promise<VehiclePassageResponse> {
+    return post(API_ENDPOINTS.VEHICLE_PASSAGES.EXIT_PREVIEW, data);
+  }
+
+  /**
    * Process vehicle exit with plate detection
    */
   static async processExit(data: {
@@ -155,6 +168,7 @@ export class VehiclePassageService {
     gate_id: number;
     payment_confirmed?: boolean;
     notes?: string;
+    body_type_id?: number; // Required if vehicle doesn't have body_type_id
   }): Promise<VehiclePassageResponse> {
     return post(API_ENDPOINTS.VEHICLE_PASSAGES.EXIT, data);
   }

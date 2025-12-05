@@ -49,6 +49,7 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string | number) => `/vehicle-passages/${id}`,
     DELETE: (id: string | number) => `/vehicle-passages/${id}`,
     ENTRY: "/vehicle-passages/entry",
+    EXIT_PREVIEW: "/vehicle-passages/exit/preview",
     EXIT: "/vehicle-passages/exit",
     QUICK_LOOKUP: "/vehicle-passages/quick-lookup",
     BY_PASSAGE_NUMBER: (number: string) => `/vehicle-passages/passage/${number}`,
