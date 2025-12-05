@@ -326,7 +326,7 @@ export function OperatorsTable({ onViewDetails, onStatusChange }: OperatorsTable
 
       {/* Assign Station Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Assign Station to Operator</DialogTitle>
             <DialogDescription>
