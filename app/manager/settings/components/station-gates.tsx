@@ -525,7 +525,7 @@ export function StationGates() {
 
       {/* Create Station Dialog */}
       <Dialog open={isCreateStationOpen} onOpenChange={setIsCreateStationOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-800">
           <DialogHeader>
             <DialogTitle>Create Station</DialogTitle>
             <DialogDescription>
@@ -663,7 +663,7 @@ export function StationGates() {
 
       {/* Create Gate Dialog */}
       <Dialog open={isCreateGateOpen} onOpenChange={setIsCreateGateOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Create Gate</DialogTitle>
             <DialogDescription>Add a new gate to the system.</DialogDescription>
