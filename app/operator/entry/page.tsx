@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicle-entry";
 import { CameraInterface } from "./components/camera-interface";
-import { VehicleTypeSelectionModal } from "./components/vehicle-type-selection-modal";
+// VehicleTypeSelectionModal removed from entry - vehicle type is now optional on entry, required on exit only
 import { CameraExitDialog } from "./components/camera-exit-dialog";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { usePendingDetections } from "@/hooks/use-pending-detections";
@@ -16,19 +16,16 @@ import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { useMJPEGStream } from "@/hooks/use-mjpeg-stream";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
-import { GateControlService } from "@/utils/api/vehicle-passage-service";
 import { useDetectionContext } from "@/contexts/detection-context";
 import { CameraDetection } from "@/hooks/use-detection-logs";
-import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw, KeySquare } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw } from "lucide-react";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
   const [showGateModal, setShowGateModal] = useState(false);
   const [showEntryDrawer, setShowEntryDrawer] = useState(false);
-  const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  // Vehicle type modal removed - no longer needed for entry flow
   const [showExitDialog, setShowExitDialog] = useState(false);
-  const [openGateLoading, setOpenGateLoading] = useState(false);
-  const [openGateError, setOpenGateError] = useState<string | null>(null);
   const isPageVisible = usePageVisibility();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
@@ -48,28 +45,18 @@ export default function VehicleEntry() {
     fallbackToSnapshot: true,
     onError: (error) => {
       // Silently handle - snapshot mode works fine
-      // Error handling is done internally by the hook
+      console.log('Camera stream:', error);
     },
   });
 
-  // Check for pending detections - NO POLLING
-  // Background processing is handled by Laravel scheduler (cron jobs)
-  // Only checks on page load and when page becomes visible
-  const { latestDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: true, // Enabled but no polling - only checks on mount
-    onNewDetection: (detection) => {
-      // Only show modal if page is visible
-      if (isPageVisible) {
-        setShowVehicleTypeModal(true);
-      }
-    },
-  });
+  // No longer polling for pending_vehicle_type detections - entry no longer requires vehicle type
+  // Vehicle type is now optional on entry, will be required on exit if needed
 
-  // Check for pending exit detections - NO POLLING
-  // Background processing is handled by Laravel scheduler (cron jobs)
-  // Only checks on page load and when page becomes visible
+  // Poll for pending exit detections (1.5 second polling)
+  // Polling continues even when page is not visible to keep detecting new entries/exits
   const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
-    enabled: true, // Enabled but no polling - only checks on mount
+    enabled: true, // Always enabled - polling continues in background
+    pollInterval: 1500, // 1.5 seconds polling for exit detections
     onNewDetection: (detection) => {
       // Only show dialog if page is visible
       if (isPageVisible) {
@@ -78,22 +65,18 @@ export default function VehicleEntry() {
     },
   });
 
-  // Show modal if there's a pending detection on initial load or when latestDetection changes
-  // Show immediately when page becomes visible if there's a pending detection
-  useEffect(() => {
-    if (latestDetection) {
-      if (isPageVisible) {
-        setShowVehicleTypeModal(true);
-      }
-    }
-  }, [latestDetection, isPageVisible]);
+  // Vehicle type modal logic removed - no longer needed for entry
 
   // Show exit dialog if there's a pending exit detection
   // Show immediately when page becomes visible if there's a pending exit detection
   useEffect(() => {
     if (latestExitDetection) {
       if (isPageVisible) {
+        console.log('[Entry Page] Showing exit dialog for pending exit detection:', latestExitDetection.id);
         setShowExitDialog(true);
+      } else {
+        // If page is not visible, dialog will show when page becomes visible
+        console.log('[Entry Page] Pending exit detection found but page not visible. Will show when page becomes visible.');
       }
     }
   }, [latestExitDetection, isPageVisible]);
@@ -105,15 +88,14 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Fetch pending detections when page becomes visible (no continuous polling)
+  // Immediately fetch pending exit detections when page becomes visible
   useEffect(() => {
     if (isPageVisible) {
-      // Fetch both types of pending detections when page becomes visible
-      // Background processing is handled by Laravel scheduler
-      fetchPendingDetections();
+      console.log('[Entry Page] Page is now visible, fetching pending exit detections immediately...');
+      // Only fetch exit detections - entry no longer requires vehicle type
       fetchPendingExitDetections();
     }
-  }, [isPageVisible, fetchPendingDetections, fetchPendingExitDetections]);
+  }, [isPageVisible, fetchPendingExitDetections]);
 
   // Auto-refresh stream when page becomes visible again
   const refreshStreamRef = useRef(refreshStream);
@@ -147,42 +129,11 @@ export default function VehicleEntry() {
     // Handle success - could show receipt, update UI, etc.
   };
 
-  const handleVehicleTypeModalSuccess = () => {
-    clearLatestDetection(); // Clear first to allow next in queue
-    // Refresh after a short delay to allow next detection to be fetched
-    setTimeout(() => {
-      fetchPendingDetections(); // This will fetch next in queue
-    }, 200);
-  };
+  // Vehicle type modal success handler removed - no longer needed for entry
 
   const handleGateSelect = async (gateId: number) => {
     await selectGate(gateId);
     setShowGateModal(false);
-  };
-
-  const handleOpenGate = async () => {
-    if (!selectedGate) {
-      setOpenGateError("Please select a gate first.");
-      return;
-    }
-
-    try {
-      setOpenGateLoading(true);
-      setOpenGateError(null);
-
-      await GateControlService.manualControl({
-        gate_id: selectedGate.id,
-        action: "open",
-        reason: "Operator one-click open from entry screen",
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to send open gate command";
-      setOpenGateError(message);
-      console.error("[Entry Page] Error sending open gate command:", err);
-    } finally {
-      setOpenGateLoading(false);
-    }
   };
 
   return (
@@ -252,22 +203,7 @@ export default function VehicleEntry() {
                         <span>Refresh</span>
                       </Button>
                     )}
-
-                    {/* One-click Open Gate Button - uses existing manual gate control API */}
-                    {selectedGate && (
-                      <Button
-                        onClick={handleOpenGate}
-                        variant="default"
-                        size="lg"
-                        disabled={openGateLoading}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg flex items-center space-x-2"
-                        title="Send open command to this gate"
-                      >
-                        <KeySquare className="w-4 h-4" />
-                        <span>{openGateLoading ? "Opening..." : "Open Gate"}</span>
-                      </Button>
-                    )}
-
+                    
                     {/* Deselect Gate Button - Only show when gate is selected */}
                     {selectedGate && (
                       <Button
@@ -284,7 +220,7 @@ export default function VehicleEntry() {
                         <span>Change Gate</span>
                       </Button>
                     )}
-
+                    
                     {/* Manual Entry Button */}
                     <Button
                       size="lg"
@@ -370,22 +306,13 @@ export default function VehicleEntry() {
                   </div>
                 )}
                 
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    {!cameraDevice && selectedGate && (
-                      <Alert className="flex-1" variant="destructive">
-                        <AlertCircle className="w-4 h-4" />
-                        <AlertDescription>
-                          <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  {openGateError && (
-                    <Alert variant="destructive">
+                <div className="flex items-center justify-between">
+                  {!cameraDevice && selectedGate && (
+                    <Alert className="flex-1" variant="destructive">
                       <AlertCircle className="w-4 h-4" />
-                      <AlertDescription>{openGateError}</AlertDescription>
+                      <AlertDescription>
+                        <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
+                      </AlertDescription>
                     </Alert>
                   )}
                 </div>
@@ -415,18 +342,7 @@ export default function VehicleEntry() {
         }}
       />
 
-      {/* Vehicle Type Selection Modal */}
-      <VehicleTypeSelectionModal
-        open={showVehicleTypeModal && latestDetection !== null}
-        onOpenChange={(open) => {
-          setShowVehicleTypeModal(open);
-          if (!open) {
-            clearLatestDetection();
-          }
-        }}
-        detection={latestDetection}
-        onSuccess={handleVehicleTypeModalSuccess}
-      />
+      {/* Vehicle Type Selection Modal removed from entry flow - vehicle type is now optional on entry */}
 
       {/* Camera Exit Dialog */}
       <CameraExitDialog
