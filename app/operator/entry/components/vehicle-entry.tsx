@@ -89,10 +89,8 @@ export function VehicleEntryDrawer({ open, onOpenChange, gateId, onSuccess }: Ve
       return;
     }
     
-    if (!bodyTypeId) {
-      toast.error("Please select a vehicle body type");
-      return;
-    }
+    // body_type_id is optional on entry - will be required on exit if needed
+    // Removed requirement check for bodyTypeId
     
     if (!gateId) {
       toast.error("Please select a gate first");
@@ -108,7 +106,7 @@ export function VehicleEntryDrawer({ open, onOpenChange, gateId, onSuccess }: Ve
       plate_number: plateNumber.trim(),
       gate_id: gateId,
       operator_id: user.id,
-      body_type_id: bodyTypeId,
+      body_type_id: bodyTypeId || undefined, // Optional on entry
       ...(ownerName.trim() && { owner_name: ownerName.trim() }),
     };
 
@@ -133,7 +131,7 @@ export function VehicleEntryDrawer({ open, onOpenChange, gateId, onSuccess }: Ve
       plate_number: foundVehicle.plate_number,
       gate_id: gateId,
       operator_id: user.id,
-      body_type_id: foundVehicle.body_type_id,
+      body_type_id: foundVehicle.body_type_id || undefined, // Optional on entry
       ...(foundVehicle.owner_name && { owner_name: foundVehicle.owner_name }),
     };
 
@@ -312,7 +310,10 @@ export function VehicleEntryDrawer({ open, onOpenChange, gateId, onSuccess }: Ve
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="bodyType">Vehicle Body Type *</Label>
+                    <Label htmlFor="bodyType">Vehicle Body Type (Optional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Vehicle type can be set on exit if not provided here
+                    </p>
                     <Select
                       value={bodyTypeId?.toString() || ""}
                       onValueChange={(value) => {
@@ -372,7 +373,7 @@ export function VehicleEntryDrawer({ open, onOpenChange, gateId, onSuccess }: Ve
                     </Button>
                     <Button
                       type="submit"
-                      disabled={loading || !plateNumber.trim() || !bodyTypeId || !gateId}
+                      disabled={loading || !plateNumber.trim() || !gateId}
                       className="flex-1"
                     >
                       {loading ? (
