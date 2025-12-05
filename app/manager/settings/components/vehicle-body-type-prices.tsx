@@ -391,7 +391,7 @@ export function VehicleBodyTypePrices() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Add Pricing Configuration</DialogTitle>
             <DialogDescription>
