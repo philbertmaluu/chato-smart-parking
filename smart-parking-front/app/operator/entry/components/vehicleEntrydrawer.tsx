@@ -119,11 +119,6 @@ export function VehicleEntryDrawer({
       return;
     }
 
-    if (!bodyTypeId) {
-      toast.error("Please select a vehicle body type");
-      return;
-    }
-
     if (!selectedGateId) {
       toast.error("Please select a gate first");
       return;
@@ -139,7 +134,7 @@ export function VehicleEntryDrawer({
       const passageData: VehiclePassageData = {
         plate_number: currentPlateNumber.trim(),
         gate_id: selectedGateId,
-        body_type_id: bodyTypeId,
+        body_type_id: bodyTypeId, // Optional - can be undefined
         owner_name: ownerName.trim() || undefined,
       };
 
@@ -240,7 +235,10 @@ export function VehicleEntryDrawer({
                   </div>
 
                     <div className="space-y-2">
-                  <Label htmlFor="bodyType">Vehicle Body Type *</Label>
+                  <Label htmlFor="bodyType">Vehicle Body Type (Optional)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Leave empty to set vehicle type at exit
+                  </p>
                   {bodyTypesError && (
                     <div className="text-sm text-red-600 dark:text-red-400 mb-2">
                       Error loading body types: {bodyTypesError}
@@ -249,8 +247,10 @@ export function VehicleEntryDrawer({
                   <Select
                     value={bodyTypeId?.toString() || ""}
                     onValueChange={(value) => {
-                      if (value !== "loading") {
+                      if (value !== "loading" && value !== "none") {
                         setBodyTypeId(parseInt(value));
+                      } else if (value === "none") {
+                        setBodyTypeId(undefined);
                       }
                     }}
                     disabled={bodyTypesLoading || !!bodyTypesError}
@@ -263,10 +263,15 @@ export function VehicleEntryDrawer({
                           ? "Error loading body types" 
                           : vehicleBodyTypes.length === 0 
                           ? "No body types available" 
-                          : "Select vehicle body type"
+                          : "Select vehicle body type (optional)"
                       } />
                           </SelectTrigger>
                           <SelectContent>
+                      <SelectItem value="none">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-muted-foreground">Skip - Set at exit</span>
+                        </div>
+                      </SelectItem>
                       {bodyTypesLoading ? (
                         <SelectItem value="loading" disabled>
                           <div className="flex items-center space-x-2">
@@ -332,7 +337,7 @@ export function VehicleEntryDrawer({
 
                     <Button
                   type="submit"
-                  disabled={isProcessingEntry || !currentPlateNumber.trim() || !bodyTypeId || !selectedGateId}
+                  disabled={isProcessingEntry || !currentPlateNumber.trim() || !selectedGateId}
                   className="w-full h-12 text-lg gradient-maroon hover:opacity-90 transition-all duration-200"
                     >
                       {isProcessingEntry ? (

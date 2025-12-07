@@ -25,3 +25,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Tauri build artifacts
+/src-tauri/target/
+*.d
+*.rlib
+*.dylib
+*.rmeta
+*.o

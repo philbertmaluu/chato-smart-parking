@@ -38,42 +38,75 @@ export const useActivePassages = () => {
     return `${minutes}m`;
   };
 
-  // Calculate current fee based on duration and rate using the same logic as backend
+  // Check if vehicle has paid_until in the future (within 24-hour paid window)
+  const isPaidPassActive = (passage: VehiclePassage): boolean => {
+    const paidUntil = passage?.vehicle?.paid_until ? new Date(passage.vehicle.paid_until) : null;
+    return !!paidUntil && paidUntil.getTime() > Date.now();
+  };
+
+  // Check if vehicle has recent receipt (within 24 hours)
+  const hasRecentReceipt = async (vehicleId: number): Promise<boolean> => {
+    try {
+      // This would need an API call to check receipts
+      // For now, we'll use paid_until as the indicator
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // Calculate current fee based on duration and rate using days-based charging (rolling 24-hour periods)
   const calculateCurrentFee = (passage: VehiclePassage): string => {
+    // Check if vehicle is within 24-hour paid window (paid_until check)
+    if (isPaidPassActive(passage)) {
+      return 'Paid (within 24h)';
+    }
+    
+    // Check if passage notes indicate free re-entry
+    if (passage.notes && passage.notes.includes('Free re-entry')) {
+      return 'Paid (within 24h)';
+    }
+    
+    // Check if vehicle has body_type_id - if not, can't calculate fee
+    if (!passage.vehicle?.body_type_id && !passage.base_amount) {
+      return 'N/A (Type required)';
+    }
+    
     const entry = new Date(passage.entry_time);
     const now = new Date();
     const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);
     
-    // Use the base amount as hourly rate, or default to 5 Tsh per hour
-    const hourlyRate = parseFloat(passage.base_amount?.toString() || '5');
+    // Use the base amount as DAILY rate (not hourly)
+    const dailyRate = parseFloat(passage.base_amount?.toString() || '0');
     
-    // Apply the same rounding rules as backend
-    const hoursToCharge = calculateHoursToCharge(diffHours);
-    const currentFee = hourlyRate * hoursToCharge;
+    if (dailyRate === 0) {
+      return 'Paid (within 24h)'; // If base_amount is 0, likely a free re-entry
+    }
+    
+    // Apply days-based calculation (rolling 24-hour periods)
+    const daysToCharge = calculateDaysToCharge(diffHours);
+    const currentFee = dailyRate * daysToCharge;
     
     return `Tsh. ${currentFee.toFixed(2)}`;
   };
 
-  // Calculate total billable hours based on parking time and smart charging rules.
+  // Calculate total billable days based on parking time using rolling 24-hour periods.
   // Same logic as backend for consistency
-  const calculateHoursToCharge = (hoursSpent: number): number => {
-    // Minimum charge — always 1 hour
+  const calculateDaysToCharge = (hoursSpent: number): number => {
+    // Minimum charge — always 1 day
     if (hoursSpent <= 0) {
       return 1;
     }
 
-    // Up to 1 hour 30 minutes → Still charge only 1 hour
-    if (hoursSpent <= 1.5) {
+    // If parked less than 24 hours, charge 1 day
+    if (hoursSpent < 24) {
       return 1;
     }
 
-    // From 1 hour 31 minutes up to 2 hours → Charge double = 2 hours
-    if (hoursSpent < 2.0) {
-      return 2;
-    }
-
-    // More than 2 hours → Round up to the next full hour
-    return Math.ceil(hoursSpent);
+    // If parked 24 hours or more, calculate number of full 24-hour periods
+    // Round up to next full day if there's any partial day
+    const daysSpent = hoursSpent / 24;
+    return Math.ceil(daysSpent);
   };
 
   // Transform passage data for display

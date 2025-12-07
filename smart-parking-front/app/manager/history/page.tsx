@@ -200,18 +200,33 @@ export default function PassageHistoryPage() {
     try {
       const response = await get<{
         success: boolean;
-        data: {
-          total_passages: number;
-          active_passages: number;
-          completed_today: number;
-          total_revenue: number;
-          revenue_today: number;
-        };
+        data:
+          | {
+              total_passages: number;
+              active_passages: number;
+              completed_today: number;
+              total_revenue: number;
+              revenue_today: number;
+            }
+          | { data: any } // handle nested data payloads
+          | null;
         message: string;
       }>(API_ENDPOINTS.VEHICLE_PASSAGES.DASHBOARD_SUMMARY);
       
-      if (response.success && response.data) {
-        setDashboardSummary(response.data);
+      console.log('Dashboard summary response', response);
+
+      if (response?.success) {
+        // Some endpoints may return { data: {...} } or nested structures
+        const summary =
+          (response.data as any)?.data ||
+          response.data ||
+          null;
+
+        if (summary) {
+          setDashboardSummary(summary);
+        } else {
+          console.warn('Dashboard summary missing data payload', response);
+        }
       }
     } catch (error) {
       console.error('Error fetching dashboard summary:', error);
@@ -224,15 +239,87 @@ export default function PassageHistoryPage() {
     fetchDashboardSummary();
   }, []);
 
-  // Real analytics calculations from passages data
+  // Augment passages to avoid double-charging within 24h for the same vehicle
+  const processedPassages = useMemo(() => {
+    if (!state.passages || !Array.isArray(state.passages)) return [];
+
+    // Sort by entry_time descending (latest first)
+    const sorted = [...state.passages].sort((a, b) => {
+      const at = a?.entry_time ? new Date(a.entry_time).getTime() : 0;
+      const bt = b?.entry_time ? new Date(b.entry_time).getTime() : 0;
+      return bt - at;
+    });
+
+    const lastPaidMap = new Map<string, number>();
+
+    const augmented = sorted.map((p) => {
+      const vehicleKey = p.vehicle?.plate_number || p.vehicle_id?.toString() || `p-${p.id}`;
+      const entryTimeMs = p.entry_time ? new Date(p.entry_time).getTime() : 0;
+
+      const lastPaid = lastPaidMap.get(vehicleKey);
+      const within24h = lastPaid !== undefined && entryTimeMs - lastPaid < 24 * 60 * 60 * 1000;
+
+      const paid_within_24h = within24h;
+      const revenue_counted = !within24h;
+
+      // Update last paid marker if this passage is counted (or if no exit_time, use entry_time)
+      const referenceTime = p.exit_time ? new Date(p.exit_time).getTime() : entryTimeMs;
+      if (revenue_counted) {
+        lastPaidMap.set(vehicleKey, referenceTime);
+      }
+
+      return {
+        ...p,
+        paid_within_24h,
+        revenue_counted,
+      };
+    });
+
+    return augmented;
+  }, [state.passages]);
+
+  const derivedSummary = useMemo(() => {
+    const passages = processedPassages || [];
+    // Use total from pagination when available to reflect full dataset, not just current page
+    const total_passages = state.pagination?.total ?? passages.length;
+    const active_passages = passages.filter(p => !p.exit_time).length;
+    const todayStr = new Date().toISOString().slice(0,10);
+    const completed_today = passages.filter(p => p.exit_time && p.exit_time.startsWith(todayStr)).length;
+    const total_revenue = passages.reduce((sum, p) => sum + (p.revenue_counted ? (p.total_amount || 0) : 0), 0);
+    const revenue_today = passages
+      .filter(p => p.exit_time && p.exit_time.startsWith(todayStr))
+      .reduce((sum, p) => sum + (p.revenue_counted ? (p.total_amount || 0) : 0), 0);
+    return { total_passages, active_passages, completed_today, total_revenue, revenue_today };
+  }, [processedPassages, state.pagination?.total]);
+
+  const displaySummary = useMemo(() => {
+    if (!dashboardSummary) return derivedSummary;
+    const allZero = Object.values(dashboardSummary || {}).every(v => v === 0);
+    if (allZero && derivedSummary.total_passages > 0) {
+      return derivedSummary;
+    }
+    return dashboardSummary;
+  }, [dashboardSummary, derivedSummary]);
+
+  // Periodic refresh for real-time counts (dashboard cards + list)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPassages(1);
+      fetchDashboardSummary();
+    }, 30000); // every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Real analytics calculations from processed passages data
   const analytics = useMemo(() => {
-    const passages = state.passages || [];
+    const passages = processedPassages || [];
     const completedPassages = passages.filter(p => p?.exit_time);
     const activePassages = passages.filter(p => p && !p.exit_time);
     
     // Revenue metrics
-    const totalRevenue = passages.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
-    const completedRevenue = completedPassages.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    // Revenue counted only once per vehicle per 24h
+    const totalRevenue = passages.reduce((sum, p) => sum + ((p?.revenue_counted ? (p?.total_amount || 0) : 0)), 0);
+    const completedRevenue = completedPassages.reduce((sum, p) => sum + ((p?.revenue_counted ? (p?.total_amount || 0) : 0)), 0);
     
     // Vehicle metrics
     const totalVehicles = passages.length;
@@ -266,7 +353,7 @@ export default function PassageHistoryPage() {
           hourlyData[hour] = { count: 0, revenue: 0 };
         }
         hourlyData[hour].count++;
-        hourlyData[hour].revenue += p.total_amount || 0;
+        hourlyData[hour].revenue += p.revenue_counted ? (p.total_amount || 0) : 0;
       }
     });
     
@@ -281,7 +368,7 @@ export default function PassageHistoryPage() {
         vehicleTypeData[type] = { count: 0, revenue: 0 };
       }
       vehicleTypeData[type].count++;
-      vehicleTypeData[type].revenue += p.total_amount || 0;
+      vehicleTypeData[type].revenue += p.revenue_counted ? (p.total_amount || 0) : 0;
     });
     
     // Station performance
@@ -292,7 +379,7 @@ export default function PassageHistoryPage() {
         stationData[station] = { count: 0, revenue: 0 };
       }
       stationData[station].count++;
-      stationData[station].revenue += p.total_amount || 0;
+      stationData[station].revenue += p.revenue_counted ? (p.total_amount || 0) : 0;
     });
     
     // Daily breakdown for chart
@@ -303,7 +390,7 @@ export default function PassageHistoryPage() {
         if (!dailyData[date]) {
           dailyData[date] = { revenue: 0, vehicles: 0 };
         }
-        dailyData[date].revenue += p.total_amount || 0;
+        dailyData[date].revenue += p.revenue_counted ? (p.total_amount || 0) : 0;
         dailyData[date].vehicles++;
       }
     });
@@ -343,7 +430,7 @@ export default function PassageHistoryPage() {
       return diffDays <= 7;
     });
     
-    const last7DaysRevenue = last7Days.reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+    const last7DaysRevenue = last7Days.reduce((sum, p) => sum + (p?.revenue_counted ? (p?.total_amount || 0) : 0), 0);
     const prev7DaysRevenue = completedPassages
       .filter(p => {
         if (!p?.exit_time) return false;
@@ -351,7 +438,7 @@ export default function PassageHistoryPage() {
         const diffDays = (today.getTime() - exitDate.getTime()) / (1000 * 60 * 60 * 24);
         return diffDays > 7 && diffDays <= 14;
       })
-      .reduce((sum, p) => sum + (p?.total_amount || 0), 0);
+      .reduce((sum, p) => sum + (p?.revenue_counted ? (p?.total_amount || 0) : 0), 0);
     
     const revenueChange = prev7DaysRevenue > 0
       ? ((last7DaysRevenue - prev7DaysRevenue) / prev7DaysRevenue) * 100
@@ -402,7 +489,7 @@ export default function PassageHistoryPage() {
         ? (dailyChartData.reduce((sum, d) => sum + d.vehicles, 0) / dailyChartData.length).toFixed(0)
         : '0',
     };
-  }, [state.passages]);
+  }, [processedPassages]);
 
   const exportAnalytics = () => {
     if (!mounted) return;
@@ -481,10 +568,10 @@ export default function PassageHistoryPage() {
 
   // Filter passages based on status
   const filteredPassages = useMemo(() => {
-    if (!state.passages || !Array.isArray(state.passages)) return [];
-    if (filterStatus === "all") return state.passages;
-    return state.passages.filter(passage => passage && passage.status === filterStatus);
-  }, [state.passages, filterStatus]);
+    if (!processedPassages || !Array.isArray(processedPassages)) return [];
+    if (filterStatus === "all") return processedPassages;
+    return processedPassages.filter(passage => passage && passage.status === filterStatus);
+  }, [processedPassages, filterStatus]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -627,11 +714,21 @@ export default function PassageHistoryPage() {
       title: "Amount",
       render: (value: any, record: VehiclePassage, index: number) => {
         if (!record) return <div className="text-muted-foreground">N/A</div>;
+        
+        // Check if this is a free re-entry (total_amount = 0 with notes mentioning paid within 24h)
+        const isFreeReEntry = record.total_amount === 0 && 
+                              record.notes && 
+                              record.notes.includes('Free re-entry');
+        
         return (
           <div className="text-right">
-            {record.total_amount ? (
+            {record.total_amount && record.total_amount > 0 ? (
               <div className="font-medium text-green-600">
                 {formatCurrency(record.total_amount)}
+              </div>
+            ) : isFreeReEntry ? (
+              <div className="font-medium text-blue-600">
+                Paid
               </div>
             ) : (
               <span className="text-muted-foreground">-</span>
@@ -727,7 +824,7 @@ export default function PassageHistoryPage() {
                     {summaryLoading ? (
                       <span className="text-muted-foreground">...</span>
                     ) : (
-                      dashboardSummary?.total_passages.toLocaleString() || '0'
+                      displaySummary?.total_passages?.toLocaleString() || '0'
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -753,7 +850,7 @@ export default function PassageHistoryPage() {
                     {summaryLoading ? (
                       <span className="text-muted-foreground">...</span>
                     ) : (
-                      dashboardSummary?.active_passages.toLocaleString() || '0'
+                      displaySummary?.active_passages?.toLocaleString() || '0'
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -779,7 +876,7 @@ export default function PassageHistoryPage() {
                     {summaryLoading ? (
                       <span className="text-muted-foreground">...</span>
                     ) : (
-                      dashboardSummary?.completed_today.toLocaleString() || '0'
+                      displaySummary?.completed_today?.toLocaleString() || '0'
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -805,12 +902,12 @@ export default function PassageHistoryPage() {
                     {summaryLoading ? (
                       <span className="text-muted-foreground">...</span>
                     ) : (
-                      formatCurrency(dashboardSummary?.total_revenue || 0)
+                      formatCurrency(displaySummary?.total_revenue || 0)
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {dashboardSummary?.revenue_today ? 
-                      `Today: ${formatCurrency(dashboardSummary.revenue_today)}` : 
+                    {displaySummary?.revenue_today ? 
+                      `Today: ${formatCurrency(displaySummary.revenue_today)}` : 
                       'All time revenue'
                     }
                   </p>
