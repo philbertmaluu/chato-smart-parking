@@ -18,6 +18,7 @@ import { type ActivePassage } from "../hooks/use-active-passages";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import { formatDateTime } from "@/utils/date-utils";
 import { useVehicleBodyTypes } from "@/app/manager/settings/hooks/use-vehicle-body-types";
+import { useAuth } from "@/components/auth-provider";
 import {
   Car,
   Clock,
@@ -30,6 +31,7 @@ import {
   Download,
   Receipt,
   Shield,
+  User,
 } from "lucide-react";
 import {
   Select,
@@ -53,15 +55,15 @@ export function VehicleExitDialog({
   onExitProcessed,
 }: VehicleExitDialogProps) {
   const { selectedGate } = useOperatorGates();
+  const { user } = useAuth();
+  
+  // Get operator name from logged-in user
+  const operatorName = user?.username || "";
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [exitResult, setExitResult] = useState<any>(null);
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [selectedBodyTypeId, setSelectedBodyTypeId] = useState<number | null>(null);
-  const [pricingPreview, setPricingPreview] = useState<any>(null);
-  const [showPricingPreview, setShowPricingPreview] = useState(false);
-  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
-  const [previewVehicleKey, setPreviewVehicleKey] = useState<string | null>(null);
   const { vehicleBodyTypes, loading: bodyTypesLoading } = useVehicleBodyTypes();
 
 
@@ -90,48 +92,36 @@ export function VehicleExitDialog({
       const result = await VehiclePassageService.processExit({
         plate_number: vehicle.vehicle?.plate_number || "",
         gate_id: selectedGate.id,
-        body_type_id: bodyTypeId || vehicle.vehicle?.body_type_id,
       });
 
       setExitResult(result);
 
-      // Check if backend requires vehicle type
-      if (!result.success && result.gate_action === 'require_vehicle_type') {
-        setShowVehicleTypeModal(true);
-        setIsProcessing(false);
-        return;
-      }
-
       if (result.success) {
         toast.success("Vehicle exit processed successfully");
 
-        // Print receipt if payment was made (not no fee)
-        const receiptAmount = pricingPreview?.total_amount || result.data?.total_amount || 0;
-        if (result.data?.receipts && result.data.receipts.length > 0 && !pricingPreview?.no_fee && !isPaidPass && receiptAmount > 0) {
+        // Auto-print exit receipt
+        const passageData = result.data?.passage || result.data;
+        if (passageData?.id) {
           try {
-            const { generateReceiptHTML, printContent } = await import("@/utils/print-utils");
-            const receipt = result.data.receipts[0];
-            const receiptData = {
-              receiptId: receipt.receipt_number || receipt.id,
-              passageNumber: result.data.passage_number || vehicle?.passage_number,
-              plateNumber: vehicle?.vehicle?.plate_number || "",
-              vehicleType: vehicle?.vehicle?.body_type?.name || "Unknown",
-              entryTime: formatDateTime(result.data.entry_time || vehicle?.entry_time),
-              exitTime: formatDateTime(result.data.exit_time),
-              gate: selectedGate?.name || "",
-              passageType: result.data.passage_type || "toll",
-              paymentMethod: receipt.payment_method || "Cash",
-              amount: receiptAmount,
-            };
-            const htmlContent = generateReceiptHTML(receiptData);
-            await printContent({
-              title: "Parking Exit Receipt",
-              content: htmlContent,
-            });
-            toast.success("Receipt printed successfully");
+            const { PrinterService } = await import("@/utils/api/printer-service");
+            toast.loading("Printing exit receipt...", { id: "print-exit-receipt" });
+            const printResult = await PrinterService.printExitReceipt(passageData.id);
+            
+            if (printResult.success) {
+              toast.success("🖨️ Exit receipt printed!", { id: "print-exit-receipt" });
+            } else {
+              toast.error("Receipt print failed: " + (printResult.messages || "Unknown error"), { id: "print-exit-receipt" });
+            }
           } catch (printError: any) {
-            console.error("Error printing receipt:", printError);
-            toast.error("Exit processed but failed to print receipt");
+            // Check if it's a timeout error - print job was likely sent successfully
+            const isTimeout = printError?.code === 'ECONNABORTED' || printError?.message?.includes('timeout');
+            if (isTimeout) {
+              // Print was sent, just took too long to confirm
+              toast.success("🖨️ Receipt sent to printer", { id: "print-exit-receipt" });
+            } else {
+              console.error("Print error:", printError);
+              toast.error("Could not print receipt. Check printer connection.", { id: "print-exit-receipt" });
+            }
           }
         }
 
@@ -143,8 +133,6 @@ export function VehicleExitDialog({
           onOpenChange(false);
           setExitResult(null);
           setShowVehicleTypeModal(false);
-          setShowPricingPreview(false);
-          setPricingPreview(null);
         }, 2000);
       } else {
         toast.error(result.message || "Failed to process vehicle exit");
@@ -157,72 +145,24 @@ export function VehicleExitDialog({
     }
   };
 
-  const fetchPricingPreview = async (bodyTypeId?: number) => {
-    if (!vehicle?.vehicle?.plate_number) return;
-    setIsLoadingPricing(true);
-    try {
-      const { VehiclePassageService } = await import(
-        "@/utils/api/vehicle-passage-service"
-      );
-
-      const preview = await VehiclePassageService.getExitPricingPreview({
-        plate_number: vehicle?.vehicle?.plate_number || "",
-        body_type_id: bodyTypeId || vehicle?.vehicle?.body_type_id || undefined,
-      });
-
-      if (preview.success && preview.data) {
-        setPricingPreview(preview.data);
-        setShowPricingPreview(true);
-        setPreviewVehicleKey(`${vehicle.vehicle.plate_number}-${vehicle.entry_time}`);
-
-        // Log for debugging
-        if (preview.data.paid_pass_active) {
-          console.log('Paid pass is active for vehicle:', vehicle?.vehicle?.plate_number);
-        }
-      } else {
-        toast.error(preview.message || "Failed to calculate pricing");
-      }
-    } catch (error: any) {
-      console.error("Error getting pricing preview:", error);
-      toast.error(error.message || "Failed to calculate pricing");
-    } finally {
-      setIsLoadingPricing(false);
-    }
-  };
+  // Removed fetchPricingPreview - pricing is calculated on exit by backend
 
   const handleVehicleTypeSelected = async (bodyTypeId: number) => {
     setSelectedBodyTypeId(bodyTypeId);
     setShowVehicleTypeModal(false);
-    // Immediately show loading state and preview section
-    setIsLoadingPricing(true);
-    setShowPricingPreview(true);
-    await fetchPricingPreview(bodyTypeId);
   };
 
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!open) {
-      setPricingPreview(null);
-      setShowPricingPreview(false);
-      setPreviewVehicleKey(null);
       setSelectedBodyTypeId(null);
       setExitResult(null);
     }
   }, [open]);
 
-  // Auto-fetch pricing preview on first open when vehicle already has body type
-  useEffect(() => {
-    if (!open || !vehicle) return;
-    const key = `${vehicle.vehicle?.plate_number || ''}-${vehicle.entry_time}`;
-    if (previewVehicleKey === key) return;
-    if (vehicle.vehicle?.body_type_id) {
-      fetchPricingPreview(vehicle.vehicle.body_type_id);
-    }
-  }, [open, vehicle, previewVehicleKey]);
+  // Pricing is calculated by backend on exit - no preview needed
 
   const handleConfirmExit = async () => {
-    if (!pricingPreview) return;
-    
     // Process exit with the selected vehicle type
     await handleProcessExit(selectedBodyTypeId || vehicle?.vehicle?.body_type_id || undefined);
   };
@@ -233,19 +173,6 @@ export function VehicleExitDialog({
   const vehicleIcon = getVehicleTypeIcon(vehicleType);
   const needsVehicleType = !vehicle.vehicle?.body_type_id;
   
-  // Check for paid pass status from vehicle (paid_until), pricing preview, or exit result
-  const paidUntil = vehicle.vehicle?.paid_until ? new Date(vehicle.vehicle.paid_until) : null;
-  const isPaidFromVehicle = !!paidUntil && paidUntil.getTime() > Date.now();
-  const isPaidPass = isPaidFromVehicle || pricingPreview?.paid_pass_active === true || exitResult?.data?.paid_pass_active === true;
-  
-  // Debug logging
-  if (pricingPreview || exitResult) {
-    console.log('Paid pass check:', {
-      pricingPreview: pricingPreview?.paid_pass_active,
-      exitResult: exitResult?.data?.paid_pass_active,
-      isPaidPass
-    });
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -299,22 +226,6 @@ export function VehicleExitDialog({
 
               {/* Receipt Details */}
               <div className="space-y-2 text-sm">
-                {isPaidPass && (
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-300 dark:border-green-700 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-center">
-                      <div className="bg-green-500 text-white px-5 py-2 rounded-full font-semibold shadow-lg flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5" />
-                        <span>PAID</span>
-                      </div>
-                    </div>
-                    <div className="text-center space-y-1">
-                      <h3 className="text-lg font-bold text-green-800 dark:text-green-200">Already paid within last 24 hours</h3>
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        No additional payment is required for this exit. Paid status stays active for 24 hours from last payment.
-                      </p>
-                    </div>
-                  </div>
-                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Receipt #:</span>
                   <span className="font-mono">{vehicle?.passage_number || 'N/A'}</span>
@@ -325,13 +236,7 @@ export function VehicleExitDialog({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Vehicle Type:</span>
-                  <span>
-                    {needsVehicleType ? (
-                      <span className="text-orange-600 font-semibold">Required for Exit</span>
-                    ) : (
-                      pricingPreview?.vehicle?.body_type?.name || vehicleType
-                    )}
-                  </span>
+                  <span>{needsVehicleType ? <span className="text-orange-600 font-semibold">Required for Exit</span> : vehicleType}</span>
                 </div>
                 
                 {needsVehicleType && (
@@ -343,7 +248,7 @@ export function VehicleExitDialog({
                           Vehicle Type Required
                         </p>
                         <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
-                          Please select a vehicle type to calculate payment for exit.
+                          Please select a vehicle type to process exit.
                         </p>
                       </div>
                     </div>
@@ -353,87 +258,33 @@ export function VehicleExitDialog({
                   <span className="text-gray-600 dark:text-gray-400">Entry Time:</span>
                   <span>{formatDateTime(vehicle?.entry_time || "")}</span>
                 </div>
-                {!isPaidPass && (showPricingPreview || isLoadingPricing || vehicle.vehicle?.body_type_id) && (
-                  <>
-                    {isLoadingPricing ? (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">Calculating...</span>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      </div>
-                    ) : pricingPreview ? (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Time Stayed:</span>
-                          <span className="font-semibold">
-                            {pricingPreview.duration_hours < 1
-                              ? `${pricingPreview.duration_minutes} minutes`
-                              : pricingPreview.duration_hours < 24
-                              ? `${Math.floor(pricingPreview.duration_hours)}h ${pricingPreview.duration_minutes % 60}m`
-                              : `${Math.floor(pricingPreview.duration_hours / 24)} days, ${Math.floor(pricingPreview.duration_hours % 24)}h ${pricingPreview.duration_minutes % 60}m`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Days to Charge:</span>
-                          <span className="font-semibold">{pricingPreview.days_to_charge} day{pricingPreview.days_to_charge !== 1 ? 's' : ''}</span>
-                        </div>
-                        {pricingPreview.no_fee ? (
-                          <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                            <div className="flex items-center space-x-2">
-                              <CheckCircle className="w-5 h-5 text-green-600" />
-                              <div>
-                                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                                  No Fee - Already Paid
-                                </p>
-                                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                                  Vehicle has already paid within 24 hours. Proceed with exit at no additional charge.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
-                            <span>Total Fee:</span>
-                            <span className="text-primary">
-                              {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: 'USD',
-                              }).format(pricingPreview.total_amount)}
-                            </span>
-                          </div>
-                        )}
-                      </>
-                    ) : null}
-                  </>
-                )}
-                {!isPaidPass && !showPricingPreview && !isLoadingPricing && !vehicle.vehicle?.body_type_id && (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Duration:</span>
-                      <span>{vehicle?.duration || 'Calculating...'}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
-                      <span>Total Fee:</span>
-                      <span className="text-primary">{vehicle?.currentFee || 'N/A'}</span>
-                    </div>
-                  </>
-                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                  <span>{vehicle?.duration || 'Calculating...'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Issued by:</span>
+                  <span className="font-medium">{operatorName || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
+                  <span>Total Fee:</span>
+                  <span className="text-primary">{vehicle?.currentFee || 'N/A'}</span>
+                </div>
               </div>
 
-              {!isPaidPass && (
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex flex-col justify-between">
-                  <div className="text-center">
-                    <div className="w-20 h-20 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mx-auto mb-2">
-                      <QrCode className="w-10 h-10 text-gray-500" />
-                    </div>
-                    <p className="text-xs text-green-600 mb-4">Scan to make payment</p>
+              {/* QR Code Section */}
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex flex-col justify-between mt-4">
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mx-auto mb-2">
+                    <QrCode className="w-10 h-10 text-gray-500" />
                   </div>
-                  
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Thank you for using Chato Parking!</p>
-
-                  </div>
+                  <p className="text-xs text-green-600 mb-4">Scan to make payment</p>
                 </div>
-              )}
+                
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Thank you for using Chato Parking!</p>
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -491,61 +342,31 @@ export function VehicleExitDialog({
             >
               Cancel
             </Button>
-            {showPricingPreview && pricingPreview ? (
-              <Button
-                className="flex-1 gradient-maroon hover:opacity-90"
-                onClick={handleConfirmExit}
-                disabled={isProcessing || !selectedGate}
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing Exit...
-                  </>
-                ) : pricingPreview.no_fee ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Proceed Exit (No Fee)
-                  </>
-                ) : (
-                  <>
-                    <Receipt className="w-4 h-4 mr-2" />
-                    Process Exit & Print Receipt
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button
-                className="flex-1 gradient-maroon hover:opacity-90"
-                onClick={() => {
-                  if (needsVehicleType) {
-                    setShowVehicleTypeModal(true);
-                  } else {
-                    handleProcessExit();
-                  }
-                }}
-                disabled={isProcessing || !selectedGate || isLoadingPricing}
-              >
-                {isLoadingPricing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Calculating...
-                  </>
-                ) : isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing Exit...
-                  </>
-                ) : (
-                  <>
-                    <span className={`text-lg mr-2 ${vehicleIcon.color}`}>
-                      {vehicleIcon.icon}
-                    </span>
-                    {needsVehicleType ? 'Select Vehicle Type' : 'Process Exit'}
-                  </>
-                )}
-              </Button>
-            )}
+            <Button
+              className="flex-1 gradient-maroon hover:opacity-90"
+              onClick={() => {
+                if (needsVehicleType) {
+                  setShowVehicleTypeModal(true);
+                } else {
+                  handleProcessExit();
+                }
+              }}
+              disabled={isProcessing || !selectedGate}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing Exit...
+                </>
+              ) : (
+                <>
+                  <span className={`text-lg mr-2 ${vehicleIcon.color}`}>
+                    {vehicleIcon.icon}
+                  </span>
+                  {needsVehicleType ? 'Select Vehicle Type' : 'Process Exit'}
+                </>
+              )}
+            </Button>
           </motion.div>
       </DialogContent>
       
@@ -647,15 +468,10 @@ export function VehicleExitDialog({
                     toast.error("Please select a vehicle body type");
                   }
                 }}
-                disabled={!selectedBodyTypeId || isProcessing || bodyTypesLoading || isLoadingPricing}
+                disabled={!selectedBodyTypeId || isProcessing || bodyTypesLoading}
                 className="flex-1 h-11 gradient-maroon"
               >
-                {isLoadingPricing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Calculating...
-                  </>
-                ) : isProcessing ? (
+                {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Processing...

@@ -77,13 +77,22 @@ export const useMJPEGStream = (
 
   const startSnapshotFallback = useCallback((container: HTMLElement) => {
     const device = cameraDeviceRef.current;
-    if (!device || !device.ip_address) return;
+    console.log('[Camera] startSnapshotFallback called with device:', device);
+    if (!device || !device.ip_address) {
+      console.log('[Camera] No device or ip_address found, device:', device);
+      return;
+    }
 
     cleanup();
 
+    // Use direct camera snapshot endpoint like before (faster, real-time)
+    // This endpoint was working before and shows vehicles properly - matches camera-setup page
     const protocol = device.use_https ? 'https' : 'http';
     const port = device.http_port || 80;
+    
+    // Use the endpoint that was working before - same as camera-setup page
     const snapshotUrl = `${protocol}://${device.ip_address}:${port}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600`;
+    console.log('[Camera] Snapshot URL:', snapshotUrl);
 
     const img = document.createElement('img');
     img.style.width = '100%';
@@ -94,14 +103,16 @@ export const useMJPEGStream = (
     const updateSnapshot = () => {
       const currentDevice = cameraDeviceRef.current;
       if (img && currentDevice?.ip_address) {
+        // Use ISO timestamp format like before for cache busting
         const timestamp = new Date().toISOString();
         img.src = `${snapshotUrl}&i=${timestamp}`;
       }
     };
 
     updateSnapshot();
-    // Use slower refresh to reduce load (1.5 seconds - same as detection polling)
-    snapshotIntervalRef.current = setInterval(updateSnapshot, 1500); // 1.5s to reduce load
+    // Use faster refresh rate (500ms) for smooth real-time video like before
+    // This matches the camera-setup page refresh rate for smooth video
+    snapshotIntervalRef.current = setInterval(updateSnapshot, 500); // 500ms for smoother video to see vehicles
 
     container.innerHTML = '';
     container.appendChild(img);
@@ -308,7 +319,10 @@ export const useMJPEGStream = (
     const isEnabled = enabledRef.current;
     const useSnapshot = useSnapshotOnlyRef.current || !fallbackToSnapshotRef.current;
     
+    console.log('[Camera] Auto-start effect - enabled:', isEnabled, 'device:', device, 'ip:', device?.ip_address);
+    
     if (!isEnabled || !device || !device.ip_address) {
+      console.log('[Camera] Stopping stream - missing requirements');
       stopStream();
       return;
     }

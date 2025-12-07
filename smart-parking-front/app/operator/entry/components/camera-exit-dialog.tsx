@@ -92,8 +92,15 @@ export function CameraExitDialog({
               toast.error("Receipt print failed: " + (printResult.messages || "Unknown error"), { id: "print-exit-receipt" });
             }
           } catch (printError: any) {
-            console.error("Print error:", printError);
-            toast.error("Could not print receipt. Check printer connection.", { id: "print-exit-receipt" });
+            // Check if it's a timeout error - print job was likely sent successfully
+            const isTimeout = printError?.code === 'ECONNABORTED' || printError?.message?.includes('timeout');
+            if (isTimeout) {
+              // Print was sent, just took too long to confirm
+              toast.success("🖨️ Receipt sent to printer", { id: "print-exit-receipt" });
+            } else {
+              console.error("Print error:", printError);
+              toast.error("Could not print receipt. Check printer connection.", { id: "print-exit-receipt" });
+            }
           }
         }
 

@@ -33,7 +33,18 @@ import { Button } from "@/components/ui/button";
 export default function ManagerDashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { totalParked, todayRevenue, totalEntries, activeOperators, loading, refresh } = useDashboardStats();
+  const { 
+    totalParked, 
+    todayRevenue, 
+    totalEntries, 
+    activeOperators, 
+    loading, 
+    refresh,
+    weeklyRevenueData,
+    hourlyTrafficData,
+    vehicleTypeData,
+    recentActivity,
+  } = useDashboardStats();
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -75,29 +86,30 @@ export default function ManagerDashboard() {
     },
   ];
 
-  const revenueData = [
-    { name: "Mon", revenue: 850 },
-    { name: "Tue", revenue: 920 },
-    { name: "Wed", revenue: 1100 },
-    { name: "Thu", revenue: 980 },
-    { name: "Fri", revenue: 1350 },
-    { name: "Sat", revenue: 1600 },
-    { name: "Sun", revenue: 1247 },
+  // Use real data from the hook (with fallback to empty arrays while loading)
+  const revenueData = weeklyRevenueData.length > 0 ? weeklyRevenueData : [
+    { name: "Mon", revenue: 0, vehicles: 0 },
+    { name: "Tue", revenue: 0, vehicles: 0 },
+    { name: "Wed", revenue: 0, vehicles: 0 },
+    { name: "Thu", revenue: 0, vehicles: 0 },
+    { name: "Fri", revenue: 0, vehicles: 0 },
+    { name: "Sat", revenue: 0, vehicles: 0 },
+    { name: "Sun", revenue: 0, vehicles: 0 },
   ];
 
-  const hourlyData = [
-    { hour: "6AM", vehicles: 5 },
-    { hour: "8AM", vehicles: 25 },
-    { hour: "10AM", vehicles: 45 },
-    { hour: "12PM", vehicles: 52 },
-    { hour: "2PM", vehicles: 48 },
-    { hour: "4PM", vehicles: 38 },
-    { hour: "6PM", vehicles: 42 },
-    { hour: "8PM", vehicles: 28 },
-    { hour: "10PM", vehicles: 15 },
+  const hourlyData = hourlyTrafficData.length > 0 ? hourlyTrafficData : [
+    { hour: "6AM", vehicles: 0 },
+    { hour: "8AM", vehicles: 0 },
+    { hour: "10AM", vehicles: 0 },
+    { hour: "12PM", vehicles: 0 },
+    { hour: "2PM", vehicles: 0 },
+    { hour: "4PM", vehicles: 0 },
+    { hour: "6PM", vehicles: 0 },
+    { hour: "8PM", vehicles: 0 },
+    { hour: "10PM", vehicles: 0 },
   ];
 
-  const vehicleTypeData = [
+  const displayVehicleTypeData = vehicleTypeData.length > 0 ? vehicleTypeData : [
     { name: "Cars", value: 65, color: "#3B82F6" },
     { name: "Motorcycles", value: 25, color: "#10B981" },
     { name: "Trucks", value: 10, color: "#F59E0B" },
@@ -255,7 +267,7 @@ export default function ManagerDashboard() {
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
                       <Pie
-                        data={vehicleTypeData}
+                        data={displayVehicleTypeData}
                         cx="50%"
                         cy="50%"
                         innerRadius={40}
@@ -263,7 +275,7 @@ export default function ManagerDashboard() {
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {vehicleTypeData.map((entry, index) => (
+                        {displayVehicleTypeData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -273,7 +285,7 @@ export default function ManagerDashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="mt-4 space-y-2">
-                    {vehicleTypeData.map((item, index) => (
+                    {displayVehicleTypeData.map((item, index) => (
                       <div
                         key={index}
                         className="flex items-center justify-between"
@@ -311,71 +323,51 @@ export default function ManagerDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {(
-                      [
-                        {
-                          type: "entry",
-                          plate: "ABC-123",
-                          operator: "John Doe",
-                          time: "2 minutes ago",
-                          amount: "Tsh. 5.00",
-                        },
-                        {
-                          type: "exit",
-                          plate: "XYZ-789",
-                          operator: "Jane Smith",
-                          time: "5 minutes ago",
-                          amount: "Tsh. 12.50",
-                        },
-                        {
-                          type: "entry",
-                          plate: "DEF-456",
-                          operator: "Mike Johnson",
-                          time: "8 minutes ago",
-                          amount: "Tsh. 5.00",
-                        },
-                        {
-                          type: "exit",
-                          plate: "GHI-789",
-                          operator: "Sarah Wilson",
-                          time: "12 minutes ago",
-                          amount: "Tsh. 18.75",
-                        },
-                      ] as const
-                    ).map((activity, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1.2 + index * 0.1 }}
-                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              activity.type === "entry"
-                                ? "bg-green-500"
-                                : "bg-red-500"
-                            }`}
-                          />
-                          <div>
-                            <p className="font-medium">{activity.plate}</p>
+                    {loading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    ) : recentActivity.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Car className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>No recent activity</p>
+                      </div>
+                    ) : (
+                      recentActivity.map((activity, index) => (
+                        <motion.div
+                          key={`${activity.passageId}-${activity.type}-${index}`}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 1.2 + index * 0.1 }}
+                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-2 h-2 rounded-full ${
+                                activity.type === "entry"
+                                  ? "bg-green-500"
+                                  : "bg-red-500"
+                              }`}
+                            />
+                            <div>
+                              <p className="font-medium">{activity.plate}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {activity.type === "entry" ? "Entry" : "Exit"} by{" "}
+                                {activity.operator}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-primary">
+                              {activity.amount}
+                            </p>
                             <p className="text-sm text-muted-foreground">
-                              {activity.type === "entry" ? "Entry" : "Exit"} by{" "}
-                              {activity.operator}
+                              {activity.time}
                             </p>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium text-primary">
-                            {activity.amount}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {activity.time}
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
