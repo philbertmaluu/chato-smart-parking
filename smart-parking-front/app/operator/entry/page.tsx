@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,8 @@ import { CameraExitDialog } from "./components/camera-exit-dialog";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
 import { usePendingDetections } from "@/hooks/use-pending-detections";
 import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
-import { useMJPEGStream } from "@/hooks/use-mjpeg-stream";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
+import { zktecoConfig } from "@/utils/config/zkteco-config";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
 import { useDetectionContext } from "@/contexts/detection-context";
 import { CameraDetection } from "@/hooks/use-detection-logs";
@@ -35,24 +35,10 @@ export default function VehicleEntry() {
 
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
-
-  // Camera stream hook - uses snapshot mode (MJPEG has CORS issues)
-  const {
-    streamContainerRef,
-    isStreaming,
-    error: streamError,
-    isFallback,
-    stopStream,                                           
-    refreshStream,                                            
-  } = useMJPEGStream(cameraDevice || null, {
-    enabled: isPageVisible && !!cameraDevice && !!selectedGate, 
-    useSnapshotOnly: true, // Use snapshot mode directly (MJPEG blocked by CORS)
-    fallbackToSnapshot: true,
-    onError: (error) => {
-      // Silently handle - snapshot mode works fine
-      // Error handling is done internally by the hook
-    },
-  });
+  
+  // Get camera IP - use device IP or fallback to config
+  const cameraConfig = zktecoConfig.getConfig();
+  const cameraIp = cameraDevice?.ip_address || cameraConfig?.ip || '192.168.0.109';
 
   // Check for pending detections with gentle polling
   // Background processing is handled by Laravel scheduler (cron jobs)
@@ -111,32 +97,24 @@ export default function VehicleEntry() {
     }
   }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
 
-  // Auto-refresh stream when page becomes visible again
-  const refreshStreamRef = useRef(refreshStream);
-  
+  // Auto-refresh camera feed every 500ms for live video
   useEffect(() => {
-    refreshStreamRef.current = refreshStream;
-  }, [refreshStream]);
-  
-  useEffect(() => {
-    // When page becomes visible and we have a camera, refresh the stream
-    if (isPageVisible && cameraDevice && selectedGate && refreshStreamRef.current) {
-      // Small delay to ensure everything is ready
-      const timer = setTimeout(() => {
-        if (refreshStreamRef.current) {
-          refreshStreamRef.current();
-        }
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isPageVisible, cameraDevice, selectedGate]);
+    if (!isPageVisible || !selectedGate) return;
 
-  // Cleanup stream on unmount
-  useEffect(() => {
-    return () => {
-      stopStream();
-    };
-  }, [stopStream]);
+    const img = document.getElementById('camera-feed-img') as HTMLImageElement;
+    if (!img) return;
+
+    const interval = setInterval(() => {
+      const currentImg = document.getElementById('camera-feed-img') as HTMLImageElement;
+      if (currentImg && document.contains(currentImg)) {
+        // Add timestamp to force refresh
+        currentImg.src = `http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`;
+      }
+    }, 500); // Refresh every 500ms for smooth live video
+
+    return () => clearInterval(interval);
+  }, [isPageVisible, selectedGate, cameraIp]);
+
 
   const handleEntrySuccess = (data: any) => {
     // Entry processed successfully - no logging needed
@@ -274,12 +252,14 @@ export default function VehicleEntry() {
                       </Button>
                     )}
 
-                    {/* Refresh Camera Button - Only show when gate is selected */}
-                    {selectedGate && cameraDevice && refreshStream && (
+                    {/* Refresh Camera Button */}
+                    {selectedGate && (
                       <Button
                         onClick={() => {
-                          if (refreshStream) {
-                            refreshStream();
+                          // Force refresh by updating the image src
+                          const img = document.querySelector('img[alt="Camera Feed"]') as HTMLImageElement;
+                          if (img) {
+                            img.src = `http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`;
                           }
                         }}
                         variant="outline"
@@ -335,55 +315,20 @@ export default function VehicleEntry() {
                       <p>Loading gate information...</p>
                     </div>
                   </div>
-                ) : !cameraDevice ? (
-                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
-                    <div className="text-center space-y-2 p-4">
-                      <Camera className="w-12 h-12 mx-auto text-gray-500" />
-                      <p className="font-semibold text-white">No Camera Configured</p>
-                      <p className="text-sm text-gray-400">Please contact administrator to configure camera for this gate.</p>
-                    </div>
-                  </div>
                 ) : (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
-                    {/* MJPEG Stream Container */}
-                    <div
-                      ref={streamContainerRef}
-                      className="w-full h-full"
+                    {/* Live Camera Feed - Auto-refreshes every 500ms */}
+                    <img
+                      id="camera-feed-img"
+                      src={`http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`}
+                      alt="Camera Feed"
+                      className="w-full h-full object-contain"
                       style={{ minHeight: '500px' }}
                     />
-                    
-                    {/* Error Message */}
-                    {streamError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4">
-                        <div className="text-center space-y-2">
-                          <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-                          <p className="font-semibold">Cannot connect to camera</p>
-                          <p className="text-sm text-gray-400">
-                            {streamError}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Loading Indicator */}
-                    {!isStreaming && !streamError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white p-4">
-                        <div className="text-center space-y-2">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
-                          <p className="text-sm">Connecting to camera...</p>
-                        </div>
-                      </div>
-                    )}
-                    
                     {/* Live Indicator */}
-                    {isStreaming && (
-                      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg backdrop-blur-sm">
-                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                        <span className="text-white font-medium text-sm">
-                          LIVE
-                        </span>
-                      </div>
-                    )}
+                    <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-1 rounded text-xs text-white">
+                      🔴 Live • {cameraIp}
+                    </div>
                     
                     {/* Current Gate Overlay (Mobile) */}
                     {selectedGate && (
@@ -395,17 +340,10 @@ export default function VehicleEntry() {
                 )}
                 
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    {!cameraDevice && selectedGate && (
-                      <Alert className="flex-1" variant="destructive">
-                        <AlertCircle className="w-4 h-4" />
-                        <AlertDescription>
-                          <strong>Camera not configured</strong> - Please contact administrator to configure camera for this gate.
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Camera: {cameraIp}</span>
+                    {selectedGate && <span>Gate: {selectedGate.name}</span>}
                   </div>
-
                 </div>
               </CardContent>
             </Card>
