@@ -36,9 +36,32 @@ export default function VehicleEntry() {
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
   
-  // Get camera IP - use device IP or fallback to config
+  // Get camera IP - prioritize device IP from database, then config, then show error
   const cameraConfig = zktecoConfig.getConfig();
-  const cameraIp = cameraDevice?.ip_address || cameraConfig?.ip || '192.168.0.109';
+  const cameraIp = cameraDevice?.ip_address || cameraConfig?.ip || null;
+  const cameraHttpPort = cameraDevice?.http_port || cameraConfig?.httpPort || 80;
+  
+  // Log camera configuration for debugging
+  useEffect(() => {
+    if (selectedGate) {
+      console.log('[Entry Page] Camera Configuration:', {
+        hasCameraDevice: !!cameraDevice,
+        cameraIp: cameraIp,
+        cameraHttpPort: cameraHttpPort,
+        gateDevices: selectedGateDevices.length,
+        cameraDevice: cameraDevice ? {
+          ip: cameraDevice.ip_address,
+          port: cameraDevice.http_port,
+          status: cameraDevice.status,
+          name: cameraDevice.name
+        } : null
+      });
+      
+      if (!cameraIp) {
+        console.warn('[Entry Page] ⚠️ Camera IP not configured! Please configure camera device in gate settings.');
+      }
+    }
+  }, [selectedGate, cameraDevice, cameraIp, cameraHttpPort, selectedGateDevices]);
 
   // Check for pending detections with gentle polling
   // Background processing is handled by Laravel scheduler (cron jobs)
@@ -97,23 +120,66 @@ export default function VehicleEntry() {
     }
   }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
 
-  // Auto-refresh camera feed every 500ms for live video
+  // Auto-refresh camera feed every 500ms for live video using backend API proxy
   useEffect(() => {
-    if (!isPageVisible || !selectedGate) return;
+    if (!isPageVisible || !selectedGate || !cameraIp || !cameraDevice) return;
 
     const img = document.getElementById('camera-feed-img') as HTMLImageElement;
     if (!img) return;
 
-    const interval = setInterval(() => {
-      const currentImg = document.getElementById('camera-feed-img') as HTMLImageElement;
-      if (currentImg && document.contains(currentImg)) {
-        // Add timestamp to force refresh
-        currentImg.src = `http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`;
+    // Get API base URL
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+    
+    // Fetch camera snapshot from backend API proxy
+    // This avoids CORS issues and works on all PCs
+    const fetchCameraSnapshot = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/zkteco/snapshot`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ip: cameraIp,
+            http_port: cameraHttpPort,
+            username: cameraDevice.username || 'admin',
+            password: cameraDevice.password || '',
+          }),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          
+          // Revoke previous URL to prevent memory leaks
+          if (img.src && img.src.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+          }
+          
+          img.src = objectUrl;
+        } else {
+          console.error('[Entry Page] Camera snapshot failed:', response.status);
+        }
+      } catch (error) {
+        console.error('[Entry Page] Camera snapshot error:', error);
       }
+    };
+
+    // Initial fetch
+    fetchCameraSnapshot();
+
+    const interval = setInterval(() => {
+      fetchCameraSnapshot();
     }, 500); // Refresh every 500ms for smooth live video
 
-    return () => clearInterval(interval);
-  }, [isPageVisible, selectedGate, cameraIp]);
+    return () => {
+      clearInterval(interval);
+      // Clean up blob URL on unmount
+      if (img.src && img.src.startsWith('blob:')) {
+        URL.revokeObjectURL(img.src);
+      }
+    };
+  }, [isPageVisible, selectedGate, cameraIp, cameraHttpPort, cameraDevice]);
 
 
   const handleEntrySuccess = (data: any) => {
@@ -253,13 +319,13 @@ export default function VehicleEntry() {
                     )}
 
                     {/* Refresh Camera Button */}
-                    {selectedGate && (
+                    {selectedGate && cameraIp && (
                       <Button
                         onClick={() => {
                           // Force refresh by updating the image src
-                          const img = document.querySelector('img[alt="Camera Feed"]') as HTMLImageElement;
-                          if (img) {
-                            img.src = `http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${new Date().toISOString()}`;
+                          const img = document.getElementById('camera-feed-img') as HTMLImageElement;
+                          if (img && cameraIp) {
+                            img.src = `http://${cameraIp}:${cameraHttpPort}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`;
                           }
                         }}
                         variant="outline"
@@ -315,19 +381,38 @@ export default function VehicleEntry() {
                       <p>Loading gate information...</p>
                     </div>
                   </div>
+                ) : !cameraIp ? (
+                  <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
+                    <div className="text-center p-6 max-w-md">
+                      <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                      <h3 className="text-white text-lg font-semibold mb-2">Camera Not Configured</h3>
+                      <p className="text-gray-300 text-sm mb-4">
+                        No camera IP address found for this gate. Please configure the camera device in Gate Settings.
+                      </p>
+                      <p className="text-gray-400 text-xs">
+                        Gate: {selectedGate?.name || 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9', minHeight: '500px' }}>
                     {/* Live Camera Feed - Auto-refreshes every 500ms */}
                     <img
                       id="camera-feed-img"
-                      src={`http://${cameraIp}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`}
+                      src={`http://${cameraIp}:${cameraHttpPort}/edge/cgi-bin/vparcgi.cgi?computerid=1&oper=snapshot&resolution=800x600&i=${Date.now()}`}
                       alt="Camera Feed"
                       className="w-full h-full object-contain"
                       style={{ minHeight: '500px' }}
+                      onError={(e) => {
+                        console.error('[Entry Page] Camera image load error:', e);
+                        const target = e.target as HTMLImageElement;
+                        // Show error state
+                        target.style.display = 'none';
+                      }}
                     />
                     {/* Live Indicator */}
                     <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-1 rounded text-xs text-white">
-                      🔴 Live • {cameraIp}
+                      🔴 Live • {cameraIp}:{cameraHttpPort}
                     </div>
                     
                     {/* Current Gate Overlay (Mobile) */}
@@ -341,9 +426,20 @@ export default function VehicleEntry() {
                 
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>Camera: {cameraIp}</span>
+                    <span>
+                      Camera: {cameraIp ? `${cameraIp}:${cameraHttpPort}` : 'Not Configured'}
+                      {cameraDevice && cameraDevice.name && ` (${cameraDevice.name})`}
+                    </span>
                     {selectedGate && <span>Gate: {selectedGate.name}</span>}
                   </div>
+                  {!cameraIp && selectedGate && (
+                    <Alert className="mt-2">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Please configure a camera device for this gate in Settings → Gates → Gate Devices.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               </CardContent>
             </Card>
