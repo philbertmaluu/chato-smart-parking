@@ -99,6 +99,8 @@ export class VehiclePassageService {
     plate_number: string;
     gate_id: number;
     payment_confirmed?: boolean;
+    operator_name?: string;
+    payment_method?: string;
     notes?: string;
   }): Promise<VehiclePassageResponse> {
     return post(API_ENDPOINTS.VEHICLE_PASSAGES.EXIT, data);

@@ -230,6 +230,57 @@ export const useVehicles = () => {
     }
   }, []);
 
+  const lookupVehicleByPlate = useCallback(async (plateNumber: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await get<{ success: boolean; data: Vehicle; message: string }>(
+        API_ENDPOINTS.VEHICLES.LOOKUP_BY_PLATE(plateNumber)
+      );
+      
+      if (response && response.success && response.data) {
+        return {
+          success: true,
+          exists: true,
+          data: response.data,
+        };
+      } else {
+        return {
+          success: true,
+          exists: false,
+          data: null,
+        };
+      }
+    } catch (err: any) {
+      // Handle 404 and "not found" errors as expected (vehicle doesn't exist yet)
+      const errorMessage = err instanceof Error ? err.message : (err?.message || 'Failed to lookup vehicle');
+      
+      if (err?.response?.status === 404 || 
+          err?.status === 404 || 
+          errorMessage?.includes('404') || 
+          errorMessage?.includes('not found') || 
+          errorMessage?.includes('Vehicle not found') ||
+          errorMessage?.includes('Resource not found')) {
+        // Vehicle not found is expected for new vehicles - not an error
+        return {
+          success: true,
+          exists: false,
+          data: null,
+        };
+      }
+      
+      // For other errors, log but don't set error state (allow fallback to create form)
+      console.error('Vehicle lookup error:', err);
+      return {
+        success: false,
+        exists: false,
+        data: null,
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const handlePageChange = useCallback((page: number) => {
     fetchVehicles(page);
   }, [fetchVehicles]);
@@ -247,6 +298,7 @@ export const useVehicles = () => {
     getActiveVehicles,
     getVehiclesByBodyType,
     searchVehicles,
+    lookupVehicleByPlate,
     handlePageChange,
   };
 };

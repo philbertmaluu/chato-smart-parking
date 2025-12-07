@@ -96,7 +96,7 @@ export function generateReceiptHTML(receiptData: any): string {
         <div class="header">
           <div class="logo">🚗</div>
           <h1 class="title">Smart Parking System</h1>
-          <p class="subtitle">Entry Receipt</p>
+          <p class="subtitle">${receiptData.receiptType || 'Exit Receipt'}</p>
         </div>
         
         <div class="details">
@@ -140,14 +140,32 @@ export function generateReceiptHTML(receiptData: any): string {
             <span class="value">${receiptData.paymentMethod}</span>
           </div>
           ` : ''}
+          ${receiptData.subtotal !== undefined && receiptData.subtotal !== null ? `
+          <div class="row">
+            <span class="label">Subtotal:</span>
+            <span class="value">Tsh. ${receiptData.subtotal.toFixed(2)}</span>
+          </div>
+          ` : ''}
+          ${receiptData.taxRate && receiptData.taxAmount ? `
+          <div class="row">
+            <span class="label">Tax (${receiptData.taxRate}%):</span>
+            <span class="value">Tsh. ${receiptData.taxAmount.toFixed(2)}</span>
+          </div>
+          ` : ''}
           <div class="row amount">
-            <span class="label">Amount:</span>
+            <span class="label">Total Amount:</span>
             <span class="value">
               ${receiptData.passageType === "free" || receiptData.passageType === "exempted"
                 ? "FREE"
-                : `Tsh. ${receiptData.amount || receiptData.rate}.00`}
+                : `Tsh. ${(receiptData.amount || receiptData.rate || 0).toFixed(2)}`}
             </span>
           </div>
+          ${receiptData.operatorName ? `
+          <div class="row">
+            <span class="label">Operator:</span>
+            <span class="value">${receiptData.operatorName}</span>
+          </div>
+          ` : ''}
         </div>
         
         <div class="footer">

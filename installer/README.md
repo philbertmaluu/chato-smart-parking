@@ -32,15 +32,26 @@ cd installer
    iscc SmartParking.iss
    ```
 
-3. **Find the installer in:** `installer\output\SmartParkingSetup-1.0.0.exe`
+3. **Find the installer in:** `installer\output\SmartParkingSetup-1.1.0-Complete.exe`
 
 ## What's Included in the Installer
 
-- ✅ Smart Parking Desktop App (Tauri/React)
-- ✅ Laravel Backend API
+- ✅ Smart Parking Desktop App v1.1.0 (Tauri/React)
+- ✅ Laravel Backend API (with all merged features)
 - ✅ Portable PHP Runtime
 - ✅ SQLite Database (auto-created on first run)
 - ✅ Printer integration support
+- ✅ Gate Control Integration
+- ✅ Camera Detection System
+  - Immediate body type selection (no queue)
+  - Operator clicks "Capture Vehicle" → Body type modal opens instantly
+  - Detected plate shown in modal
+  - Operator selects body type and processes/cancels
+  - Vehicle added to parked page when processed
+  - Background scheduler for automatic processing (optional)
+- ✅ Enhanced Vehicle Management (flexible body types)
+- ✅ Exit-Based Pricing System
+- ✅ 24-Hour Rolling Period Charging
 
 ## Installation Requirements (End Users)
 

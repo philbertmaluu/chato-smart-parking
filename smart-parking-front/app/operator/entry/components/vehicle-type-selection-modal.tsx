@@ -22,14 +22,12 @@ import { toast } from "sonner";
 import { useVehicleBodyTypes } from "@/app/manager/settings/hooks/use-vehicle-body-types";
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { PendingVehicleTypeDetection } from "@/utils/api/camera-detection-service";
-import { PrinterService } from "@/utils/api/printer-service";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import {
   Loader2,
   Camera,
   Car,
   AlertCircle,
-  Printer,
 } from "lucide-react";
 
 interface VehicleTypeSelectionModalProps {
@@ -64,24 +62,6 @@ export function VehicleTypeSelectionModal({
 
       if (result.success) {
         toast.success("Vehicle entry processed successfully");
-        
-        // Auto-print receipt if passage was created
-        const passageData = result.data?.passage;
-        if (passageData?.id) {
-          try {
-            toast.loading("Printing receipt...", { id: "print-receipt" });
-            const printResult = await PrinterService.printEntryReceipt(passageData.id);
-            
-            if (printResult.success) {
-              toast.success("🖨️ Receipt printed successfully!", { id: "print-receipt" });
-            } else {
-              toast.error("Receipt print failed: " + (printResult.messages || "Unknown error"), { id: "print-receipt" });
-            }
-          } catch (printError: any) {
-            console.error("Print error:", printError);
-            toast.error("Could not print receipt. Check printer connection.", { id: "print-receipt" });
-          }
-        }
         
         setSelectedBodyTypeId(null);
         onOpenChange(false);

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Smart Parking System",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "com.smartparking.desktop",
   "build": {
     "frontendDist": "../out",
@@ -23,12 +23,12 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 'unsafe-inline' 'unsafe-eval' data: blob:;"
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,20 +40,16 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
-      "wix": null,
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "headerImage": null,
-        "sidebarImage": null,
         "installMode": "perMachine",
         "languages": ["English"],
-        "displayLanguageSelector": false,
         "compression": "lzma"
       }
     },
     "publisher": "Smart Parking",
     "category": "Business",
-    "shortDescription": "Smart Parking Management System",
-    "longDescription": "A comprehensive parking management system with vehicle detection, toll calculation, and receipt printing capabilities."
+    "shortDescription": "Smart Parking Management System v1.1.0",
+    "longDescription": "A comprehensive parking management system with advanced vehicle detection, intelligent toll calculation, and automated receipt printing capabilities.\n\n✨ New Features in v1.1.0:\n• Flexible Vehicle Entry - Enter vehicles without body type, set on exit\n• Exit-Based Pricing - Calculate fees based on actual time spent\n• 24-Hour Rolling Periods - Fair daily charging model\n• Paid Pass Tracking - Automatic free exit for vehicles with active passes\n• Gate Control Integration - Seamless hardware integration\n• Thermal Printer Support - Zy-Q822 receipt printing\n• Enhanced Camera Detection - Improved vehicle type handling\n\n🔧 Core Features:\n• Real-time vehicle plate detection\n• Automated entry/exit processing\n• Multiple payment methods\n• Operator and Manager dashboards\n• Comprehensive reporting and analytics\n• Multi-station support\n• Bundle subscription management\n\n📋 System Requirements:\n• Windows 10/11 (64-bit)\n• Internet connection for API access\n• Camera support (optional)\n• Thermal printer (optional)\n\nFor support and updates, visit our website."
   }
 }

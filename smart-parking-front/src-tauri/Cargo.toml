@@ -1,7 +1,7 @@
 [package]
 name = "app"
-version = "0.1.0"
-description = "A Tauri App"
+version = "1.1.0"
+description = "Smart Parking System - Desktop Application"
 authors = ["you"]
 license = ""
 repository = ""

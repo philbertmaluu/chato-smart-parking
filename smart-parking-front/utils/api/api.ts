@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 30000, // 30 second timeout (increased for slower endpoints)
+  timeout: 10000, // 10 second timeout for better responsiveness
 });
 
 // Add auth token to requests
@@ -34,7 +34,8 @@ api.interceptors.response.use(
 // Helper function to handle API errors
 function handleApiError(error: AxiosError): never {
   // Check if it's a timeout or network error
-  if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+  // Only treat as connection error if there's no response at all
+  if (!error.response && (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.code === 'ERR_NETWORK')) {
     // Check if it's a localhost connection for better error message
     const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
     if (isLocalhost) {
@@ -110,10 +111,18 @@ export async function get<T = unknown>(url: string, config?: AxiosRequestConfig)
 
 export async function post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
-    // Throttle POST requests (but allow more concurrency for mutations)
+    // POST requests should be faster - use throttling but with higher priority
+    // For critical actions, bypass throttling to ensure immediate response
+    const isCriticalAction = url.includes('/entry') || url.includes('/exit') || url.includes('/payment');
+    if (isCriticalAction) {
+      // Critical actions bypass throttling for immediate response
+      const response: AxiosResponse<T> = await api.post(url, data, config);
+      return response.data;
+    }
+    // Other POST requests use throttling
     return await throttleRequest(async () => {
-    const response: AxiosResponse<T> = await api.post(url, data, config);
-    return response.data;
+      const response: AxiosResponse<T> = await api.post(url, data, config);
+      return response.data;
     }, `post_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
@@ -122,10 +131,9 @@ export async function post<T = unknown>(url: string, data?: unknown, config?: Ax
 
 export async function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
-    return await throttleRequest(async () => {
+    // PUT requests for updates should be faster
     const response: AxiosResponse<T> = await api.put(url, data, config);
     return response.data;
-    }, `put_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -133,10 +141,9 @@ export async function put<T = unknown>(url: string, data?: unknown, config?: Axi
 
 export async function patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
-    return await throttleRequest(async () => {
+    // PATCH requests for updates should be faster
     const response: AxiosResponse<T> = await api.patch(url, data, config);
     return response.data;
-    }, `patch_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }
@@ -144,10 +151,9 @@ export async function patch<T = unknown>(url: string, data?: unknown, config?: A
 
 export async function del<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
-    return await throttleRequest(async () => {
+    // DELETE requests should be immediate
     const response: AxiosResponse<T> = await api.delete(url, config);
     return response.data;
-    }, `del_${url}`);
   } catch (error) {
     handleApiError(error as AxiosError);
   }

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { VehicleEntryDrawer } from "./components/vehicle-entry";
+import { VehicleEntryDrawer } from "./components/vehicleEntrydrawer";
 import { CameraInterface } from "./components/camera-interface";
 import { VehicleTypeSelectionModal } from "./components/vehicle-type-selection-modal";
 import { CameraExitDialog } from "./components/camera-exit-dialog";
@@ -29,6 +29,8 @@ export default function VehicleEntry() {
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [captureLoading, setCaptureLoading] = useState(false);
+  const [detectedPlateNumber, setDetectedPlateNumber] = useState<string | undefined>(undefined);
+  const [capturedDetection, setCapturedDetection] = useState<any>(null);
   const isPageVisible = usePageVisibility();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
@@ -55,13 +57,13 @@ export default function VehicleEntry() {
   // Check for pending detections with gentle polling
   // Background processing is handled by Laravel scheduler (cron jobs)
   // Polls every 2.5 seconds when page is visible to catch new detections quickly
+  // NOTE: Auto-opening of entry drawer/manual modals is disabled - operator must manually capture
   const { latestDetection, fetchPendingDetections, clearLatestDetection, loading: detectionsLoading } = usePendingDetections({
-    enabled: true,
-    pollInterval: 2500, // 2.5 seconds - gentle polling
+    enabled: false, // Disabled - no auto-polling, operator will manually capture
+    pollInterval: 2500,
     onNewDetection: (detection) => {
-      // Show modal immediately when new detection is found
-      // Don't check isPageVisible here - let the useEffect handle it
-      setShowVehicleTypeModal(true);
+      // Disabled - no auto-opening of entry drawer
+      // Operator must manually click "Capture Vehicle" button
     },
   });
 
@@ -79,15 +81,8 @@ export default function VehicleEntry() {
     },
   });
 
-  // Show modal if there's a pending detection on initial load or when latestDetection changes
-  // Show immediately when page becomes visible if there's a pending detection
-  useEffect(() => {
-    if (latestDetection) {
-      if (isPageVisible) {
-        setShowVehicleTypeModal(true);
-      }
-    }
-  }, [latestDetection, isPageVisible]);
+  // Disabled - no auto-opening of entry drawer
+  // Operator must manually click "Capture Vehicle" button to process detections
 
   // Show exit dialog if there's a pending exit detection
   // Show immediately when page becomes visible if there's a pending exit detection
@@ -106,16 +101,15 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Initial fetch when page becomes visible
-  // Continuous polling is handled by the hooks themselves
+  // Disabled auto-fetching - operator will manually capture when needed
+  // Exit detections still auto-fetch for exit processing
   useEffect(() => {
     if (isPageVisible && selectedGate) {
-      // Fetch both types of pending detections when page becomes visible
-      // Background processing is handled by Laravel scheduler
-      fetchPendingDetections();
+      // Only fetch exit detections automatically
       fetchPendingExitDetections();
+      // Entry detections are handled manually via "Capture Vehicle" button
     }
-  }, [isPageVisible, selectedGate, fetchPendingDetections, fetchPendingExitDetections]);
+  }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
 
   // Auto-refresh stream when page becomes visible again
   const refreshStreamRef = useRef(refreshStream);
@@ -149,12 +143,8 @@ export default function VehicleEntry() {
   };
 
   const handleVehicleTypeModalSuccess = () => {
-    setShowVehicleTypeModal(false); // Close modal first
-    clearLatestDetection(); // Clear detection to allow next in queue
-    // Refresh after a short delay to allow next detection to be fetched
-    setTimeout(() => {
-      fetchPendingDetections(); // This will fetch next in queue
-    }, 500);
+    setShowVehicleTypeModal(false);
+    setCapturedDetection(null); // Clear captured detection
   };
 
   const handleGateSelect = async (gateId: number) => {
@@ -163,7 +153,7 @@ export default function VehicleEntry() {
   };
 
   // Handle capture vehicle - triggers camera to capture and detect plate
-  // Uses quickCapture for faster response (only fetches last 2 minutes of data)
+  // Shows body type selection modal for processing
   const handleCaptureVehicle = async () => {
     if (!selectedGate) {
       toast.error("Please select a gate first");
@@ -173,20 +163,32 @@ export default function VehicleEntry() {
     try {
       setCaptureLoading(true);
       
-      // Use quick capture for faster response - only fetches recent detections
+      // Use quick capture - returns latest detection immediately
       const result = await CameraDetectionService.quickCapture();
       
       if (result.success) {
-        if (result.data.stored > 0) {
-          toast.success(`✅ Vehicle captured! Processing...`);
-          // Immediately fetch pending detections to show the modal
-          await fetchPendingDetections();
+        // Check for detection first - this is the most important check
+        if (result.data.detection && result.data.detection.plate_number) {
+          // Got a detection - create a detection object for the modal
+          const detection = {
+            id: result.data.detection.id,
+            numberplate: result.data.detection.plate_number,
+            detection_timestamp: result.data.detection.detection_timestamp,
+            gate_id: selectedGate.id,
+            processing_status: 'manual_processing',
+            make_str: null,
+            model_str: null,
+            color_str: null,
+          };
+          
+          setCapturedDetection(detection);
+          setShowVehicleTypeModal(true);
+          toast.success(`✅ Vehicle captured! Plate: ${result.data.detection.plate_number}`);
         } else if (result.data.camera_unavailable) {
           toast.error("📷 Camera not responding. Check connection.");
-        } else if (result.data.fetched > 0 && result.data.skipped > 0) {
-          toast.info("Vehicle already captured. Check pending queue.");
         } else {
-          toast.warning("⚠️ No vehicle detected. Position vehicle in camera view.");
+          // No detection found - show appropriate message
+          toast.warning("⚠️ No vehicle detected. Position vehicle in camera view and try again.");
         }
       } else {
         toast.error(result.messages || "Capture failed. Try again.");
@@ -415,9 +417,21 @@ export default function VehicleEntry() {
       {/* Vehicle Entry Drawer */}
       <VehicleEntryDrawer
         open={showEntryDrawer}
-        onOpenChange={setShowEntryDrawer}
-        gateId={selectedGate?.id}
-        onSuccess={handleEntrySuccess}
+        onOpenChange={(open) => {
+          setShowEntryDrawer(open);
+          if (!open) {
+            // Clear detected plate number when drawer closes
+            setDetectedPlateNumber(undefined);
+          }
+        }}
+        selectedGateId={selectedGate?.id}
+        detectedPlateNumber={detectedPlateNumber}
+        isPlateDetectionEnabled={!!detectedPlateNumber}
+        onVehicleRegistered={(vehicle, passageData, receiptData) => {
+          // Handle successful vehicle registration
+          setDetectedPlateNumber(undefined);
+          setShowEntryDrawer(false);
+        }}
       />
 
       {/* Gate Selection Modal */}
@@ -433,20 +447,15 @@ export default function VehicleEntry() {
 
       {/* Vehicle Type Selection Modal */}
       <VehicleTypeSelectionModal
-        open={showVehicleTypeModal && latestDetection !== null}
+        open={showVehicleTypeModal && capturedDetection !== null}
         onOpenChange={(open) => {
           setShowVehicleTypeModal(open);
           if (!open) {
-            // Only clear detection if modal is being closed and not processing
-            // This prevents clearing while user is selecting body type
-            setTimeout(() => {
-              if (!showVehicleTypeModal) {
-                clearLatestDetection();
-              }
-            }, 100);
+            // Clear captured detection when modal closes
+            setCapturedDetection(null);
           }
         }}
-        detection={latestDetection}
+        detection={capturedDetection}
         onSuccess={handleVehicleTypeModalSuccess}
       />
 

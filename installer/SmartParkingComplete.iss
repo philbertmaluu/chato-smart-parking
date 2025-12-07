@@ -3,7 +3,7 @@
 ; Built with Inno Setup
 
 #define MyAppName "Smart Parking System"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Smart Parking"
 #define MyAppURL "https://smartparking.com"
 #define MyAppExeName "StartSmartParking.bat"
@@ -72,6 +72,7 @@ Source: "build\php\*"; DestDir: "{app}\php"; Flags: ignoreversion recursesubdirs
 ; Startup Scripts
 Source: "build\StartSmartParking.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\start-backend.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\start-scheduler.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\setup-first-run.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\RepairSetup.bat"; DestDir: "{app}"; Flags: ignoreversion
 

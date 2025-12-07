@@ -17,6 +17,7 @@ import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { PrinterService } from "@/utils/api/printer-service";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import { formatDateTime } from "@/utils/date-utils";
+import { useAuth } from "@/components/auth-provider";
 import {
   Loader2,
   AlertCircle,
@@ -24,7 +25,9 @@ import {
   QrCode,
   Shield,
   Printer,
+  User,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface CameraExitDialogProps {
   open: boolean;
@@ -40,8 +43,12 @@ export function CameraExitDialog({
   onExitProcessed,
 }: CameraExitDialogProps) {
   const { selectedGate } = useOperatorGates();
+  const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [exitResult, setExitResult] = useState<any>(null);
+  
+  // Auto-populate operator name from logged-in user
+  const operatorName = user?.username || "";
 
   const handleProcessExit = async () => {
     if (!detection || !selectedGate) {
@@ -53,10 +60,17 @@ export function CameraExitDialog({
     setExitResult(null);
 
     try {
+      if (!operatorName.trim()) {
+        toast.error("Operator name is required. Please ensure you are logged in.");
+        setIsProcessing(false);
+        return;
+      }
+
       const result = await CameraDetectionService.processExitDetection(
         detection.id,
         {
-          payment_confirmed: false, // Operator will confirm payment in the dialog
+          payment_confirmed: true, // Payment confirmed on exit
+          operator_name: operatorName.trim(),
         }
       );
 
@@ -141,6 +155,25 @@ export function CameraExitDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Operator Name Display */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6"
+          >
+            <div className="space-y-2">
+              <Label className="flex items-center space-x-2">
+                <User className="w-4 h-4" />
+                <span>Operator Name</span>
+              </Label>
+              <div className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                <span className="font-medium">{operatorName || "Not available"}</span>
+              </div>
+              <p className="text-xs text-gray-500">This name will appear on the receipt (from your login credentials)</p>
+            </div>
+          </motion.div>
+
           {/* Receipt Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -259,7 +292,7 @@ export function CameraExitDialog({
           <Button
             className="flex-1 gradient-maroon hover:opacity-90"
             onClick={handleProcessExit}
-            disabled={isProcessing || !selectedGate}
+            disabled={isProcessing || !selectedGate || !operatorName.trim() || !user}
           >
             {isProcessing ? (
               <>

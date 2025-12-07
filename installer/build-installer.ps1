@@ -2,7 +2,7 @@
 # This script builds the complete installer package
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [switch]$SkipFrontend,
     [switch]$SkipBackend,
     [switch]$SkipPhp
@@ -91,11 +91,12 @@ if (-not $SkipBackend) {
     
     # Create production .env template
     $EnvTemplate = @"
-APP_NAME="Smart Parking System"
+APP_NAME=SmartParkingSystem
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
 APP_URL=http://127.0.0.1:8000
+APP_TIMEZONE=Africa/Dar_es_Salaam
 
 LOG_CHANNEL=daily
 LOG_LEVEL=error
@@ -115,10 +116,25 @@ PRINTER_AUTO_PRINT_ENTRY=true
 PRINTER_AUTO_PRINT_EXIT=true
 
 # Receipt Settings
-RECEIPT_COMPANY_NAME="Smart Parking System"
-RECEIPT_TAGLINE="Safe and Secure Parking"
-RECEIPT_FOOTER="Thank you for parking with us!"
+RECEIPT_COMPANY_NAME=SmartParkingSystem
+RECEIPT_TAGLINE=SafeAndSecureParking
+RECEIPT_FOOTER=ThankYouForParkingWithUs
 RECEIPT_CURRENCY=Tsh
+
+# Authentication
+SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1
+
+# Camera Detection (optional)
+CAMERA_ENABLED=false
+CAMERA_IP=192.168.0.109
+CAMERA_COMPUTER_ID=1
+CAMERA_GATE_ID=1
+CAMERA_HTTP_PORT=80
+CAMERA_USERNAME=admin
+CAMERA_PASSWORD=Password123!
+
+# Gate Control (optional)
+GATE_CONTROL_ENABLED=false
 "@
     $EnvTemplate | Out-File -FilePath "$BackendDst\.env.production" -Encoding UTF8
     
@@ -138,8 +154,9 @@ if (-not $SkipFrontend) {
         npm install
     }
     
-    # Build the Tauri app
-    Write-Host "Building Tauri application..."
+    # Always rebuild to ensure latest changes are included
+    Write-Host "Building Tauri application with latest changes..."
+    Write-Host "This includes camera detection improvements (entry drawer with detected plates)"
     npm run desktop:build
     
     Pop-Location
@@ -162,13 +179,48 @@ if (-not $SkipFrontend) {
 # Step 4: Create startup scripts
 Write-Host "`n[4/5] Creating startup scripts..." -ForegroundColor Yellow
 
+# Scheduler startup script (for camera detection)
+$SchedulerScript = @'
+@echo off
+title Smart Parking - Camera Detection Scheduler
+cd /d "%~dp0backend"
+
+:: Set PHP path
+set PATH=%~dp0php;%PATH%
+
+echo Starting Laravel Scheduler for Camera Detection...
+echo This will fetch camera detections every 2 seconds
+echo Press Ctrl+C to stop
+echo.
+
+:loop
+"%~dp0php\php.exe" artisan schedule:run
+timeout /t 1 /nobreak >nul
+goto loop
+'@
+$SchedulerScript | Out-File -FilePath "$BuildDir\start-scheduler.bat" -Encoding ASCII
+
 # Backend startup script
 $BackendStartScript = @'
 @echo off
 title Smart Parking - Backend Server
-cd /d "%~dp0backend"
+cd /d "%~dp0"
+
+:: Set PHP path
 set PATH=%~dp0php;%PATH%
-php artisan serve --host=127.0.0.1 --port=8000
+
+:: Start scheduler in background (for camera detection)
+echo Starting camera detection scheduler...
+start /min "Smart Parking Scheduler" cmd /c "%~dp0start-scheduler.bat"
+
+:: Wait a moment for scheduler to initialize
+timeout /t 2 /nobreak >nul
+
+:: Start Laravel server
+cd backend
+"%~dp0php\php.exe" artisan serve --host=127.0.0.1 --port=8000
+
+:: If server stops, pause to show error
 pause
 '@
 $BackendStartScript | Out-File -FilePath "$BuildDir\start-backend.bat" -Encoding ASCII

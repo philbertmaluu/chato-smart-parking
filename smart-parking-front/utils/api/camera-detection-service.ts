@@ -29,6 +29,8 @@ export interface ProcessWithVehicleTypeResponse {
 
 export interface ProcessExitDetectionRequest {
   payment_confirmed?: boolean;
+  operator_name?: string;
+  payment_method?: string;
 }
 
 export interface ProcessExitDetectionResponse {
@@ -63,6 +65,11 @@ export interface FetchAndStoreResponse {
     skipped: number;
     errors: number;
     camera_unavailable?: boolean;
+    detection?: {
+      id: number;
+      plate_number: string;
+      detection_timestamp: string;
+    } | null;
   };
   messages: string;
   status: number;

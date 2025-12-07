@@ -1,1 +1,14 @@
-﻿Smart Parking System v1.0.0
+﻿Smart Parking System v1.1.0
+
+New Features in v1.1.0:
+- Flexible vehicle entry (nullable body type support)
+- Exit-based pricing calculation
+- 24-hour rolling period charging model
+- Paid pass window tracking
+- Enhanced gate control integration
+- Thermal printer support (Zy-Q822)
+- Improved camera detection processing
+- Vehicle type can be set on exit if not provided on entry
+- Automatic camera detection scheduler (fetches every 2 seconds)
+- Automatic queue processing for existing vehicles
+- Smart vehicle type selection for new vehicles
