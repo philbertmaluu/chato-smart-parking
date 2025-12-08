@@ -217,15 +217,36 @@ export default function PassageHistoryPage() {
 
       if (response?.success) {
         // Some endpoints may return { data: {...} } or nested structures
-        const summary =
-          (response.data as any)?.data ||
-          response.data ||
-          null;
+        const summary = (response.data as any)?.data || response.data || null;
 
-        if (summary) {
+        // If we have a usable summary with positive numbers, use it
+        const hasPositive = summary && Object.values(summary).some((v: any) => typeof v === 'number' && v > 0);
+        if (hasPositive) {
           setDashboardSummary(summary);
         } else {
-          console.warn('Dashboard summary missing data payload', response);
+          // Fallback: fetch receipts total and passage statistics to build a summary
+          try {
+            const [receiptsRes, statsRes] = await Promise.all([
+              get(API_ENDPOINTS.RECEIPTS.TOTAL_REVENUE),
+              get(API_ENDPOINTS.VEHICLE_PASSAGES.STATISTICS),
+            ]);
+
+            const receipts = (receiptsRes && receiptsRes.data) ? receiptsRes.data : receiptsRes;
+            const statsPayload = (statsRes && statsRes.data) ? (statsRes.data.data || statsRes.data) : statsRes;
+
+            const merged = {
+              total_passages: statsPayload?.total_passages ?? derivedSummary.total_passages,
+              active_passages: statsPayload?.active_passages ?? derivedSummary.active_passages,
+              completed_today: statsPayload?.completed_today ?? derivedSummary.completed_today,
+              total_revenue: receipts?.total ?? derivedSummary.total_revenue,
+              revenue_today: receipts?.today ?? derivedSummary.revenue_today,
+            };
+
+            setDashboardSummary(merged);
+          } catch (fallbackErr) {
+            console.warn('Fallback dashboard summary fetch failed, using derived summary', fallbackErr);
+            setDashboardSummary(derivedSummary);
+          }
         }
       }
     } catch (error) {
