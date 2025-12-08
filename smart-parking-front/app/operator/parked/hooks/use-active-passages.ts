@@ -38,27 +38,34 @@ export const useActivePassages = () => {
     return `${minutes}m`;
   };
 
+  // Check if vehicle has paid_until in the future (within 24-hour paid window)
+  const isPaidPassActive = (passage: VehiclePassage): boolean => {
+    const paidUntil = passage?.vehicle?.paid_until ? new Date(passage.vehicle.paid_until) : null;
+    return !!paidUntil && paidUntil.getTime() > Date.now();
+  };
+
   // Calculate current fee based on duration and rate using days-based charging (rolling 24-hour periods)
   const calculateCurrentFee = (passage: VehiclePassage): string => {
-    // Check if vehicle has body_type_id or base_amount - if not, can't calculate fee
+    // ONLY check paid_until - backend handles the rest
+    if (isPaidPassActive(passage)) {
+      return 'Paid (within 24h)';
+    }
+    
+    // If no body type, can't calculate
     if (!passage.vehicle?.body_type_id && !passage.base_amount) {
       return 'N/A (Type required)';
     }
     
-    const entry = new Date(passage.entry_time);
-    const now = new Date();
-    const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);
-    
-    // Use the base amount as DAILY rate (not hourly)
-    // base_amount should contain the daily price for this vehicle type
-    let dailyRate = parseFloat(passage.base_amount?.toString() || '0');
-    
-    // If base_amount is 0, show 0.00 - don't assume "Paid"
+    // If base_amount is 0, show it as 0 (not "Paid")
+    const dailyRate = parseFloat(passage.base_amount?.toString() || '0');
     if (dailyRate === 0) {
       return 'Tsh. 0.00';
     }
     
-    // Apply days-based calculation (rolling 24-hour periods)
+    // Calculate normally
+    const entry = new Date(passage.entry_time);
+    const now = new Date();
+    const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);
     const daysToCharge = calculateDaysToCharge(diffHours);
     const currentFee = dailyRate * daysToCharge;
     
@@ -131,39 +138,31 @@ export const useActivePassages = () => {
         throw new Error('Invalid response format: passages data is not available');
       }
       
-      // Fetch server preview for each passage in parallel
-      const previewResults = await Promise.allSettled(
-        passages.map((passage) =>
-          VehiclePassageService.previewExit(passage.id).catch((err) => {
-            console.warn(`Failed to fetch preview for passage ${passage.id}:`, err);
-            return null;
-          })
-        )
+      // For each passage, fetch server-side preview to ensure currentFee and base_amount are authoritative
+      const enrichedPassages = await Promise.allSettled(
+        passages.map(async (p) => {
+          try {
+            const previewResp: any = await VehiclePassageService.previewExit(p.id);
+            if (previewResp && previewResp.success && previewResp.data) {
+              const preview = previewResp.data;
+              // Merge server preview into passage
+              return {
+                ...p,
+                base_amount: preview.base_amount ?? p.base_amount,
+                total_amount: preview.amount ?? p.total_amount,
+                // Use preview.is_free_reentry to show paid state
+                _preview: preview,
+              } as VehiclePassage;
+            }
+            return p;
+          } catch (e) {
+            return p;
+          }
+        })
       );
 
-      // Merge preview data into passages
-      const passagesWithPreview = passages.map((passage, index) => {
-        const previewResult = previewResults[index];
-        let previewData: any = null;
-
-        if (previewResult.status === 'fulfilled' && previewResult.value?.data) {
-          previewData = previewResult.value.data;
-        }
-
-        // Create enhanced passage with preview data
-        return {
-          ...passage,
-          // Use server preview if available, otherwise fall back to local calculation
-          ...(previewData && {
-            _serverPreview: previewData,
-          }),
-        };
-      });
-
-      const transformedPassages = passagesWithPreview.map((passage) =>
-        transformPassageForDisplay(passage)
-      );
-      
+      const resolvedPassages = enrichedPassages.map((r) => (r.status === 'fulfilled' ? (r.value as VehiclePassage) : (r as any).reason || r));
+      const transformedPassages = resolvedPassages.map(transformPassageForDisplay);
       console.log('Transformed passages:', transformedPassages.length);
       setActivePassages(transformedPassages);
       setPagination(paginationData);

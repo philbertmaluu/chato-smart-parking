@@ -173,6 +173,20 @@ export class VehiclePassageService {
   }
 
   /**
+   * Get a server preview for exit calculation
+   */
+  static async previewExit(passageId: number): Promise<any> {
+    return get(API_ENDPOINTS.VEHICLE_PASSAGES.PREVIEW_EXIT(passageId));
+  }
+
+  /**
+   * Set/update vehicle type on a passage and return updated preview
+   */
+  static async setVehicleType(passageId: number, bodyTypeId: number): Promise<any> {
+    return put(API_ENDPOINTS.VEHICLE_PASSAGES.SET_VEHICLE_TYPE(passageId), { body_type_id: bodyTypeId });
+  }
+
+  /**
    * Get completed passages
    */
   static async getCompletedPassages(perPage?: number): Promise<{ data: VehiclePassage[]; meta: any }> {
@@ -287,45 +301,5 @@ export class ReceiptService {
    */
   static async getReceiptsByPaymentMethod(paymentMethod: string): Promise<ReceiptData[]> {
     return get(`${API_ENDPOINTS.RECEIPTS.BY_PAYMENT_METHOD}?payment_method=${encodeURIComponent(paymentMethod)}`);
-  }
-
-  /**
-   * Preview exit amount and charges for a passage
-   */
-  static async previewExit(passageId: number): Promise<{
-    success: boolean;
-    data?: {
-      passage_id: number;
-      vehicle_id: number;
-      base_amount: number;
-      days: number;
-      amount: number;
-      first_entry_time: string;
-      is_free_reentry: boolean;
-    };
-    message?: string;
-  }> {
-    return get(API_ENDPOINTS.VEHICLE_PASSAGES.PREVIEW_EXIT(passageId));
-  }
-
-  /**
-   * Set vehicle body type and get updated preview
-   */
-  static async setVehicleType(passageId: number, bodyTypeId: number): Promise<{
-    success: boolean;
-    data?: {
-      passage_id: number;
-      vehicle_id: number;
-      base_amount: number;
-      days: number;
-      amount: number;
-      first_entry_time: string;
-      is_free_reentry: boolean;
-    };
-    message?: string;
-  }> {
-    return put(API_ENDPOINTS.VEHICLE_PASSAGES.SET_VEHICLE_TYPE(passageId), {
-      body_type_id: bodyTypeId,
-    });
   }
 }

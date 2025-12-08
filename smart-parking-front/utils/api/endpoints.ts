@@ -63,6 +63,7 @@ export const API_ENDPOINTS = {
     PREVIEW_EXIT: (id: string | number) => `/vehicle-passages/${id}/preview-exit`,
     SET_VEHICLE_TYPE: (id: string | number) => `/vehicle-passages/${id}/set-vehicle-type`,
   },
+  // New helper endpoints for preview and vehicle-type update (moved under VEHICLE_PASSAGES)
 
   // Receipt endpoints
   RECEIPTS: {

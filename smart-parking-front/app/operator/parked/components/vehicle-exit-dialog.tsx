@@ -65,6 +65,7 @@ export function VehicleExitDialog({
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [selectedBodyTypeId, setSelectedBodyTypeId] = useState<number | null>(null);
   const { vehicleBodyTypes, loading: bodyTypesLoading } = useVehicleBodyTypes();
+  const [updatedVehicle, setUpdatedVehicle] = useState<ActivePassage | null>(null);
 
 
 
@@ -74,8 +75,11 @@ export function VehicleExitDialog({
       return;
     }
 
+    // Use updatedVehicle if available, otherwise use original vehicle
+    const vehicleToCheck = updatedVehicle || vehicle;
+    
     // Check if vehicle has body_type_id, if not, show selection modal
-    if (!vehicle.vehicle?.body_type_id && !bodyTypeId) {
+    if (!vehicleToCheck.vehicle?.body_type_id && !bodyTypeId) {
       setShowVehicleTypeModal(true);
       return;
     }
@@ -133,6 +137,7 @@ export function VehicleExitDialog({
           onOpenChange(false);
           setExitResult(null);
           setShowVehicleTypeModal(false);
+          setUpdatedVehicle(null); // Reset updated vehicle
         }, 2000);
       } else {
         toast.error(result.message || "Failed to process vehicle exit");
@@ -149,20 +154,50 @@ export function VehicleExitDialog({
 
   const handleVehicleTypeSelected = async (bodyTypeId: number) => {
     setSelectedBodyTypeId(bodyTypeId);
+    setShowVehicleTypeModal(false);
     
-    // Call server to set vehicle type and get updated preview
+    // Call backend to set vehicle type for this passage and get preview
     if (vehicle?.id) {
       try {
-        const { VehiclePassageService } = await import(
-          "@/utils/api/vehicle-passage-service"
-        );
-        await VehiclePassageService.setVehicleType(vehicle.id, bodyTypeId);
-      } catch (error) {
-        console.error("Error setting vehicle type:", error);
+        const { patch } = await import("@/utils/api/api");
+        const { API_ENDPOINTS } = await import("@/utils/api/endpoints");
+
+        const response = await patch(API_ENDPOINTS.VEHICLE_PASSAGES.SET_VEHICLE_TYPE(vehicle.id), {
+          body_type_id: bodyTypeId,
+        });
+
+        if (response && response.success && response.data) {
+          // response.data should be the preview object returned by the backend
+          const preview = response.data;
+
+          // Map preview to UI fields
+          const formattedFee = `Tsh. ${Number(preview.amount || 0).toFixed(2)}`;
+
+          const updatedVehicleData = {
+            ...vehicle,
+            vehicle: {
+              ...vehicle.vehicle,
+              body_type_id: bodyTypeId,
+              body_type: vehicleBodyTypes.find((bt: any) => bt.id === bodyTypeId) || null,
+            },
+            base_amount: preview.base_amount,
+            total_amount: preview.amount,
+            currentFee: formattedFee,
+          };
+
+          setUpdatedVehicle(updatedVehicleData);
+          toast.success("Vehicle type updated and preview calculated");
+        } else {
+          toast.error("Failed to update vehicle type: " + (response?.message || "Unknown error"));
+        }
+      } catch (error: any) {
+        console.error("Failed to update vehicle type:", error);
+        toast.error("Failed to update vehicle type: " + (error.message || "Unknown error"));
+        return;
       }
+    } else {
+      toast.error("Vehicle ID not found");
     }
-    
-    setShowVehicleTypeModal(false);
   };
 
   // Reset state when dialog opens/closes
@@ -170,6 +205,7 @@ export function VehicleExitDialog({
     if (!open) {
       setSelectedBodyTypeId(null);
       setExitResult(null);
+      setUpdatedVehicle(null); // Reset updated vehicle state
     }
   }, [open]);
 
@@ -182,10 +218,17 @@ export function VehicleExitDialog({
 
   if (!vehicle) return null;
 
-  const vehicleType = vehicle.vehicle?.body_type?.name || "Unknown";
+  // Use updated vehicle if available, otherwise use original
+  const displayVehicle = updatedVehicle || vehicle;
+  const vehicleType = displayVehicle.vehicle?.body_type?.name || "Unknown";
   const vehicleIcon = getVehicleTypeIcon(vehicleType);
-  const needsVehicleType = !vehicle.vehicle?.body_type_id;
+  const needsVehicleType = !displayVehicle.vehicle?.body_type_id;
   
+  // Check for paid status (paid within 24 hours)
+  // ONLY check paid_until - don't check base_amount
+  const paidUntil = displayVehicle.vehicle?.paid_until ? new Date(displayVehicle.vehicle.paid_until) : null;
+  const isPaidPass = !!paidUntil && paidUntil.getTime() > Date.now();
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -239,13 +282,21 @@ export function VehicleExitDialog({
 
               {/* Receipt Details */}
               <div className="space-y-2 text-sm">
+                {isPaidPass && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3 mb-3">
+                    <div className="flex items-center space-x-2 text-green-700 dark:text-green-300">
+                      <CheckCircle className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Paid within 24 hours - No charge</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Receipt #:</span>
-                  <span className="font-mono">{vehicle?.passage_number || 'N/A'}</span>
+                  <span className="font-mono">{displayVehicle?.passage_number || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Plate Number:</span>
-                  <span className="font-mono font-medium">{vehicle?.vehicle?.plate_number}</span>
+                  <span className="font-mono font-medium">{displayVehicle?.vehicle?.plate_number}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Vehicle Type:</span>
@@ -269,11 +320,11 @@ export function VehicleExitDialog({
                 )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Entry Time:</span>
-                  <span>{formatDateTime(vehicle?.entry_time || "")}</span>
+                  <span>{formatDateTime(displayVehicle?.entry_time || "")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Duration:</span>
-                  <span>{vehicle?.duration || 'Calculating...'}</span>
+                  <span>{displayVehicle?.duration || 'Calculating...'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Issued by:</span>
@@ -281,7 +332,7 @@ export function VehicleExitDialog({
                 </div>
                 <div className="flex justify-between font-bold text-lg border-t border-gray-200 dark:border-gray-700 pt-2 mt-3">
                   <span>Total Fee:</span>
-                  <span className="text-primary">{vehicle?.currentFee || 'N/A'}</span>
+                  <span className="text-primary">{displayVehicle?.currentFee || 'N/A'}</span>
                 </div>
               </div>
 
@@ -376,7 +427,7 @@ export function VehicleExitDialog({
                   <span className={`text-lg mr-2 ${vehicleIcon.color}`}>
                     {vehicleIcon.icon}
                   </span>
-                  {needsVehicleType ? 'Select Vehicle Type' : 'Process Exit'}
+                  Process Exit
                 </>
               )}
             </Button>
@@ -408,7 +459,7 @@ export function VehicleExitDialog({
                     Plate Number
                   </Label>
                   <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">
-                    {vehicle?.vehicle?.plate_number}
+                    {displayVehicle?.vehicle?.plate_number}
                   </p>
                 </div>
               </div>

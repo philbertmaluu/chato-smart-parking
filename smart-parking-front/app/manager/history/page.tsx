@@ -202,11 +202,11 @@ export default function PassageHistoryPage() {
         success: boolean;
         data:
           | {
-              total_passages: number;
-              active_passages: number;
-              completed_today: number;
-              total_revenue: number;
-              revenue_today: number;
+          total_passages: number;
+          active_passages: number;
+          completed_today: number;
+          total_revenue: number;
+          revenue_today: number;
             }
           | { data: any } // handle nested data payloads
           | null;
@@ -217,36 +217,15 @@ export default function PassageHistoryPage() {
 
       if (response?.success) {
         // Some endpoints may return { data: {...} } or nested structures
-        const summary = (response.data as any)?.data || response.data || null;
+        const summary =
+          (response.data as any)?.data ||
+          response.data ||
+          null;
 
-        // If we have a usable summary with positive numbers, use it
-        const hasPositive = summary && Object.values(summary).some((v: any) => typeof v === 'number' && v > 0);
-        if (hasPositive) {
+        if (summary) {
           setDashboardSummary(summary);
         } else {
-          // Fallback: fetch receipts total and passage statistics to build a summary
-          try {
-            const [receiptsRes, statsRes] = await Promise.all([
-              get(API_ENDPOINTS.RECEIPTS.TOTAL_REVENUE),
-              get(API_ENDPOINTS.VEHICLE_PASSAGES.STATISTICS),
-            ]);
-
-            const receipts = (receiptsRes && receiptsRes.data) ? receiptsRes.data : receiptsRes;
-            const statsPayload = (statsRes && statsRes.data) ? (statsRes.data.data || statsRes.data) : statsRes;
-
-            const merged = {
-              total_passages: statsPayload?.total_passages ?? derivedSummary.total_passages,
-              active_passages: statsPayload?.active_passages ?? derivedSummary.active_passages,
-              completed_today: statsPayload?.completed_today ?? derivedSummary.completed_today,
-              total_revenue: receipts?.total ?? derivedSummary.total_revenue,
-              revenue_today: receipts?.today ?? derivedSummary.revenue_today,
-            };
-
-            setDashboardSummary(merged);
-          } catch (fallbackErr) {
-            console.warn('Fallback dashboard summary fetch failed, using derived summary', fallbackErr);
-            setDashboardSummary(derivedSummary);
-          }
+          console.warn('Dashboard summary missing data payload', response);
         }
       }
     } catch (error) {
@@ -840,120 +819,7 @@ export default function PassageHistoryPage() {
           </TabsList>
 
           <TabsContent value="history" className="space-y-6">
-        {/* Summary Cards - showing key metrics from displaySummary */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          {/* Total Passages */}
-          <Card className="border-0 shadow-lg glass-effect">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">
-                    Total Passages
-                  </p>
-                  <p className="text-3xl font-bold">
-                    {summaryLoading ? (
-                      <span className="text-muted-foreground">...</span>
-                    ) : (
-                      displaySummary?.total_passages?.toLocaleString() || '0'
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    All time records
-                  </p>
-                </div>
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full shadow-lg">
-                  <Activity className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Active Passages */}
-          <Card className="border-0 shadow-lg glass-effect">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">
-                    Active Now
-                  </p>
-                  <p className="text-3xl font-bold">
-                    {summaryLoading ? (
-                      <span className="text-muted-foreground">...</span>
-                    ) : (
-                      displaySummary?.active_passages?.toLocaleString() || '0'
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Currently parked
-                  </p>
-                </div>
-                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-full shadow-lg">
-                  <Car className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Completed Today */}
-          <Card className="border-0 shadow-lg glass-effect">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">
-                    Completed Today
-                  </p>
-                  <p className="text-3xl font-bold">
-                    {summaryLoading ? (
-                      <span className="text-muted-foreground">...</span>
-                    ) : (
-                      displaySummary?.completed_today?.toLocaleString() || '0'
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Exited today
-                  </p>
-                </div>
-                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full shadow-lg">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Revenue */}
-          <Card className="border-0 shadow-lg glass-effect">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">
-                    Total Revenue
-                  </p>
-                  <p className="text-2xl font-bold">
-                    {summaryLoading ? (
-                      <span className="text-muted-foreground">...</span>
-                    ) : (
-                      formatCurrency(displaySummary?.total_revenue || 0)
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {displaySummary?.revenue_today ? 
-                      `Today: ${formatCurrency(displaySummary.revenue_today)}` : 
-                      'All time revenue'
-                    }
-                  </p>
-                </div>
-                <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full shadow-lg">
-                  <DollarSign className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        {/* Analytics cards removed from history tab to avoid duplicated placeholders. */}
 
         {/* Filters */}
           <motion.div
