@@ -131,7 +131,39 @@ export const useActivePassages = () => {
         throw new Error('Invalid response format: passages data is not available');
       }
       
-      const transformedPassages = passages.map(transformPassageForDisplay);
+      // Fetch server preview for each passage in parallel
+      const previewResults = await Promise.allSettled(
+        passages.map((passage) =>
+          VehiclePassageService.previewExit(passage.id).catch((err) => {
+            console.warn(`Failed to fetch preview for passage ${passage.id}:`, err);
+            return null;
+          })
+        )
+      );
+
+      // Merge preview data into passages
+      const passagesWithPreview = passages.map((passage, index) => {
+        const previewResult = previewResults[index];
+        let previewData: any = null;
+
+        if (previewResult.status === 'fulfilled' && previewResult.value?.data) {
+          previewData = previewResult.value.data;
+        }
+
+        // Create enhanced passage with preview data
+        return {
+          ...passage,
+          // Use server preview if available, otherwise fall back to local calculation
+          ...(previewData && {
+            _serverPreview: previewData,
+          }),
+        };
+      });
+
+      const transformedPassages = passagesWithPreview.map((passage) =>
+        transformPassageForDisplay(passage)
+      );
+      
       console.log('Transformed passages:', transformedPassages.length);
       setActivePassages(transformedPassages);
       setPagination(paginationData);

@@ -294,11 +294,25 @@ export default function PassageHistoryPage() {
 
   const displaySummary = useMemo(() => {
     if (!dashboardSummary) return derivedSummary;
-    const allZero = Object.values(dashboardSummary || {}).every(v => v === 0);
-    if (allZero && derivedSummary.total_passages > 0) {
-      return derivedSummary;
-    }
-    return dashboardSummary;
+
+    // If the server summary is entirely zero/empty, fall back to derived client summary
+    const hasPositive = Object.values(dashboardSummary || {}).some(
+      (v) => typeof v === 'number' && v > 0
+    );
+
+    if (!hasPositive) return derivedSummary;
+
+    // Prefer server values where available, otherwise use derived values
+    return {
+      total_passages:
+        dashboardSummary.total_passages ?? derivedSummary.total_passages,
+      active_passages:
+        dashboardSummary.active_passages ?? derivedSummary.active_passages,
+      completed_today:
+        dashboardSummary.completed_today ?? derivedSummary.completed_today,
+      total_revenue: dashboardSummary.total_revenue ?? derivedSummary.total_revenue,
+      revenue_today: dashboardSummary.revenue_today ?? derivedSummary.revenue_today,
+    };
   }, [dashboardSummary, derivedSummary]);
 
   // Periodic refresh for real-time counts (dashboard cards + list)
@@ -805,7 +819,7 @@ export default function PassageHistoryPage() {
           </TabsList>
 
           <TabsContent value="history" className="space-y-6">
-        {/* Analytics Cards */}
+        {/* Summary Cards - showing key metrics from displaySummary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

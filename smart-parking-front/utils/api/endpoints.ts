@@ -60,6 +60,8 @@ export const API_ENDPOINTS = {
     DASHBOARD_SUMMARY: "/vehicle-passages/dashboard-summary",
     UPDATE_STATUS: (id: string | number) => `/vehicle-passages/${id}/status`,
     SEARCH: "/vehicle-passages/search",
+    PREVIEW_EXIT: (id: string | number) => `/vehicle-passages/${id}/preview-exit`,
+    SET_VEHICLE_TYPE: (id: string | number) => `/vehicle-passages/${id}/set-vehicle-type`,
   },
 
   // Receipt endpoints

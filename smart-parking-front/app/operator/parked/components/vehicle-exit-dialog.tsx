@@ -149,6 +149,19 @@ export function VehicleExitDialog({
 
   const handleVehicleTypeSelected = async (bodyTypeId: number) => {
     setSelectedBodyTypeId(bodyTypeId);
+    
+    // Call server to set vehicle type and get updated preview
+    if (vehicle?.id) {
+      try {
+        const { VehiclePassageService } = await import(
+          "@/utils/api/vehicle-passage-service"
+        );
+        await VehiclePassageService.setVehicleType(vehicle.id, bodyTypeId);
+      } catch (error) {
+        console.error("Error setting vehicle type:", error);
+      }
+    }
+    
     setShowVehicleTypeModal(false);
   };
 
