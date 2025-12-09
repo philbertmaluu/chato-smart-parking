@@ -100,6 +100,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
+ "winapi",
 ]
 
 [[package]]

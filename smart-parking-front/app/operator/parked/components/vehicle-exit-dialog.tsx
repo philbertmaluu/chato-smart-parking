@@ -100,32 +100,42 @@ export function VehicleExitDialog({
 
       setExitResult(result);
 
-      if (result.success) {
+      if (result && result.success) {
         toast.success("Vehicle exit processed successfully");
 
-        // Auto-print exit receipt
+        // Auto-print exit receipt using direct USB printing
         const passageData = result.data?.passage || result.data;
-        if (passageData?.id) {
+        if (passageData) {
           try {
-            const { PrinterService } = await import("@/utils/api/printer-service");
+            const { printReceiptDirect } = await import("@/utils/printer/direct-printer");
             toast.loading("Printing exit receipt...", { id: "print-exit-receipt" });
-            const printResult = await PrinterService.printExitReceipt(passageData.id);
+
+            const formatCurrency = (value: any) =>
+              `Tsh ${Number(value ?? 0).toFixed(2)}`;
             
-            if (printResult.success) {
-              toast.success("🖨️ Exit receipt printed!", { id: "print-exit-receipt" });
-            } else {
-              toast.error("Receipt print failed: " + (printResult.messages || "Unknown error"), { id: "print-exit-receipt" });
-            }
+            // Format receipt data from passage
+            const receiptData = {
+              company_name: "Smart Parking System",
+              receipt_type: "EXIT RECEIPT",
+              receipt_id: passageData.passage_number || `EXIT-${passageData.id}`,
+              plate_number: passageData.vehicle?.plate_number || vehicle?.vehicle?.plate_number || "N/A",
+              vehicle_type: passageData.vehicle?.body_type?.name || displayVehicle?.vehicle?.body_type?.name || "N/A",
+              station: passageData.exit_station?.name || passageData.entry_station?.name || "N/A",
+              operator: passageData.exit_operator?.name || passageData.entry_operator?.name || user?.username || "N/A",
+              entry_time: passageData.entry_time ? formatDateTime(passageData.entry_time) : "N/A",
+              exit_time: passageData.exit_time ? formatDateTime(passageData.exit_time) : "N/A",
+              duration: passageData.duration_minutes ? `${passageData.duration_minutes} minutes` : "N/A",
+              total_amount: formatCurrency(passageData.total_amount),
+              payment_method: passageData.payment_type?.name || "N/A",
+              gate: passageData.exit_gate?.name || passageData.entry_gate?.name || selectedGate?.name || "N/A",
+              footer: "Thank you for parking with us!",
+            };
+            
+            await printReceiptDirect(receiptData);
+            toast.success("🖨️ Exit receipt printed!", { id: "print-exit-receipt" });
           } catch (printError: any) {
-            // Check if it's a timeout error - print job was likely sent successfully
-            const isTimeout = printError?.code === 'ECONNABORTED' || printError?.message?.includes('timeout');
-            if (isTimeout) {
-              // Print was sent, just took too long to confirm
-              toast.success("🖨️ Receipt sent to printer", { id: "print-exit-receipt" });
-            } else {
-              console.error("Print error:", printError);
-              toast.error("Could not print receipt. Check printer connection.", { id: "print-exit-receipt" });
-            }
+            console.error("Direct print error:", printError);
+            toast.error("Could not print receipt: " + (printError?.message || "Unknown error"), { id: "print-exit-receipt" });
           }
         }
 
@@ -140,7 +150,7 @@ export function VehicleExitDialog({
           setUpdatedVehicle(null); // Reset updated vehicle
         }, 2000);
       } else {
-        toast.error(result.message || "Failed to process vehicle exit");
+        toast.error((result && result.message) || "Failed to process vehicle exit");
       }
     } catch (error: any) {
       console.error("Exit processing error:", error);
@@ -166,9 +176,9 @@ export function VehicleExitDialog({
           body_type_id: bodyTypeId,
         });
 
-        if (response && response.success && response.data) {
+        if (response && (response as any).success && (response as any).data) {
           // response.data should be the preview object returned by the backend
-          const preview = response.data;
+          const preview = (response as any).data;
 
           // Map preview to UI fields
           const formattedFee = `Tsh. ${Number(preview.amount || 0).toFixed(2)}`;
@@ -188,7 +198,7 @@ export function VehicleExitDialog({
           setUpdatedVehicle(updatedVehicleData);
           toast.success("Vehicle type updated and preview calculated");
         } else {
-          toast.error("Failed to update vehicle type: " + (response?.message || "Unknown error"));
+          toast.error("Failed to update vehicle type: " + ((response as any)?.message || "Unknown error"));
         }
       } catch (error: any) {
         console.error("Failed to update vehicle type:", error);
