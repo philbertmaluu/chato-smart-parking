@@ -5,6 +5,7 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicleEntrydrawer";
 import { CameraInterface } from "./components/camera-interface";
@@ -23,6 +24,7 @@ import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
 import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
 import { RawCameraDetection } from "@/utils/camera-local-client";
+import { formatTime, formatDate } from "@/utils/date-utils";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
@@ -35,6 +37,9 @@ export default function VehicleEntry() {
   const [capturedDetection, setCapturedDetection] = useState<any>(null);
   const isPageVisible = usePageVisibility();
   const { setLatestNewDetection } = useDetectionContext();
+  const [localDetections, setLocalDetections] = useState<
+    { plate: string; timestamp: string; gateName: string | null; status: "pushed" | "pending" }[]
+  >([]);
 
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
@@ -43,6 +48,14 @@ export default function VehicleEntry() {
   const cameraConfig = zktecoConfig.getConfig();
   const cameraIp = cameraDevice?.ip_address || cameraConfig?.ip || null;
   const cameraHttpPort = cameraDevice?.http_port || cameraConfig?.httpPort || 80;
+  const directionFromGate = selectedGate?.gate_type === 'exit' ? 1 : 0;
+  const directionFromDevice =
+    cameraDevice?.direction?.toLowerCase() === 'exit'
+      ? 1
+      : cameraDevice?.direction?.toLowerCase() === 'entry'
+        ? 0
+        : null;
+  const effectiveDirection = directionFromDevice ?? directionFromGate;
   
   // Frontend-driven camera polling (runs only when feature flag is enabled)
   const handleLocalDetections = useCallback(
@@ -109,6 +122,18 @@ export default function VehicleEntry() {
       setLatestNewDetection(normalized);
       if (normalized.numberplate) {
         toast.success(`📷 Local camera detected ${normalized.numberplate}`);
+        setLocalDetections((prev) => {
+          const next = [
+            {
+              plate: normalized.numberplate,
+              timestamp: normalized.detection_timestamp,
+              gateName: normalized.gate?.name || null,
+              status: "pushed",
+            },
+            ...prev,
+          ];
+          return next.slice(0, 10);
+        });
       }
     },
     [selectedGate, setLatestNewDetection]
@@ -118,6 +143,7 @@ export default function VehicleEntry() {
     gateId: selectedGate?.id,
     cameraDevice,
     enabled: true,
+    direction: effectiveDirection,
     onNewDetections: handleLocalDetections,
   });
   
@@ -364,6 +390,42 @@ export default function VehicleEntry() {
             
           </div>
         </motion.div>
+
+        {/* Local Detection Logs (frontend polling) */}
+        {localPollingEnabled && (
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-sm font-semibold">Local Camera Detections</CardTitle>
+                <CardDescription>Seen on this operator machine (last 10)</CardDescription>
+              </div>
+              {localPollingError ? (
+                <AlertCircle className="w-4 h-4 text-yellow-500" />
+              ) : (
+                <Camera className="w-4 h-4 text-blue-500" />
+              )}
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {localDetections.length === 0 && (
+                <p className="text-sm text-muted-foreground">Waiting for camera detections…</p>
+              )}
+              {localDetections.slice(0, 5).map((item, idx) => (
+                <div key={`${item.plate}-${idx}`} className="flex items-center justify-between text-sm border-b last:border-b-0 py-1">
+                  <div className="flex flex-col">
+                    <span className="font-mono font-semibold">{item.plate}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(item.timestamp)} {formatTime(item.timestamp)}
+                      {item.gateName ? ` • ${item.gateName}` : ""}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-green-600 border-green-500">
+                    {item.status === "pushed" ? "Pushed" : "Pending"}
+                  </Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Camera Interface Section - Only show if gate is selected */}
         {selectedGate && (

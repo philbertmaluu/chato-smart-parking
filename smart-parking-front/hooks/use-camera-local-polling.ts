@@ -20,7 +20,9 @@ interface UseCameraLocalPollingOptions {
   cameraDevice?: CameraDevice | null;
   enabled?: boolean;
   pollIntervalMs?: number;
+  direction?: number | null;
   onNewDetections?: (detections: RawCameraDetection[]) => void;
+  onPosted?: (detections: RawCameraDetection[]) => void;
 }
 
 const featureEnabled =
@@ -35,7 +37,9 @@ export const useCameraLocalPolling = ({
   cameraDevice,
   enabled = true,
   pollIntervalMs,
+  direction,
   onNewDetections,
+  onPosted,
 }: UseCameraLocalPollingOptions) => {
   const [lastDetection, setLastDetection] = useState<RawCameraDetection | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -68,7 +72,7 @@ export const useCameraLocalPolling = ({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const { detections, error } = await fetchCameraDetections({
+  const { detections, error } = await fetchCameraDetections({
       ip: cameraIp,
       httpPort: cameraHttpPort || undefined,
       computerId: cameraComputerId || undefined,
@@ -96,6 +100,7 @@ export const useCameraLocalPolling = ({
     const payload = newDetections.map((det) => ({
       ...det,
       gate_id: gateId,
+      direction: direction ?? det.direction ?? null,
     }));
 
     try {
@@ -108,6 +113,7 @@ export const useCameraLocalPolling = ({
       }
       setLastDetection(newDetections[newDetections.length - 1]);
       onNewDetections?.(newDetections);
+      onPosted?.(newDetections);
     } catch (postError: any) {
       // Roll back dedupe to previous latest so we retry on next poll
       setLatestCameraIdForGate(gateId, latestBefore);

@@ -63,6 +63,14 @@ export default function ParkedVehicles() {
   const cameraDevice = selectedGateDevices?.find(
     (device) => device.device_type === "camera" && device.status === "active"
   );
+  const directionFromGate = selectedGate?.gate_type === "exit" ? 1 : 0;
+  const directionFromDevice =
+    cameraDevice?.direction?.toLowerCase() === "exit"
+      ? 1
+      : cameraDevice?.direction?.toLowerCase() === "entry"
+        ? 0
+        : null;
+  const effectiveDirection = directionFromDevice ?? directionFromGate;
 
   // Check for pending detections - NO POLLING
   // Background processing is handled by Laravel scheduler (cron jobs)
@@ -163,6 +171,7 @@ export default function ParkedVehicles() {
     gateId: selectedGate?.id,
     cameraDevice,
     enabled: true,
+    direction: effectiveDirection,
     onNewDetections: handleLocalDetections,
   });
 

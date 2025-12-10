@@ -1,5 +1,1 @@
-<<<<<<< Updated upstream
-export const API_BASE_URL = "http://157.245.191.111/api/toll-v1";
-=======
-export const API_BASE_URL = "http://157.245.191.111/api/toll-v1/"; 
->>>>>>> Stashed changes
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://157.245.191.111/api/toll-v1";
