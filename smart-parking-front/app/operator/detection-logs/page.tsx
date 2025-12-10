@@ -23,6 +23,11 @@ import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { useLanguage } from "@/components/language-provider";
 import { formatDate, formatTime } from "@/utils/date-utils";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
+import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
+import { RawCameraDetection } from "@/utils/camera-local-client";
+import { useDetectionContext } from "@/contexts/detection-context";
+import { useCallback } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -33,8 +38,9 @@ import {
 
 export default function OperatorDetectionLogsPage() {
   const { t } = useLanguage();
-  const { selectedGate } = useOperatorGates();
+  const { selectedGate, selectedGateDevices } = useOperatorGates();
   const { detections, loading, error, count, fetchDetectionLogs } = useDetectionLogs(selectedGate?.id);
+  const { setLatestNewDetection } = useDetectionContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDetection, setSelectedDetection] = useState<CameraDetection | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -42,14 +48,121 @@ export default function OperatorDetectionLogsPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const isPageVisible = usePageVisibility();
 
-  // Initial fetch - only from DB, not camera
+  // Get camera device
+  const cameraDevice = selectedGateDevices?.find(
+    (device) => device.device_type === "camera" && device.status === "active"
+  );
+
+  // Calculate direction from gate type
+  const directionFromGate = selectedGate?.gate_type === "exit" ? 1 : 0;
+  const directionFromDevice =
+    cameraDevice?.direction?.toLowerCase() === "exit"
+      ? 1
+      : cameraDevice?.direction?.toLowerCase() === "entry"
+        ? 0
+        : null;
+  const effectiveDirection = directionFromDevice ?? directionFromGate;
+
+  // Handle local detections from camera polling
+  const handleLocalDetections = useCallback(
+    (detections: RawCameraDetection[]) => {
+      if (!detections || detections.length === 0) return;
+      const latest = detections[detections.length - 1];
+      
+      // Normalize to CameraDetection format
+      const normalized: CameraDetection = {
+        id: latest.id || 0,
+        camera_detection_id: latest.id || 0,
+        gate_id: selectedGate?.id || null,
+        gate: selectedGate
+          ? { id: selectedGate.id, name: selectedGate.name, station_id: selectedGate.station?.id || 0 }
+          : undefined,
+        numberplate: latest.numberplate || latest.originalplate || (latest as any).plate_number || "",
+        originalplate: latest.originalplate || latest.numberplate || null,
+        detection_timestamp:
+          (latest as any).detection_timestamp ||
+          latest.timestamp ||
+          latest.utc_time ||
+          new Date().toISOString(),
+        utc_time: latest.utc_time || latest.timestamp || "",
+        located_plate: Boolean((latest as any).locatedPlate ?? (latest as any).located_plate ?? true),
+        global_confidence: (latest as any).globalconfidence ?? (latest as any).global_confidence ?? "",
+        average_char_height: (latest as any).averagecharheight ?? "",
+        process_time: (latest as any).processtime ?? 0,
+        plate_format: (latest as any).plateformat ?? 0,
+        country: latest.country ?? 0,
+        country_str: (latest as any).country_str ?? "",
+        vehicle_left: (latest as any).vehicleleft ?? 0,
+        vehicle_top: (latest as any).vehicletop ?? 0,
+        vehicle_right: (latest as any).vehicleright ?? 0,
+        vehicle_bottom: (latest as any).vehiclebottom ?? 0,
+        result_left: (latest as any).resultleft ?? 0,
+        result_top: (latest as any).resulttop ?? 0,
+        result_right: (latest as any).resultright ?? 0,
+        result_bottom: (latest as any).resultbottom ?? 0,
+        speed: latest.speed ?? "0",
+        lane_id: (latest as any).laneid ?? (latest as any).lane_id ?? 0,
+        direction: latest.direction ?? effectiveDirection ?? 0,
+        make: latest.make ?? 0,
+        model: latest.model ?? 0,
+        color: latest.color ?? 0,
+        make_str: (latest as any).make_str ?? "",
+        model_str: (latest as any).model_str ?? "",
+        color_str: (latest as any).color_str ?? "",
+        veclass_str: (latest as any).veclass_str ?? "",
+        image_path: (latest as any).imagepath ?? "",
+        image_retail_path: (latest as any).imageretailpath ?? "",
+        width: latest.width ?? 0,
+        height: latest.height ?? 0,
+        list_id: (latest as any).listid ?? "",
+        name_list_id: (latest as any).namelistid ?? "",
+        evidences: latest.evidences ?? 0,
+        br_ocurr: latest.br_ocurr ?? 0,
+        br_time: latest.br_time ?? 0,
+        raw_data: latest,
+        processed: false,
+        processed_at: null,
+        processing_status: (latest as any).processing_status ?? "pending",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setLatestNewDetection(normalized);
+      if (normalized.numberplate) {
+        toast.success(`📷 Camera detected ${normalized.numberplate}`);
+      }
+    },
+    [selectedGate, setLatestNewDetection, effectiveDirection]
+  );
+
+  // Frontend camera polling - fetches from camera and pushes to DB
+  const {
+    featureEnabled: localPollingEnabled,
+    lastError: localPollingError,
+    isPosting,
+  } = useCameraLocalPolling({
+    gateId: selectedGate?.id,
+    cameraDevice,
+    enabled: true,
+    direction: effectiveDirection,
+    onNewDetections: handleLocalDetections,
+    onPosted: () => {
+      // Refresh DB list after successful post
+      setTimeout(() => {
+        fetchDetectionLogs(true);
+        setLastUpdate(new Date());
+      }, 500);
+    },
+  });
+
+  // Initial fetch from DB
   useEffect(() => {
     if (isPageVisible && selectedGate) {
       fetchDetectionLogs();
     }
   }, [isPageVisible, selectedGate, fetchDetectionLogs]);
 
-  // Auto-refresh from DB only (no camera polling)
+  // Auto-refresh from DB (after camera polling pushes new detections)
   useEffect(() => {
     if (!autoRefresh || !isPageVisible || !selectedGate) return;
 
@@ -204,7 +317,7 @@ export default function OperatorDetectionLogsPage() {
             <h1 className="text-3xl font-bold text-gradient">Detection Logs</h1>
             <div className="flex items-center gap-2">
               <p className="text-muted-foreground mt-2">
-                Camera detection logs for your assigned gates
+                Fetching from camera and posting to database. Shows stored detections from DB.
               </p>
               {selectedGate && (
                 <Badge variant="outline" className="mt-2">
@@ -222,6 +335,26 @@ export default function OperatorDetectionLogsPage() {
               <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
                 <AlertCircle className="w-4 h-4" />
                 <span>Please select a gate to view detection logs</span>
+              </div>
+            )}
+            {localPollingEnabled && selectedGate && cameraDevice && (
+              <div className="mt-2 flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
+                <div className={`w-2 h-2 rounded-full ${isPosting ? "bg-yellow-500 animate-pulse" : "bg-green-500"}`} />
+                <span>
+                  {isPosting ? "Posting to database..." : "Camera polling active"}
+                </span>
+              </div>
+            )}
+            {localPollingEnabled && localPollingError && (
+              <div className="mt-2 flex items-center space-x-2 text-sm text-yellow-500 dark:text-yellow-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>Camera polling issue: {localPollingError}</span>
+              </div>
+            )}
+            {localPollingEnabled && !cameraDevice && selectedGate && (
+              <div className="mt-2 flex items-center space-x-2 text-sm text-orange-600 dark:text-orange-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>No active camera device configured for this gate</span>
               </div>
             )}
           </div>
@@ -310,8 +443,8 @@ export default function OperatorDetectionLogsPage() {
           <CardHeader>
             <CardTitle>Detection Logs</CardTitle>
             <CardDescription>
-              View all camera detections for your assigned gate. Data is fetched from the database
-              and works even if the camera is offline.
+              This page fetches detections directly from the camera (LAN) and posts them to the database.
+              The table below shows all stored detections from the database for your assigned gate.
             </CardDescription>
           </CardHeader>
           <CardContent>
