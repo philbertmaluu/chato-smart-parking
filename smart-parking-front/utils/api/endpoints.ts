@@ -310,6 +310,7 @@ export const API_ENDPOINTS = {
     FETCH_AND_STORE: "/camera-detection/fetch-and-store",
     QUICK_CAPTURE: "/camera-detection/quick-capture",
     LOGS: "/camera-detection/logs",
+    STORE: "/camera-detection/store",
     LOGS_LATEST: "/camera-detection/logs/latest",
     LOGS_UNPROCESSED: "/camera-detection/logs/unprocessed",
     LOGS_PENDING_VEHICLE_TYPE: "/camera-detection/logs/pending-vehicle-type",

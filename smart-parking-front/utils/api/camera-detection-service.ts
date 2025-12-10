@@ -177,6 +177,25 @@ export class CameraDetectionService {
       {}
     );
   }
+
+  /**
+   * Store detections pushed from the browser (frontend-driven polling)
+   * Accepts raw camera detections and forwards to backend with gate context.
+   */
+  static async storeDetectionsFromBrowser(
+    detections: Partial<CameraDetection>[],
+    gateId?: number
+  ): Promise<{ success: boolean; stored?: number; skipped?: number; errors?: number; message?: string }> {
+    return post(
+      API_ENDPOINTS.CAMERA_DETECTION.STORE,
+      {
+        detections: detections.map((detection) => ({
+          ...detection,
+          gate_id: gateId ?? detection.gate_id ?? null,
+        })),
+      }
+    );
+  }
 }
 
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type TableColumn } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Search,
   RefreshCw,
@@ -40,7 +41,7 @@ const POLL_INTERVAL = 5000; // 5 seconds - reduced frequency to prevent server o
 export default function DetectionLogsPage() {
   const { t } = useLanguage();
   const { detections, loading, error, count, fetchDetectionLogs, checkForNewData, checkForNewDetections } = useDetectionLogs();
-  const { setLatestNewDetection } = useDetectionContext();
+  const { setLatestNewDetection, latestNewDetection } = useDetectionContext();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDetection, setSelectedDetection] = useState<CameraDetection | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -440,6 +441,18 @@ export default function DetectionLogsPage() {
             </Button>
           </div>
         </motion.div>
+
+        {latestNewDetection && (
+          <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <AlertDescription className="flex items-center gap-2">
+              <Camera className="w-4 h-4" />
+              <span>
+                Local capture pending sync: <strong>{latestNewDetection.numberplate}</strong>
+                {latestNewDetection.gate?.name ? ` @ ${latestNewDetection.gate.name}` : ""}
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

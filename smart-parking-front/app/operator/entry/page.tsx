@@ -21,6 +21,8 @@ import { CameraDetection } from "@/hooks/use-detection-logs";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw, ScanLine, Loader2 } from "lucide-react";
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
+import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
+import { RawCameraDetection } from "@/utils/camera-local-client";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
@@ -32,6 +34,7 @@ export default function VehicleEntry() {
   const [detectedPlateNumber, setDetectedPlateNumber] = useState<string | undefined>(undefined);
   const [capturedDetection, setCapturedDetection] = useState<any>(null);
   const isPageVisible = usePageVisibility();
+  const { setLatestNewDetection } = useDetectionContext();
 
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
@@ -40,6 +43,83 @@ export default function VehicleEntry() {
   const cameraConfig = zktecoConfig.getConfig();
   const cameraIp = cameraDevice?.ip_address || cameraConfig?.ip || null;
   const cameraHttpPort = cameraDevice?.http_port || cameraConfig?.httpPort || 80;
+  
+  // Frontend-driven camera polling (runs only when feature flag is enabled)
+  const handleLocalDetections = useCallback(
+    (detections: RawCameraDetection[]) => {
+      if (!detections || detections.length === 0) return;
+      const latest = detections[detections.length - 1];
+      const normalized: CameraDetection = {
+        id: latest.id || 0,
+        camera_detection_id: latest.id || 0,
+        gate_id: selectedGate?.id || null,
+        gate: selectedGate
+          ? { id: selectedGate.id, name: selectedGate.name, station_id: selectedGate.station?.id || 0 }
+          : undefined,
+        numberplate: latest.numberplate || latest.originalplate || (latest as any).plate_number || '',
+        originalplate: latest.originalplate || latest.numberplate || null,
+        detection_timestamp:
+          (latest as any).detection_timestamp ||
+          latest.timestamp ||
+          latest.utc_time ||
+          new Date().toISOString(),
+        utc_time: latest.utc_time || latest.timestamp || '',
+        located_plate: Boolean((latest as any).locatedPlate ?? (latest as any).located_plate ?? true),
+        global_confidence: (latest as any).globalconfidence ?? (latest as any).global_confidence ?? '',
+        average_char_height: (latest as any).averagecharheight ?? '',
+        process_time: (latest as any).processtime ?? 0,
+        plate_format: (latest as any).plateformat ?? 0,
+        country: latest.country ?? 0,
+        country_str: (latest as any).country_str ?? '',
+        vehicle_left: (latest as any).vehicleleft ?? 0,
+        vehicle_top: (latest as any).vehicletop ?? 0,
+        vehicle_right: (latest as any).vehicleright ?? 0,
+        vehicle_bottom: (latest as any).vehiclebottom ?? 0,
+        result_left: (latest as any).resultleft ?? 0,
+        result_top: (latest as any).resulttop ?? 0,
+        result_right: (latest as any).resultright ?? 0,
+        result_bottom: (latest as any).resultbottom ?? 0,
+        speed: latest.speed ?? '0',
+        lane_id: (latest as any).laneid ?? (latest as any).lane_id ?? 0,
+        direction: latest.direction ?? 0,
+        make: latest.make ?? 0,
+        model: latest.model ?? 0,
+        color: latest.color ?? 0,
+        make_str: (latest as any).make_str ?? '',
+        model_str: (latest as any).model_str ?? '',
+        color_str: (latest as any).color_str ?? '',
+        veclass_str: (latest as any).veclass_str ?? '',
+        image_path: (latest as any).imagepath ?? '',
+        image_retail_path: (latest as any).imageretailpath ?? '',
+        width: latest.width ?? 0,
+        height: latest.height ?? 0,
+        list_id: (latest as any).listid ?? '',
+        name_list_id: (latest as any).namelistid ?? '',
+        evidences: latest.evidences ?? 0,
+        br_ocurr: latest.br_ocurr ?? 0,
+        br_time: latest.br_time ?? 0,
+        raw_data: latest,
+        processed: false,
+        processed_at: null,
+        processing_status: (latest as any).processing_status ?? 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setLatestNewDetection(normalized);
+      if (normalized.numberplate) {
+        toast.success(`📷 Local camera detected ${normalized.numberplate}`);
+      }
+    },
+    [selectedGate, setLatestNewDetection]
+  );
+
+  const { featureEnabled: localPollingEnabled, lastError: localPollingError } = useCameraLocalPolling({
+    gateId: selectedGate?.id,
+    cameraDevice,
+    enabled: true,
+    onNewDetections: handleLocalDetections,
+  });
   
   // Log camera configuration for debugging
   useEffect(() => {
@@ -272,6 +352,12 @@ export default function VehicleEntry() {
                 <div className="mt-2 flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
                   <CheckCircle className="w-4 h-4" />
                   <span>Active Gate: <strong>{selectedGate.name}</strong> at {selectedGate.station?.name}</span>
+                </div>
+              )}
+              {localPollingEnabled && localPollingError && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-yellow-500 dark:text-yellow-400">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Local camera polling issue: {localPollingError}</span>
                 </div>
               )}
             </div>
