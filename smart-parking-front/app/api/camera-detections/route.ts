@@ -1,5 +1,11 @@
 "use server";
 
+"use server";
+
+// Ensure this route is treated as dynamic (no static export prerender)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 
 const DEFAULT_TIMEOUT_MS = 5000;
