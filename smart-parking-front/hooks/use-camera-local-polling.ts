@@ -25,8 +25,9 @@ interface UseCameraLocalPollingOptions {
   onPosted?: (detections: RawCameraDetection[]) => void;
 }
 
+// Enable frontend camera polling by default unless explicitly disabled
 const featureEnabled =
-  (process.env.NEXT_PUBLIC_CAMERA_FRONTEND_POLLING_ENABLED || '').toLowerCase() === 'true';
+  (process.env.NEXT_PUBLIC_CAMERA_FRONTEND_POLLING_ENABLED || 'true').toLowerCase() === 'true';
 const defaultInterval =
   parseInt(process.env.NEXT_PUBLIC_CAMERA_FRONTEND_POLLING_INTERVAL_MS || '4000', 10) || 4000;
 const defaultComputerId =

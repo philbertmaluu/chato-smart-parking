@@ -289,7 +289,14 @@ export function VehicleExitDialog({
                   <p className="text-sm text-gray-600 dark:text-gray-400">Parking Receipt</p>
                 </div>
               </div>
-
+              <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">TIN #:</span>
+                  <span className="font-medium"></span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">District:</span>
+                  <span className="font-medium">Chato DC</span>
+                </div>
               {/* Receipt Details */}
               <div className="space-y-2 text-sm">
                 {isPaidPass && (

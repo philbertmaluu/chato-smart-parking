@@ -47,12 +47,63 @@ export const fetchCameraDetections = async (
   options: CameraFetchOptions
 ): Promise<{ detections: RawCameraDetection[]; error?: string }> => {
   try {
+    const isBrowser = typeof window !== 'undefined';
+    const isTauri =
+      isBrowser &&
+      (((window as any).__TAURI__ !== undefined) ||
+        window.location.protocol.includes('tauri'));
+    const proxyEnabled =
+      isBrowser &&
+      !isTauri &&
+      process.env.NEXT_PUBLIC_TAURI_BUILD !== 'true' &&
+      process.env.NEXT_PUBLIC_USE_CAMERA_PROXY !== 'false';
+
+    // Try proxy first (browser/dev) to avoid CORS; fall back to direct
+    if (proxyEnabled && options.ip) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      try {
+        const params = new URLSearchParams({
+          ip: options.ip,
+          port: (options.httpPort ?? '').toString(),
+          computerId: (options.computerId ?? '').toString(),
+          fromDate: options.fromDate ?? '',
+        });
+        const proxyUrl = `/api/camera-detections?${params.toString()}`;
+        const resp = await fetch(proxyUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: options.signal || controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data)) {
+            return { detections: data };
+          }
+          if (data?.error) {
+            // fall through to direct
+            console.warn('[Camera] Proxy returned error, falling back to direct:', data.error);
+          }
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        // fall through to direct fetch on proxy failure/timeout/CORS
+      }
+    }
+
+    // Add a short timeout to avoid hanging when camera is unreachable
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+    const signal = options.signal || controller.signal;
+
     const url = buildCameraDetectionUrl(options);
     const response = await fetch(url, {
       method: 'GET',
       cache: 'no-store',
-      signal: options.signal,
+      signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return { detections: [], error: `Camera request failed (${response.status})` };
@@ -66,7 +117,7 @@ export const fetchCameraDetections = async (
     return { detections: data };
   } catch (error: any) {
     if (error?.name === 'AbortError') {
-      return { detections: [], error: 'aborted' };
+      return { detections: [], error: 'Camera request timed out' };
     }
     return {
       detections: [],

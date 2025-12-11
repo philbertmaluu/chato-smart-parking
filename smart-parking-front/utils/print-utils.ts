@@ -7,6 +7,11 @@ interface PrintOptions {
   content: string;
 }
 
+// Company info (hardcoded for receipt header)
+const COMPANY_NAME = 'Smart Parking System';
+const COMPANY_TIN = 'TIN: 103 789 567';
+const COMPANY_DISTRICT = 'District: Your District';
+
 /**
  * Generate receipt HTML content for printing
  */
@@ -95,8 +100,10 @@ export function generateReceiptHTML(receiptData: any): string {
       <div class="receipt">
         <div class="header">
           <div class="logo">🚗</div>
-          <h1 class="title">Smart Parking System</h1>
+          <h1 class="title">${COMPANY_NAME}</h1>
           <p class="subtitle">${receiptData.receiptType || 'Exit Receipt'}</p>
+          <p class="subtitle">${COMPANY_TIN}</p>
+          <p class="subtitle">${COMPANY_DISTRICT}</p>
         </div>
         
         <div class="details">

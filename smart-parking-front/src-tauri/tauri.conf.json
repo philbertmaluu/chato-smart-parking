@@ -23,12 +23,14 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 'unsafe-inline' 'unsafe-eval' data: blob:;"
+      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' http: https: data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 http: https: ws: wss:;"
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,14 +38,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": [],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "installMode": "perMachine",
-        "languages": ["English"],
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
         "compression": "lzma"
       }
     },

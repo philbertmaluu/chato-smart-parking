@@ -1,0 +1,17 @@
+# Production Environment Variables Template
+# Copy these to a file named .env.production in the project root
+
+# Backend API URL - Change this to your remote backend API
+# Example: https://api.yourdomain.com/api/toll-v1
+# Or: http://your-server-ip:8000/api/toll-v1
+NEXT_PUBLIC_API_URL=http://157.245.191.111/api/toll-v1
+
+# Enable frontend camera polling (stores detections locally before sending to backend)
+NEXT_PUBLIC_CAMERA_FRONTEND_POLLING_ENABLED=true
+
+# Camera polling interval in milliseconds (default: 4000 = 4 seconds)
+NEXT_PUBLIC_CAMERA_POLL_INTERVAL_MS=4000
+
+# Use camera proxy for CORS (set to false if using direct camera access)
+NEXT_PUBLIC_USE_CAMERA_PROXY=true
+

@@ -1,25 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-// Create out/server directory if it doesn't exist
-const serverDir = path.join(__dirname, '..', 'out', 'server');
-if (!fs.existsSync(serverDir)) {
-  fs.mkdirSync(serverDir, { recursive: true });
-}
+// Minimal postbuild: just verify index.html exists for Tauri static export
+const outDir = path.join(__dirname, '..', 'out');
+const indexPath = path.join(outDir, 'index.html');
 
-// Create next-font-manifest.json if it doesn't exist
-const manifestPath = path.join(serverDir, 'next-font-manifest.json');
-if (!fs.existsSync(manifestPath)) {
-  // Use the proper Next.js font manifest format
-  const manifest = {
-    pages: {},
-    app: {},
-    appUsingSizeAdjust: false,
-    pagesUsingSizeAdjust: false
-  };
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  console.log('✓ Created next-font-manifest.json for static export compatibility');
+if (!fs.existsSync(indexPath)) {
+  console.warn('⚠️  index.html not found at out/index.html. Build may have failed.');
 } else {
-  console.log('✓ next-font-manifest.json already exists');
+  console.log('✓ index.html found at out/index.html');
 }
-
