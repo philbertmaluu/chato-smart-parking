@@ -3,7 +3,8 @@
   "version": "1.1.0",
   "private": true,
   "scripts": {
-    "build": "next build && npm run postbuild",
+    "prebuild:tauri": "node scripts/prebuild-tauri.js && node src-tauri/scripts/prebuild-check-vcredist.js",
+    "build": "cross-env NEXT_PUBLIC_TAURI_BUILD=true npm run prebuild:tauri && next build && npm run postbuild",
     "postbuild": "node scripts/postbuild.js",
     "dev": "next dev",
     "lint": "next lint",

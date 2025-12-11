@@ -26,10 +26,58 @@ export default function DirectCameraAccessPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const snapshotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isBrowser = typeof window !== "undefined";
+  const isTauri =
+    isBrowser &&
+    (((window as any).__TAURI__ !== undefined) ||
+      window.location.protocol.includes("tauri"));
+
+  // Cleanup any running snapshot interval on unmount
+  useEffect(() => {
+    return () => {
+      if (snapshotIntervalRef.current) {
+        clearInterval(snapshotIntervalRef.current);
+        snapshotIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Generate authenticated URL
   const getAuthUrl = (path: string = "/") => {
     return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${cameraIp}${path}`;
+  };
+
+  // Build proxy URL for snapshots (browser) to avoid CORS
+  const getProxySnapshotUrl = (path: string = "/cgi-bin/snapshot.cgi", cacheBust: boolean = false) => {
+    const base = `/api/camera-snapshot?ip=${cameraIp}&path=${encodeURIComponent(path)}&user=${encodeURIComponent(
+      username
+    )}&password=${encodeURIComponent(password)}`;
+    return cacheBust ? `${base}&t=${Date.now()}` : base;
+  };
+
+  // Build proxy URL for MJPEG (browser) to avoid CORS
+  const getProxyMjpegUrl = (path: string = "/cgi-bin/mjpeg") => {
+    return `/api/camera-mjpeg?ip=${cameraIp}&path=${encodeURIComponent(path)}&user=${encodeURIComponent(
+      username
+    )}&password=${encodeURIComponent(password)}`;
+  };
+
+  // Decide MJPEG URL (proxy in browser, direct in Tauri)
+  const getMjpegUrl = (path: string = "/cgi-bin/mjpeg") => {
+    if (!isTauri) {
+      return getProxyMjpegUrl(path);
+    }
+    return getAuthUrl(path);
+  };
+
+  // Decide snapshot URL (proxy in browser, direct in Tauri)
+  const getSnapshotUrl = (path: string = "/cgi-bin/snapshot.cgi", cacheBust: boolean = false) => {
+    if (!isTauri) {
+      return getProxySnapshotUrl(path, cacheBust);
+    }
+    return getAuthUrl(path + (cacheBust ? `?t=${Date.now()}` : ""));
   };
 
   // Method 1: Load camera web interface in iframe
@@ -41,10 +89,17 @@ export default function DirectCameraAccessPage() {
 
   // Method 2: Load MJPEG stream as image
   const loadMJPEGStream = () => {
-    const url = getAuthUrl("/cgi-bin/mjpeg");
+    // Clear any existing interval
+    if (snapshotIntervalRef.current) {
+      clearInterval(snapshotIntervalRef.current);
+      snapshotIntervalRef.current = null;
+    }
+
+    // In Tauri: direct MJPEG; in browser: MJPEG via proxy
+    const url = getMjpegUrl("/cgi-bin/mjpeg");
     setCurrentUrl(url);
-    setStreamMethod('img');
-    
+    setStreamMethod("img");
+
     if (imgRef.current) {
       imgRef.current.src = url;
     }
@@ -52,26 +107,34 @@ export default function DirectCameraAccessPage() {
 
   // Method 3: Load snapshot (refreshing)
   const loadSnapshotStream = () => {
-    const url = getAuthUrl("/cgi-bin/snapshot.cgi");
+    // Clear any existing interval
+    if (snapshotIntervalRef.current) {
+      clearInterval(snapshotIntervalRef.current);
+    }
+
+    const path = "/cgi-bin/snapshot.cgi";
+    const url = getSnapshotUrl(path, true);
     setCurrentUrl(url);
-    setStreamMethod('img');
-    
-    // Refresh snapshot every second
-    const interval = setInterval(() => {
+    setStreamMethod("img");
+
+    snapshotIntervalRef.current = setInterval(() => {
       if (imgRef.current) {
-        imgRef.current.src = getAuthUrl(`/cgi-bin/snapshot.cgi?t=${Date.now()}`);
+        imgRef.current.src = getSnapshotUrl(path, true);
       }
     }, 1000);
-
-    return () => clearInterval(interval);
   };
 
   // Try alternative endpoints
   const tryAlternativeEndpoint = (endpoint: string) => {
-    const url = getAuthUrl(endpoint);
+    // Clear any existing interval
+    if (snapshotIntervalRef.current) {
+      clearInterval(snapshotIntervalRef.current);
+    }
+
+    const url = getSnapshotUrl(endpoint, true);
     setCurrentUrl(url);
-    setStreamMethod('img');
-    
+    setStreamMethod("img");
+
     if (imgRef.current) {
       imgRef.current.src = url;
     }

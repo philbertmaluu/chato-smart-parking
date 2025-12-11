@@ -226,42 +226,51 @@ export default function VehicleEntry() {
     }
   }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
 
-  // Auto-refresh camera feed every 500ms for live video using backend API proxy
+  // Auto-refresh camera feed (prefer direct/proxy snapshot instead of backend 127.0.0.1)
   useEffect(() => {
     if (!isPageVisible || !selectedGate || !cameraIp || !cameraDevice) return;
 
     const img = document.getElementById('camera-feed-img') as HTMLImageElement;
     if (!img) return;
 
-    // Get API base URL
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-    
-    // Fetch camera snapshot from backend API proxy
-    // This avoids CORS issues and works on all PCs
+    const isBrowser = typeof window !== 'undefined';
+    const isTauri =
+      isBrowser &&
+      (((window as any).__TAURI__ !== undefined) ||
+        window.location.protocol.includes('tauri'));
+
+    const username = cameraDevice.username || 'admin';
+    const password = cameraDevice.password || '';
+    const port = cameraHttpPort || 80;
+
+    // Decide snapshot URL: proxy in browser, direct in Tauri
+    const buildSnapshotUrl = (cacheBust = false) => {
+      if (!isTauri) {
+        const qs = new URLSearchParams({
+          ip: cameraIp,
+          path: '/cgi-bin/snapshot.cgi',
+          user: username,
+          password: password,
+        });
+        if (cacheBust) qs.append('t', Date.now().toString());
+        return `/api/camera-snapshot?${qs.toString()}`;
+      }
+      const auth = `${encodeURIComponent(username)}:${encodeURIComponent(password)}`;
+      const bust = cacheBust ? `?t=${Date.now()}` : '';
+      return `http://${auth}@${cameraIp}:${port}/cgi-bin/snapshot.cgi${bust}`;
+    };
+
     const fetchCameraSnapshot = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/zkteco/snapshot`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ip: cameraIp,
-            http_port: cameraHttpPort,
-            username: cameraDevice.username || 'admin',
-            password: cameraDevice.password || '',
-          }),
-        });
-
+        const url = buildSnapshotUrl(true);
+        const response = await fetch(url, { method: 'GET' });
         if (response.ok) {
           const blob = await response.blob();
           const objectUrl = URL.createObjectURL(blob);
-          
-          // Revoke previous URL to prevent memory leaks
+
           if (img.src && img.src.startsWith('blob:')) {
             URL.revokeObjectURL(img.src);
           }
-          
           img.src = objectUrl;
         } else {
           console.error('[Entry Page] Camera snapshot failed:', response.status);
@@ -271,16 +280,11 @@ export default function VehicleEntry() {
       }
     };
 
-    // Initial fetch
     fetchCameraSnapshot();
-
-    const interval = setInterval(() => {
-      fetchCameraSnapshot();
-    }, 500); // Refresh every 500ms for smooth live video
+    const interval = setInterval(fetchCameraSnapshot, 750); // ~1.3 fps to reduce load
 
     return () => {
       clearInterval(interval);
-      // Clean up blob URL on unmount
       if (img.src && img.src.startsWith('blob:')) {
         URL.revokeObjectURL(img.src);
       }
