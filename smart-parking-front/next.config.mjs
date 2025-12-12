@@ -2,7 +2,7 @@ const isTauriBuild = process.env.NEXT_PUBLIC_TAURI_BUILD === 'true';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  output: isTauriBuild ? 'export' : undefined, // Only export for Tauri build
   distDir: 'out',
   eslint: {
     ignoreDuringBuilds: true,
