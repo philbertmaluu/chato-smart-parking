@@ -60,158 +60,100 @@ export const fetchCameraDetections = async (
       (window.location?.hostname === 'tauri.localhost'));
   
   try {
-    const proxyEnabled =
-      isBrowser &&
-      !isTauri &&
-      process.env.NEXT_PUBLIC_TAURI_BUILD !== 'true' &&
-      process.env.NEXT_PUBLIC_USE_CAMERA_PROXY !== 'false';
-
-    // Try proxy first (browser/dev) to avoid CORS; fall back to direct
-    if (proxyEnabled && options.ip) {
+    // Use Next.js API proxy to fetch directly from camera (bypasses CORS)
+    // This is the only method we use - no Laravel backend dependency
+    if (options.ip) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      
       try {
         const params = new URLSearchParams({
           ip: options.ip,
-          port: (options.httpPort ?? '').toString(),
-          computerId: (options.computerId ?? '').toString(),
+          port: (options.httpPort ?? '80').toString(),
+          computerId: (options.computerId ?? '1').toString(),
           fromDate: options.fromDate ?? '',
         });
         // Add auth to proxy if provided
         if (options.username) params.append('user', options.username);
         if (options.password) params.append('password', options.password);
+        
         const proxyUrl = `/api/camera-detections?${params.toString()}`;
+        
+        if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+          console.log('[Camera] Fetching via Next.js proxy:', proxyUrl);
+        }
+        
         const resp = await fetch(proxyUrl, {
           method: 'GET',
           cache: 'no-store',
           signal: options.signal || controller.signal,
+          headers: {
+            'Accept': 'application/json',
+          },
         });
+        
         clearTimeout(timeoutId);
+        
         if (resp.ok) {
           const data = await resp.json();
           if (Array.isArray(data)) {
+            if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+              console.log('[Camera] ✅ Successfully fetched', data.length, 'detections from camera');
+            }
             return { detections: data };
           }
+          // Handle error response from proxy
           if (data?.error) {
-            // fall through to direct
-            console.warn('[Camera] Proxy returned error, falling back to direct:', data.error);
+            const errorMsg = `Proxy error: ${data.error}`;
+            if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+              console.error('[Camera]', errorMsg);
+            }
+            return { detections: [], error: errorMsg };
           }
+        } else {
+          const errorText = await resp.text().catch(() => '');
+          const errorMsg = `Proxy request failed (${resp.status}${errorText ? ': ' + errorText.substring(0, 100) : ''})`;
+          if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+            console.error('[Camera]', errorMsg);
+          }
+          return { detections: [], error: errorMsg };
         }
-      } catch (err) {
+      } catch (err: any) {
         clearTimeout(timeoutId);
-        // fall through to direct fetch on proxy failure/timeout/CORS
+        const errorMsg = err?.name === 'AbortError' 
+          ? 'Camera request timed out (8s)' 
+          : `Proxy request failed: ${err?.message || err}`;
+        if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+          console.error('[Camera]', errorMsg, err);
+        }
+        return { detections: [], error: errorMsg };
       }
     }
 
-    // Add a timeout to avoid hanging when camera is unreachable
-    // Use shorter timeout in Tauri (5s) vs browser (10s) since Tauri can bypass CORS
-    const timeoutMs = isTauri ? 5000 : 10000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const signal = options.signal || controller.signal;
-
-    const url = buildCameraDetectionUrl(options);
-    
-    // Log for debugging (only in dev/desktop) - don't log credentials
-    if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
-      console.log('[Camera] Fetching from:', url.replace(/\/\/.*@/, '//***:***@'));
-    }
-    
-    // Build headers with authentication if provided
-    const headers: HeadersInit = {
-      'Accept': 'application/json',
+    // If we get here, the proxy failed and we have no IP
+    // Return empty detections with error
+    return { 
+      detections: [], 
+      error: 'Camera IP not provided or proxy unavailable' 
     };
-    if (options.username && options.password) {
-      // Use Basic authentication header
-      const authString = btoa(`${options.username}:${options.password}`);
-      headers['Authorization'] = `Basic ${authString}`;
-      if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
-        console.log('[Camera] Using Basic auth with username:', options.username);
-      }
-    }
-    
-    if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
-      console.log('[Camera] Fetch options:', {
-        url: url.substring(0, 100) + '...',
-        hasAuth: !!(options.username && options.password),
-        method: 'GET',
-      });
-    }
-    
-    // Try fetch - in Tauri this should work, but if it fails we'll get a clear error
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'GET',
-        cache: 'no-store',
-        signal,
-        headers,
-        credentials: 'omit',
-        // Don't set mode explicitly - let browser/Tauri decide
-      });
-      clearTimeout(timeoutId);
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      // Log full error details for debugging
-      if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
-        console.error('[Camera] Fetch exception details:', {
-          name: fetchError?.name,
-          message: fetchError?.message,
-          stack: fetchError?.stack,
-          cause: fetchError?.cause,
-          url: url.substring(0, 150),
-        });
-      }
-      throw fetchError; // Re-throw to be caught by outer catch
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      return { 
-        detections: [], 
-        error: `Camera request failed (${response.status}${errorText ? ': ' + errorText.substring(0, 100) : ''})` 
-      };
-    }
-
-    const data = await response.json();
-    if (!Array.isArray(data)) {
-      return { detections: [], error: 'Camera returned invalid payload (not an array)' };
-    }
-
-    return { detections: data };
   } catch (error: any) {
-    if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-      return { detections: [], error: 'Camera request timed out (5s)' };
-    }
-    
-    // Provide more detailed error messages
+    // This catch block should not be reached since we handle errors in the proxy try/catch
+    // But keep it as a safety net
     const errorMessage = error instanceof Error ? error.message : String(error);
-    let friendlyMessage = errorMessage;
     const cameraUrl = `http://${options.ip || 'unknown'}:${options.httpPort || 80}`;
     
-    if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('ERR_') || errorMessage.includes('Network request failed')) {
-      const testUrl = `${cameraUrl}/edge/cgi-bin/vparcgi.cgi?computerid=${options.computerId || 1}&oper=jsonlastresults`;
-      friendlyMessage = `Cannot connect to camera at ${cameraUrl}. Check:\n1. Camera IP ${options.ip} is correct\n2. Desktop PC is on same network\n3. Windows Firewall allows connections\n4. Camera is powered on and accessible\n\nTest URL: ${testUrl}`;
-    } else if (errorMessage.includes('CORS')) {
-      friendlyMessage = `CORS error - camera at ${cameraUrl} blocked the request. This shouldn't happen in desktop app.`;
-    } else if (errorMessage.includes('timeout') || errorMessage.includes('time') || errorMessage.includes('aborted')) {
-      const timeoutSeconds = isTauri ? 5 : 10;
-      friendlyMessage = `Camera request timed out after ${timeoutSeconds}s. Camera may be offline, unreachable, or firewall is blocking. IP: ${options.ip}`;
-    } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-      friendlyMessage = `Authentication failed for camera at ${cameraUrl}. Check username and password in camera device settings.`;
-    } else if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
-      friendlyMessage = `Access forbidden to camera at ${cameraUrl}. Check user permissions and camera API access settings.`;
-    } else if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
-      friendlyMessage = `Camera endpoint not found at ${cameraUrl}. Camera may not support /edge/cgi-bin/vparcgi.cgi endpoint.`;
+    let friendlyMessage = errorMessage;
+    if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+      friendlyMessage = `Cannot connect to camera at ${cameraUrl}. Check:\n1. Camera IP ${options.ip} is correct\n2. Desktop PC is on same network\n3. Windows Firewall allows connections\n4. Camera is powered on and accessible`;
     }
     
-    console.error('[Camera] Fetch error:', errorMessage, { 
-      ip: options.ip, 
-      port: options.httpPort,
-      url: cameraUrl,
-      hasAuth: !!(options.username && options.password),
-      errorType: error?.name || 'Unknown'
-    });
+    if (process.env.NODE_ENV === 'development' || (window as any).__TAURI__) {
+      console.error('[Camera] Unexpected error:', errorMessage, { 
+        ip: options.ip, 
+        port: options.httpPort,
+        url: cameraUrl,
+      });
+    }
     
     return {
       detections: [],

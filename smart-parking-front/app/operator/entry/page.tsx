@@ -461,12 +461,6 @@ export default function VehicleEntry() {
                   <span>Active Gate: <strong>{selectedGate.name}</strong> at {selectedGate.station?.name}</span>
                 </div>
               )}
-              {localPollingEnabled && localPollingError && (
-                <div className="mt-2 flex items-center space-x-2 text-sm text-yellow-500 dark:text-yellow-400">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Local camera polling issue: {localPollingError}</span>
-                </div>
-              )}
             </div>
             
           </div>
@@ -480,11 +474,7 @@ export default function VehicleEntry() {
                 <CardTitle className="text-sm font-semibold">Local Camera Detections</CardTitle>
                 <CardDescription>Seen on this operator machine (last 10)</CardDescription>
               </div>
-              {localPollingError ? (
-                <AlertCircle className="w-4 h-4 text-yellow-500" />
-              ) : (
-                <Camera className="w-4 h-4 text-blue-500" />
-              )}
+              <Camera className="w-4 h-4 text-blue-500" />
             </CardHeader>
             <CardContent className="space-y-2">
               {localDetections.length === 0 && (
