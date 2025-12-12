@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useVehicleBodyTypes } from "@/app/manager/settings/hooks/use-vehicle-body-types";
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { PendingVehicleTypeDetection } from "@/utils/api/camera-detection-service";
+import { markLocalDetectionProcessed } from "@/utils/local-detection-storage";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import {
   Loader2,
@@ -55,14 +56,66 @@ export function VehicleTypeSelectionModal({
 
     setIsProcessing(true);
     try {
+      let detectionId = detection.id;
+      const isLocalDetection = (detection as any).isLocal && (detection as any).localId;
+
+      // If this is a local detection, store it first
+      if (isLocalDetection) {
+        const localId = (detection as any).localId;
+        const rawDetection = {
+          id: detection.camera_detection_id || 0,
+          numberplate: detection.numberplate,
+          originalplate: detection.originalplate,
+          detection_timestamp: detection.detection_timestamp,
+          timestamp: detection.detection_timestamp,
+          utc_time: detection.utc_time || detection.detection_timestamp,
+          direction: detection.direction ?? 0,
+          make_str: detection.make_str || '',
+          model_str: detection.model_str || '',
+          color_str: detection.color_str || '',
+          make: (detection as any).make || 0,
+          model: (detection as any).model || 0,
+          color: (detection as any).color || 0,
+          gate_id: detection.gate_id,
+        };
+
+        const storeResult = await CameraDetectionService.storeDetectionsFromBrowser(
+          [rawDetection],
+          detection.gate_id || undefined
+        );
+
+        if (!storeResult.success || storeResult.stored === 0) {
+          toast.error("Failed to store detection. Please try again.");
+          setIsProcessing(false);
+          return;
+        }
+
+        const pendingDetections = await CameraDetectionService.getPendingVehicleTypeDetections();
+        const storedDetection = pendingDetections.find(
+          (d: any) =>
+            d.numberplate === detection.numberplate &&
+            d.gate_id === detection.gate_id
+        );
+
+        if (!storedDetection) {
+          toast.error("Detection stored but could not be found. Please refresh and try again.");
+          setIsProcessing(false);
+          return;
+        }
+
+        detectionId = storedDetection.id;
+        markLocalDetectionProcessed(localId);
+      }
+
+      // Process with vehicle type
       const result = await CameraDetectionService.processWithVehicleType(
-        detection.id,
+        detectionId,
         selectedBodyTypeId
       );
 
       if (result.success) {
         toast.success("Vehicle entry processed successfully");
-        
+
         setSelectedBodyTypeId(null);
         onOpenChange(false);
         onSuccess?.();

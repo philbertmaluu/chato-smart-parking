@@ -168,8 +168,43 @@ export class VehiclePassageService {
    * Get active passages
    */
   static async getActivePassages(page: number = 1, perPage: number = 15): Promise<{ success: boolean; data: VehiclePassage[] | any; messages: string; status: number; pagination?: any }> {
-    const queryParams = `?per_page=${perPage}&page=${page}`;
-    return get(`${API_ENDPOINTS.VEHICLE_PASSAGES.ACTIVE_LIST}${queryParams}`);
+    // Directly call the list endpoint with status=active parameter
+    // Backend controller should handle this in the index method
+    const queryParams = new URLSearchParams();
+    queryParams.append('status', 'active');
+    queryParams.append('per_page', perPage.toString());
+    queryParams.append('page', page.toString());
+    
+    const url = `${API_ENDPOINTS.VEHICLE_PASSAGES.LIST}?${queryParams.toString()}`;
+    console.log('[VehiclePassageService] Fetching active passages from:', url);
+    
+    try {
+      const response = await get(url);
+      console.log('[VehiclePassageService] Active passages response:', response);
+      
+      // Backend returns different formats depending on the status
+      // If it's already in the expected format, return it
+      if (response && typeof response === 'object' && 'success' in response) {
+        return response as any;
+      }
+      
+      // Otherwise, wrap it in the expected format
+      const responseData = response as any;
+      return {
+        success: true,
+        data: responseData?.data || responseData,
+        messages: 'Active passages retrieved successfully',
+        status: 200,
+        pagination: responseData?.meta || responseData?.pagination || {
+          current_page: page,
+          per_page: perPage,
+          total: Array.isArray(responseData?.data) ? responseData.data.length : (Array.isArray(responseData) ? responseData.length : 0),
+        },
+      };
+    } catch (error: any) {
+      console.error('[VehiclePassageService] Error fetching active passages:', error);
+      throw error;
+    }
   }
 
   /**

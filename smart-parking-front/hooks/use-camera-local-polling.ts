@@ -8,11 +8,14 @@ import {
 } from '@/utils/camera-local-client';
 import { CameraDetectionService } from '@/utils/api/camera-detection-service';
 import { usePageVisibility } from '@/hooks/use-page-visibility';
+import { addLocalPendingDetection } from '@/utils/local-detection-storage';
 
 interface CameraDevice {
   ip_address?: string | null;
   http_port?: number | null;
   computer_id?: number | null;
+  username?: string | null;
+  password?: string | null;
 }
 
 interface UseCameraLocalPollingOptions {
@@ -44,7 +47,6 @@ export const useCameraLocalPolling = ({
 }: UseCameraLocalPollingOptions) => {
   const [lastDetection, setLastDetection] = useState<RawCameraDetection | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [isPosting, setIsPosting] = useState(false);
   const isPageVisible = usePageVisibility();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -58,6 +60,8 @@ export const useCameraLocalPolling = ({
     () => cameraDevice?.computer_id || defaultComputerId,
     [cameraDevice]
   );
+  const cameraUsername = useMemo(() => cameraDevice?.username || null, [cameraDevice]);
+  const cameraPassword = useMemo(() => cameraDevice?.password || null, [cameraDevice]);
 
   const stopInflight = useCallback(() => {
     if (abortRef.current) {
@@ -77,6 +81,8 @@ export const useCameraLocalPolling = ({
       ip: cameraIp,
       httpPort: cameraHttpPort || undefined,
       computerId: cameraComputerId || undefined,
+      username: cameraUsername || undefined,
+      password: cameraPassword || undefined,
       signal: controller.signal,
     });
 
@@ -97,34 +103,47 @@ export const useCameraLocalPolling = ({
       return;
     }
 
-    // Attach gate_id before POST
-    const payload = newDetections.map((det) => ({
-      ...det,
-      gate_id: gateId,
-      direction: direction ?? det.direction ?? null,
-    }));
-
+    // Store detections locally first - this will trigger useLocalPendingDetections to show the modal
+    // The modal handler will post to backend after operator selects vehicle type
     try {
-      setIsPosting(true);
-      await CameraDetectionService.storeDetectionsFromBrowser(payload, gateId);
-      // Commit dedupe only on success
-      const maxId = newDetections[newDetections.length - 1].id;
-      if (typeof maxId === 'number') {
-        setLatestCameraIdForGate(gateId, maxId);
+      const storedLocalDetections: any[] = [];
+      
+      for (const det of newDetections) {
+        // Attach gate_id and direction before storing locally
+        const detectionWithGate = {
+          ...det,
+          gate_id: gateId,
+          direction: direction ?? det.direction ?? null,
+        };
+        
+        // Store locally - this will be picked up by useLocalPendingDetections hook
+        const localDetection = addLocalPendingDetection(gateId, detectionWithGate);
+        storedLocalDetections.push(localDetection);
+        
+        // Update dedupe tracking to prevent re-processing same detection
+        if (typeof det.id === 'number') {
+          setLatestCameraIdForGate(gateId, det.id);
+        }
       }
+      
+      // Set last detection for UI feedback
       setLastDetection(newDetections[newDetections.length - 1]);
+      
+      // Call callback for any UI updates
       onNewDetections?.(newDetections);
-      onPosted?.(newDetections);
-    } catch (postError: any) {
+      
+      // Note: We don't post to backend here anymore
+      // The modal handler (vehicle-type-selection-modal) will post to backend
+      // after operator selects the vehicle type
+      
+    } catch (storeError: any) {
       // Roll back dedupe to previous latest so we retry on next poll
       setLatestCameraIdForGate(gateId, latestBefore);
       setLastError(
-        postError instanceof Error ? postError.message : 'Failed to push detections to backend'
+        storeError instanceof Error ? storeError.message : 'Failed to store detections locally'
       );
-    } finally {
-      setIsPosting(false);
     }
-  }, [canRun, gateId, cameraIp, cameraHttpPort, cameraComputerId, onNewDetections, stopInflight]);
+  }, [canRun, gateId, cameraIp, cameraHttpPort, cameraComputerId, cameraUsername, cameraPassword, direction, onNewDetections, stopInflight]);
 
   useEffect(() => {
     if (!canRun) {
@@ -149,7 +168,6 @@ export const useCameraLocalPolling = ({
     featureEnabled,
     lastDetection,
     lastError,
-    isPosting,
     pollOnce,
   };
 };

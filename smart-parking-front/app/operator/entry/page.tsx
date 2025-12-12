@@ -23,7 +23,9 @@ import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, B
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
 import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
+import { useLocalPendingDetections } from "@/hooks/use-local-pending-detections";
 import { RawCameraDetection } from "@/utils/camera-local-client";
+import { LocalPendingDetection } from "@/utils/local-detection-storage";
 import { formatTime, formatDate } from "@/utils/date-utils";
 
 export default function VehicleEntry() {
@@ -115,6 +117,7 @@ export default function VehicleEntry() {
         processed: false,
         processed_at: null,
         processing_status: (latest as any).processing_status ?? 'pending',
+        processing_notes: (latest as any).processing_notes ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -123,12 +126,12 @@ export default function VehicleEntry() {
       if (normalized.numberplate) {
         toast.success(`📷 Local camera detected ${normalized.numberplate}`);
         setLocalDetections((prev) => {
-          const next = [
+          const next: { plate: string; timestamp: string; gateName: string | null; status: "pushed" | "pending" }[] = [
             {
               plate: normalized.numberplate,
               timestamp: normalized.detection_timestamp,
               gateName: normalized.gate?.name || null,
-              status: "pushed",
+              status: "pushed" as const,
             },
             ...prev,
           ];
@@ -145,6 +148,42 @@ export default function VehicleEntry() {
     enabled: true,
     direction: effectiveDirection,
     onNewDetections: handleLocalDetections,
+  });
+
+  // Monitor locally stored pending detections and show modal automatically
+  const {
+    latestDetection: localPendingDetection,
+    clearLatestDetection: clearLocalDetection,
+    markProcessed: markLocalProcessed,
+  } = useLocalPendingDetections({
+    gateId: selectedGate?.id,
+    enabled: isPageVisible && !!selectedGate,
+    pollInterval: 2000,
+    onNewDetection: (localDetection: LocalPendingDetection) => {
+      const det = localDetection.detection;
+      const normalized: any = {
+        id: `local-${localDetection.id}`,
+        localId: localDetection.id,
+        camera_detection_id: det.id || 0,
+        gate_id: localDetection.gateId,
+        gate: selectedGate
+          ? { id: selectedGate.id, name: selectedGate.name, station_id: selectedGate.station?.id || 0 }
+          : undefined,
+        numberplate: det.numberplate || det.originalplate || '',
+        originalplate: det.originalplate || det.numberplate || null,
+        detection_timestamp: det.detection_timestamp || det.timestamp || det.utc_time || new Date().toISOString(),
+        make_str: det.make_str || '',
+        model_str: det.model_str || '',
+        color_str: det.color_str || '',
+        processing_status: 'pending_vehicle_type',
+        isLocal: true,
+      };
+
+      setCapturedDetection(normalized);
+      setDetectedPlateNumber(normalized.numberplate);
+      setShowVehicleTypeModal(true);
+      toast.success(`📷 New vehicle detected: ${normalized.numberplate}`);
+    },
   });
   
   // Log camera configuration for debugging
@@ -226,11 +265,11 @@ export default function VehicleEntry() {
     }
   }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
 
-  // Auto-refresh camera feed (prefer direct/proxy snapshot instead of backend 127.0.0.1)
+  // Auto-refresh camera feed with direct camera endpoints (works in Tauri without proxy)
   useEffect(() => {
     if (!isPageVisible || !selectedGate || !cameraIp || !cameraDevice) return;
 
-    const img = document.getElementById('camera-feed-img') as HTMLImageElement;
+    const img = document.getElementById('camera-feed-img') as HTMLImageElement | null;
     if (!img) return;
 
     const isBrowser = typeof window !== 'undefined';
@@ -243,50 +282,83 @@ export default function VehicleEntry() {
     const password = cameraDevice.password || '';
     const port = cameraHttpPort || 80;
 
-    // Decide snapshot URL: proxy in browser, direct in Tauri
-    const buildSnapshotUrl = (cacheBust = false) => {
-      if (!isTauri) {
-        const qs = new URLSearchParams({
-          ip: cameraIp,
-          path: '/cgi-bin/snapshot.cgi',
-          user: username,
-          password: password,
-        });
-        if (cacheBust) qs.append('t', Date.now().toString());
-        return `/api/camera-snapshot?${qs.toString()}`;
-      }
-      const auth = `${encodeURIComponent(username)}:${encodeURIComponent(password)}`;
-      const bust = cacheBust ? `?t=${Date.now()}` : '';
-      return `http://${auth}@${cameraIp}:${port}/cgi-bin/snapshot.cgi${bust}`;
+    const authPrefix =
+      username || password
+        ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+        : '';
+
+    const buildUrl = (path: string, cacheBust = false) => {
+      const bust = cacheBust ? `${path.includes('?') ? '&' : '?'}t=${Date.now()}` : '';
+      return `http://${authPrefix}${cameraIp}:${port}${path}${bust}`;
     };
 
-    const fetchCameraSnapshot = async () => {
-      try {
-        const url = buildSnapshotUrl(true);
-        const response = await fetch(url, { method: 'GET' });
-        if (response.ok) {
-          const blob = await response.blob();
-          const objectUrl = URL.createObjectURL(blob);
+    // Try MJPEG first, then fall back to snapshot endpoints
+    const snapshotCandidates = [
+      '/cgi-bin/snapshot.cgi',
+      '/cgi-bin/snapshot.jpg',
+      '/snapshot.jpg',
+      '/Streaming/Channels/1/picture',
+      '/mjpeg',
+      '/video.cgi',
+    ];
 
+    let intervalId: NodeJS.Timeout | null = null;
+    let currentCandidate = 0;
+    let isMjpegActive = false;
+
+    const startSnapshotLoop = () => {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(async () => {
+        const path = snapshotCandidates[currentCandidate % snapshotCandidates.length];
+        const url = buildUrl(path, true);
+        try {
+          const resp = await fetch(url, { method: 'GET' });
+          if (!resp.ok) {
+            currentCandidate = (currentCandidate + 1) % snapshotCandidates.length;
+            return;
+          }
+          const blob = await resp.blob();
+          const objectUrl = URL.createObjectURL(blob);
           if (img.src && img.src.startsWith('blob:')) {
             URL.revokeObjectURL(img.src);
           }
           img.src = objectUrl;
-        } else {
-          console.error('[Entry Page] Camera snapshot failed:', response.status);
+        } catch {
+          currentCandidate = (currentCandidate + 1) % snapshotCandidates.length;
         }
-      } catch (error) {
-        console.error('[Entry Page] Camera snapshot error:', error);
-      }
+      }, 800); // ~1.2 fps
     };
 
-    fetchCameraSnapshot();
-    const interval = setInterval(fetchCameraSnapshot, 750); // ~1.3 fps to reduce load
+    const startMjpeg = () => {
+      isMjpegActive = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      const url = buildUrl('/cgi-bin/mjpeg', false);
+      img.src = url;
+      img.onerror = () => {
+        // fall back to snapshots
+        isMjpegActive = false;
+        startSnapshotLoop();
+      };
+    };
+
+    // In Tauri: try MJPEG; if it fails, fall back to snapshots
+    if (isTauri) {
+      startMjpeg();
+    } else {
+      // In browser build (if used), still try direct snapshots (no proxy in static build)
+      startSnapshotLoop();
+    }
 
     return () => {
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
       if (img.src && img.src.startsWith('blob:')) {
         URL.revokeObjectURL(img.src);
+      }
+      if (isMjpegActive) {
+        img.src = '';
       }
     };
   }, [isPageVisible, selectedGate, cameraIp, cameraHttpPort, cameraDevice]);
@@ -298,7 +370,12 @@ export default function VehicleEntry() {
 
   const handleVehicleTypeModalSuccess = () => {
     setShowVehicleTypeModal(false);
+    // Mark local detection as processed if it was a local detection
+    if (capturedDetection?.localId) {
+      markLocalProcessed(capturedDetection.localId);
+    }
     setCapturedDetection(null); // Clear captured detection
+    clearLocalDetection(); // Clear latest local detection
   };
 
   const handleGateSelect = async (gateId: number) => {

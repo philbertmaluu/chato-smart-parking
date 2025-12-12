@@ -2,17 +2,8 @@ const isTauriBuild = process.env.NEXT_PUBLIC_TAURI_BUILD === 'true';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Only use static export for Tauri desktop builds; otherwise keep SSR so API routes work
-  ...(isTauriBuild
-    ? {
-        output: 'export',
-        // stable id avoids extra chunk lookups in static mode
-        generateBuildId: async () => 'static',
-        trailingSlash: true,
-      }
-    : {}),
+  output: 'export',
   distDir: 'out',
-  trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
