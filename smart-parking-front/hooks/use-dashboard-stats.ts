@@ -87,6 +87,8 @@ interface VehiclePassage {
 interface DashboardStats {
   totalParked: number;
   todayRevenue: number;
+  totalRevenue: number;
+  weeklyRevenue: number;
   totalEntries: number;
   activeOperators: number;
   loading: boolean;
@@ -135,6 +137,8 @@ export function useDashboardStats() {
   const [stats, setStats] = useState<DashboardStats>({
     totalParked: 0,
     todayRevenue: 0,
+    totalRevenue: 0,
+    weeklyRevenue: 0,
     totalEntries: 0,
     activeOperators: 0,
     loading: true,
@@ -237,6 +241,7 @@ export function useDashboardStats() {
       // Calculate stats from passages if summary is not available
       let totalParked = summary?.active_passages ?? 0;
       let todayRevenue = summary?.revenue_today ?? 0;
+      let totalRevenue = summary?.total_revenue ?? 0;
       let totalEntries = summary?.entries_today ?? summary?.completed_today ?? 0;
 
       // If summary is not available, calculate from passages
@@ -257,14 +262,23 @@ export function useDashboardStats() {
             return sum + (isNaN(amount) ? 0 : amount);
           }, 0);
         
+        // Calculate total revenue from all completed passages
+        totalRevenue = completedPassages.reduce((sum, p) => {
+          const amount = typeof p.total_amount === 'number' ? p.total_amount : parseFloat(p.total_amount || '0');
+          return sum + (isNaN(amount) ? 0 : amount);
+        }, 0);
+        
         // Calculate today's entries
         totalEntries = allPassages.filter(p => p.entry_time && p.entry_time.startsWith(today)).length;
         
-        console.log('[Dashboard Stats] Calculated from passages - Total Parked:', totalParked, 'Today Revenue:', todayRevenue, 'Today Entries:', totalEntries);
+        console.log('[Dashboard Stats] Calculated from passages - Total Parked:', totalParked, 'Today Revenue:', todayRevenue, 'Total Revenue:', totalRevenue, 'Today Entries:', totalEntries);
       }
 
       // Calculate weekly revenue data (last 7 days)
       const weeklyRevenueData = calculateWeeklyRevenue(completedPassages);
+      
+      // Calculate weekly revenue total (sum of last 7 days)
+      const weeklyRevenue = weeklyRevenueData.reduce((sum, day) => sum + day.revenue, 0);
       
       // Calculate hourly traffic (today)
       const hourlyTrafficData = calculateHourlyTraffic(allPassages);
@@ -278,6 +292,8 @@ export function useDashboardStats() {
       const finalStats = {
         totalParked,
         todayRevenue,
+        totalRevenue,
+        weeklyRevenue,
         totalEntries,
         activeOperators: activeOperators > 0 ? activeOperators : (operators.length > 0 ? operators.length : 0),
         loading: false,

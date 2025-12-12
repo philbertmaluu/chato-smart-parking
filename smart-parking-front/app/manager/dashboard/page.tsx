@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { useLanguage } from "@/components/language-provider";
 import { useAuth } from "@/components/auth-provider";
-import { Car, DollarSign, Users, ParkingCircle, RefreshCw } from "lucide-react";
+import { Car, DollarSign, Users, ParkingCircle, RefreshCw, Wallet, CalendarDays } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -35,7 +35,9 @@ export default function ManagerDashboard() {
   const { user } = useAuth();
   const { 
     totalParked, 
-    todayRevenue, 
+    todayRevenue,
+    totalRevenue,
+    weeklyRevenue,
     totalEntries, 
     activeOperators, 
     loading, 
@@ -54,35 +56,57 @@ export default function ManagerDashboard() {
   const stats = [
     {
       title: t("dashboard.totalParked"),
-      value: loading ? "..." : totalParked.toString(),
+      value: loading ? "..." : totalParked.toLocaleString(),
       change: "Currently parked",
       icon: ParkingCircle,
       color: "text-blue-600",
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
+      isCurrency: false,
     },
     {
       title: t("dashboard.todayRevenue"),
-      value: loading ? "..." : formatCurrency(todayRevenue),
+      value: loading ? "..." : todayRevenue.toLocaleString(),
       change: "Today's earnings",
       icon: DollarSign,
       color: "text-green-600",
       bgColor: "bg-green-100 dark:bg-green-900/20",
+      isCurrency: true,
+    },
+    {
+      title: "Weekly Revenue",
+      value: loading ? "..." : weeklyRevenue.toLocaleString(),
+      change: "Last 7 days",
+      icon: CalendarDays,
+      color: "text-blue-600",
+      bgColor: "bg-blue-100 dark:bg-blue-900/20",
+      isCurrency: true,
+    },
+    {
+      title: "Total Revenue",
+      value: loading ? "..." : totalRevenue.toLocaleString(),
+      change: "All time collected",
+      icon: Wallet,
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-100 dark:bg-emerald-900/20",
+      isCurrency: true,
     },
     {
       title: t("dashboard.totalEntries"),
-      value: loading ? "..." : totalEntries.toString(),
+      value: loading ? "..." : totalEntries.toLocaleString(),
       change: "Today's entries",
       icon: Car,
       color: "text-purple-600",
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
+      isCurrency: false,
     },
     {
       title: "Active Operators",
-      value: loading ? "..." : activeOperators.toString(),
+      value: loading ? "..." : activeOperators.toLocaleString(),
       change: "On duty",
       icon: Users,
       color: "text-orange-600",
       bgColor: "bg-orange-100 dark:bg-orange-900/20",
+      isCurrency: false,
     },
   ];
 
@@ -147,28 +171,40 @@ export default function ManagerDashboard() {
           </motion.div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.title}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
+                className="h-full"
               >
-                <Card className="glass-effect border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">
+                <Card className="glass-effect border-0 shadow-lg hover:shadow-xl transition-shadow h-full">
+                  <CardContent className="p-4 h-full">
+                    <div className="flex items-start justify-between h-full gap-2">
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <p className="text-xs font-medium text-muted-foreground">
                           {stat.title}
                         </p>
-                        <p className="text-2xl font-bold mt-2">{stat.value}</p>
-                        <p className="text-sm text-green-600 mt-1">
+                        {stat.isCurrency ? (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                            <p className={`text-xl font-bold ${stat.color}`}>
+                              {stat.value}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className={`text-2xl font-bold mt-2 ${stat.color}`}>
+                            {stat.value}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
                           {stat.change}
                         </p>
                       </div>
-                      <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                        <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                      <div className={`p-2 rounded-full ${stat.bgColor} flex-shrink-0`}>
+                        <stat.icon className={`w-5 h-5 ${stat.color}`} />
                       </div>
                     </div>
                   </CardContent>

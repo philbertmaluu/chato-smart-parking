@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,12 @@ import { DataTable } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Search,
   Filter,
@@ -27,7 +33,11 @@ import {
   Activity,
   DollarSign,
   BarChart3,
-  Users
+  Users,
+  Wallet,
+  CalendarDays,
+  FileSpreadsheet,
+  FileDown
 } from "lucide-react";
 import {
   BarChart,
@@ -52,6 +62,9 @@ import { useLanguage } from "@/components/language-provider";
 import { formatCurrency } from "@/utils/currency-formater";
 import { formatDate, formatTime } from "@/utils/date-utils";
 import { getVehicleTypeIcon } from "@/utils/utils";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface VehiclePassage {
   id: number;
@@ -76,6 +89,7 @@ interface VehiclePassage {
   status?: 'active' | 'completed' | 'cancelled';
   total_amount?: number;
   payment_status?: 'pending' | 'paid' | 'failed';
+  notes?: string;
   entry_operator?: {
     id: number;
     username: string;
@@ -120,6 +134,10 @@ interface PassageHistoryState {
 
 export default function PassageHistoryPage() {
   const { t } = useLanguage();
+  
+  // Use the same dashboard stats hook for consistent revenue data
+  const dashboardStats = useDashboardStats();
+  
   const [state, setState] = useState<PassageHistoryState>({
     passages: [],
     loading: false,
@@ -138,6 +156,7 @@ export default function PassageHistoryPage() {
   const [activeTab, setActiveTab] = useState("history");
   const [timeRange, setTimeRange] = useState("7d");
   const [mounted, setMounted] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [dashboardSummary, setDashboardSummary] = useState<{
     total_passages: number;
     active_passages: number;
@@ -522,6 +541,241 @@ export default function PassageHistoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Fetch all passages for export (bypasses pagination)
+  const fetchAllPassagesForExport = useCallback(async (): Promise<VehiclePassage[]> => {
+    try {
+      const params = new URLSearchParams({ per_page: '10000' });
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterStatus !== "all") params.append('status', filterStatus);
+      if (filterDate) {
+        params.append('start_date', filterDate);
+        params.append('end_date', filterDate);
+      }
+      const response = await get<any>(`${API_ENDPOINTS.VEHICLE_PASSAGES.LIST}?${params.toString()}`);
+      if (response?.success) {
+        const data = response.data?.data || response.data || [];
+        return Array.isArray(data) ? data : [];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching all passages for export:', error);
+      return [];
+    }
+  }, [searchTerm, filterStatus, filterDate]);
+
+  // Helper function to escape HTML
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  // Export to Excel
+  const handleExportExcel = async () => {
+    if (!mounted) return;
+    setIsExporting(true);
+    try {
+      const allPassages = await fetchAllPassagesForExport();
+      
+      const headers = ['#', 'Passage No', 'Plate Number', 'Vehicle Type', 'Entry Date/Time', 'Exit Date/Time', 'Duration', 'Amount', 'Status'];
+      const rows = allPassages.map((p, idx) => [
+        idx + 1,
+        p.passage_number || '-',
+        p.vehicle?.plate_number || '-',
+        p.vehicle?.body_type?.name || '-',
+        p.entry_time ? `${formatDate(p.entry_time)} ${formatTime(p.entry_time)}` : '-',
+        p.exit_time ? `${formatDate(p.exit_time)} ${formatTime(p.exit_time)}` : 'Active',
+        calculateDuration(p.entry_time, p.exit_time),
+        p.total_amount && p.total_amount > 0 ? p.total_amount : 0,
+        p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Unknown',
+      ]);
+
+      const completedCount = allPassages.filter(p => p.exit_time).length;
+      const activeCount = allPassages.filter(p => !p.exit_time).length;
+      // Use dashboard stats for total revenue (consistent with dashboard display)
+      const totalRevenue = dashboardStats.totalRevenue;
+      const exportedAmount = allPassages.reduce((sum, p) => sum + (p.total_amount || 0), 0);
+      const filterInfo = [
+        searchTerm ? `Search: "${searchTerm}"` : '',
+        filterStatus !== 'all' ? `Status: ${filterStatus}` : '',
+        filterDate ? `Date: ${filterDate}` : '',
+      ].filter(Boolean).join(', ') || 'None';
+
+      const htmlContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <head><meta charset="UTF-8">
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+          th { background-color: #1e3a5f; color: white; font-weight: bold; padding: 12px 8px; text-align: left; border: 1px solid #ccc; }
+          td { padding: 10px 8px; border: 1px solid #ddd; }
+          tr:nth-child(even) { background-color: #f8f9fa; }
+          tr:hover { background-color: #e9ecef; }
+          .summary { margin-bottom: 20px; padding: 15px; background: #f0f4f8; border-radius: 8px; }
+          .summary-title { font-size: 18px; font-weight: bold; color: #1e3a5f; margin-bottom: 10px; }
+          .summary-item { margin-right: 30px; }
+          .summary-label { color: #666; }
+          .summary-value { font-weight: bold; color: #1e3a5f; }
+        </style>
+        </head><body>
+          <div class="summary">
+            <div class="summary-title">Passage History Report - ${new Date().toLocaleDateString()}</div>
+            <span class="summary-item"><span class="summary-label">Total Records:</span> <span class="summary-value">${allPassages.length}</span></span>
+            <span class="summary-item"><span class="summary-label">Completed:</span> <span class="summary-value">${completedCount}</span></span>
+            <span class="summary-item"><span class="summary-label">Active:</span> <span class="summary-value">${activeCount}</span></span>
+            <span class="summary-item"><span class="summary-label">Total Revenue:</span> <span class="summary-value">Tsh ${totalRevenue.toLocaleString()}</span></span>
+            <span class="summary-item"><span class="summary-label">Exported Revenue:</span> <span class="summary-value">Tsh ${exportedAmount.toLocaleString()}</span></span>
+            <span class="summary-item"><span class="summary-label">Filters:</span> <span class="summary-value">${filterInfo}</span></span>
+          </div>
+          <table>
+            <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map(row => `<tr>${row.map((cell, cellIdx) => {
+              const isAmountCol = headers[cellIdx] === 'Amount';
+              const cellValue = isAmountCol && typeof cell === 'number' ? formatCurrency(cell) : String(cell || "-");
+              return `<td>${escapeHtml(cellValue)}</td>`;
+            }).join("")}</tr>`).join('')}</tbody>
+          </table>
+        </body></html>
+      `;
+
+      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Passage-History-${new Date().toISOString().split('T')[0]}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Export to PDF
+  const handleExportPDF = async () => {
+    if (!mounted) return;
+    setIsExporting(true);
+    try {
+      const allPassages = await fetchAllPassagesForExport();
+      
+      const tableHeaders = [
+        { key: "index", title: "#", getValue: (_: VehiclePassage, i: number) => String(i + 1) },
+        { key: "passage", title: "Passage No", getValue: (r: VehiclePassage) => r.passage_number || "-" },
+        { key: "plate", title: "Plate Number", getValue: (r: VehiclePassage) => r.vehicle?.plate_number || "-" },
+        { key: "type", title: "Type", getValue: (r: VehiclePassage) => r.vehicle?.body_type?.name || "-" },
+        { key: "entry", title: "Entry Date/Time", getValue: (r: VehiclePassage) => r.entry_time ? `${formatDate(r.entry_time)} ${formatTime(r.entry_time)}` : "-" },
+        { key: "exit", title: "Exit Date/Time", getValue: (r: VehiclePassage) => r.exit_time ? `${formatDate(r.exit_time)} ${formatTime(r.exit_time)}` : "Active" },
+        { key: "duration", title: "Duration", getValue: (r: VehiclePassage) => calculateDuration(r.entry_time, r.exit_time) },
+        { key: "amount", title: "Amount", getValue: (r: VehiclePassage) => r.total_amount && r.total_amount > 0 ? formatCurrency(r.total_amount) : "-" },
+        { key: "status", title: "Status", getValue: (r: VehiclePassage) => r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : "Unknown" },
+      ];
+
+      const headers = tableHeaders.map(h => h.title);
+      const data = allPassages.map((passage, idx) => tableHeaders.map(h => h.getValue(passage, idx)));
+
+      const completedCount = allPassages.filter(p => p.exit_time).length;
+      const activeCount = allPassages.filter(p => !p.exit_time).length;
+      // Use dashboard stats for total revenue (consistent with dashboard display)
+      const totalRevenue = dashboardStats.totalRevenue;
+      const filterInfo = [
+        searchTerm ? `Search: "${searchTerm}"` : '',
+        filterStatus !== 'all' ? `Status: ${filterStatus}` : '',
+        filterDate ? `Date: ${filterDate}` : '',
+      ].filter(Boolean).join(' | ') || 'None';
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Header
+      doc.setFillColor(30, 58, 95);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PASSAGE HISTORY REPORT', 14, 12);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 20);
+      doc.text('Smart Parking System', pageWidth - 14, 12, { align: 'right' });
+
+      // Summary boxes
+      doc.setTextColor(0, 0, 0);
+      const summaryY = 32;
+      const boxWidth = 45;
+      const boxHeight = 18;
+      const startX = 14;
+      const summaryData = [
+        { label: 'TOTAL RECORDS', value: allPassages.length.toLocaleString(), highlight: false },
+        { label: 'COMPLETED', value: completedCount.toLocaleString(), highlight: false },
+        { label: 'ACTIVE', value: activeCount.toLocaleString(), highlight: false },
+        { label: 'TOTAL REVENUE', value: `Tsh ${totalRevenue.toLocaleString()}`, highlight: true },
+      ];
+
+      summaryData.forEach((item, idx) => {
+        const x = startX + (idx * (boxWidth + 8));
+        if (item.highlight) {
+          doc.setFillColor(34, 197, 94);
+        } else {
+          doc.setFillColor(241, 245, 249);
+        }
+        doc.roundedRect(x, summaryY, boxWidth, boxHeight, 2, 2, 'F');
+        doc.setFontSize(7);
+        doc.setTextColor(item.highlight ? 255 : 100, item.highlight ? 255 : 100, item.highlight ? 255 : 100);
+        doc.text(item.label, x + boxWidth / 2, summaryY + 6, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(item.highlight ? 255 : 30, item.highlight ? 255 : 58, item.highlight ? 255 : 95);
+        doc.text(item.value, x + boxWidth / 2, summaryY + 14, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+      });
+
+      // Filters info
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(startX + (4 * (boxWidth + 8)), summaryY, 70, boxHeight, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text('APPLIED FILTERS', startX + (4 * (boxWidth + 8)) + 5, summaryY + 6);
+      doc.setFontSize(8);
+      doc.setTextColor(30, 58, 95);
+      doc.text(filterInfo, startX + (4 * (boxWidth + 8)) + 5, summaryY + 14);
+
+      // Table
+      autoTable(doc, {
+        head: [headers],
+        body: data,
+        startY: summaryY + boxHeight + 8,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+        bodyStyles: { fontSize: 7, cellPadding: 2 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 8, halign: 'center' },
+          7: { halign: 'right' },
+        },
+        margin: { left: 14, right: 14 },
+        didDrawPage: (data) => {
+          // Footer on each page
+          doc.setFillColor(30, 58, 95);
+          doc.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8);
+          doc.text('Smart Parking System', 14, pageHeight - 4);
+          doc.text('CONFIDENTIAL', pageWidth / 2, pageHeight - 4, { align: 'center' });
+          doc.text(`Page ${doc.getCurrentPageInfo().pageNumber}`, pageWidth - 14, pageHeight - 4, { align: 'right' });
+        },
+      });
+
+      doc.save(`Passage-History-Report-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Fetch passages
   const fetchPassages = async (page: number = 1) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -542,6 +796,9 @@ export default function PassageHistoryPage() {
         params.append('end_date', filterDate);
       }
 
+      console.log('[Passages] Fetching with params:', params.toString());
+      console.log('[Passages] Filter status:', filterStatus);
+
       const response = await get<{
         success: boolean;
         data: {
@@ -555,6 +812,11 @@ export default function PassageHistoryPage() {
         status: number;
       }>(`${API_ENDPOINTS.VEHICLE_PASSAGES.LIST}?${params.toString()}`);
 
+      console.log('[Passages] Response received:', {
+        success: response?.success,
+        dataLength: response?.data?.data?.length,
+        total: response?.data?.total
+      });
 
       setState(prev => ({
         ...prev,
@@ -567,6 +829,7 @@ export default function PassageHistoryPage() {
         },
       }));
     } catch (error) {
+      console.error('[Passages] Fetch error:', error);
       setState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to fetch passages',
@@ -580,12 +843,11 @@ export default function PassageHistoryPage() {
     fetchPassages(1);
   }, [searchTerm, filterStatus, filterDate]);
 
-  // Filter passages based on status
+  // API already filters by status, date, and search - just use processed passages directly
   const filteredPassages = useMemo(() => {
     if (!processedPassages || !Array.isArray(processedPassages)) return [];
-    if (filterStatus === "all") return processedPassages;
-    return processedPassages.filter(passage => passage && passage.status === filterStatus);
-  }, [processedPassages, filterStatus]);
+    return processedPassages;
+  }, [processedPassages]);
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -819,14 +1081,101 @@ export default function PassageHistoryPage() {
           </TabsList>
 
           <TabsContent value="history" className="space-y-6">
-        {/* Analytics cards removed from history tab to avoid duplicated placeholders. */}
+        {/* Revenue Summary Cards - Using dashboard stats for consistency */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {/* Total Revenue */}
+          <Card className="glass-effect border-0 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">Total Revenue</p>
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                    <p className="text-xl font-bold text-emerald-600">
+                      {dashboardStats.loading ? "..." : dashboardStats.totalRevenue.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">All time collected</p>
+                </div>
+                <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/20 flex-shrink-0">
+                  <Wallet className="w-5 h-5 text-emerald-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Filters */}
+          {/* Weekly Revenue */}
+          <Card className="glass-effect border-0 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">Weekly Revenue</p>
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {dashboardStats.loading ? "..." : dashboardStats.weeklyRevenue.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Last 7 days</p>
+                </div>
+                <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/20 flex-shrink-0">
+                  <CalendarDays className="w-5 h-5 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Today's Revenue */}
+          <Card className="glass-effect border-0 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">Today's Revenue</p>
+                  <div className="mt-2">
+                    <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                    <p className="text-xl font-bold text-green-600">
+                      {dashboardStats.loading ? "..." : dashboardStats.todayRevenue.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Today's earnings</p>
+                </div>
+                <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/20 flex-shrink-0">
+                  <DollarSign className="w-5 h-5 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Total Passages */}
+          <Card className="glass-effect border-0 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">Total Passages</p>
+                  <p className="text-2xl font-bold mt-2 text-purple-600">
+                    {state.pagination.total.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{dashboardStats.totalParked} currently active</p>
+                </div>
+                <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/20 flex-shrink-0">
+                  <Car className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Filters and Export */}
           <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.5 }}
-          className="flex flex-col sm:flex-row gap-4"
+          className="flex flex-col sm:flex-row gap-4 items-center"
         >
           <div className="flex-1">
           <div className="relative">
@@ -858,7 +1207,79 @@ export default function PassageHistoryPage() {
             className="w-[180px]"
             placeholder="Filter by date"
           />
+          
+          {/* Clear Filters Button */}
+          {(searchTerm || filterStatus !== "all" || filterDate) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setFilterStatus("all");
+                setFilterDate("");
+              }}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Clear Filters
+            </Button>
+          )}
+          
+          {/* Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isExporting}
+                className="flex items-center gap-2"
+              >
+                <Download className={`w-4 h-4 ${isExporting ? 'animate-spin' : ''}`} />
+                {isExporting ? 'Exporting...' : 'Export'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                <FileDown className="w-4 h-4 mr-2 text-red-600" />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                Export as Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           </motion.div>
+
+        {/* Active Filters Display */}
+        {(searchTerm || filterStatus !== "all" || filterDate) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.5 }}
+            className="flex flex-wrap gap-2 items-center"
+          >
+            <span className="text-sm text-muted-foreground">Active filters:</span>
+            {searchTerm && (
+              <Badge variant="secondary" className="gap-1">
+                Search: {searchTerm}
+              </Badge>
+            )}
+            {filterStatus !== "all" && (
+              <Badge variant="secondary" className="gap-1">
+                Status: {filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}
+              </Badge>
+            )}
+            {filterDate && (
+              <Badge variant="secondary" className="gap-1">
+                Date: {filterDate}
+              </Badge>
+            )}
+            <span className="text-sm text-muted-foreground">
+              ({filteredPassages.length} results)
+            </span>
+          </motion.div>
+        )}
 
         {/* Passages Table */}
         <motion.div
@@ -870,13 +1291,8 @@ export default function PassageHistoryPage() {
             dataSource={filteredPassages}
             columns={columns}
             loading={state.loading}
-            exportable
-            searchable
-            searchPlaceholder="Search passages..."
-            exportFileName="passage-history"
-            searchFields={[
-              "passage_number",
-            ]}
+            exportable={false}
+            searchable={false}
             pagination={{
               currentPage: state.pagination.current_page,
               total: state.pagination.total,
@@ -909,14 +1325,7 @@ export default function PassageHistoryPage() {
                     <SelectItem value="1y">Last year</SelectItem>
                   </SelectContent>
                 </Select>
-                                <Button
-                  onClick={exportAnalytics}
-                              variant="outline"
-                  className="glass-effect border-0 bg-transparent"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                            </Button>
+                                
                           </div>
         </motion.div>
 
@@ -935,9 +1344,12 @@ export default function PassageHistoryPage() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Total Revenue
                       </p>
-                      <p className="text-2xl font-bold mt-2">
-                        {formatCurrency(analytics.completedRevenue)}
-                      </p>
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {dashboardStats.loading ? "..." : dashboardStats.totalRevenue.toLocaleString()}
+                        </p>
+                      </div>
                       <div className="flex items-center mt-2">
                         {parseFloat(analytics.revenueChange) >= 0 ? (
                           <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
@@ -994,9 +1406,12 @@ export default function PassageHistoryPage() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Avg Revenue/Vehicle
                       </p>
-                      <p className="text-2xl font-bold mt-2">
-                        {formatCurrency(parseFloat(analytics.revenuePerVehicle))}
-                      </p>
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {parseFloat(analytics.revenuePerVehicle).toLocaleString()}
+                        </p>
+                      </div>
                       <p className="text-sm text-muted-foreground mt-2">
                         Per completed passage
                       </p>
@@ -1038,23 +1453,26 @@ export default function PassageHistoryPage() {
               transition={{ delay: 0.3, duration: 0.5 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
             >
-              {/* Peak Hour */}
+              {/* Weekly Revenue */}
               <Card className="glass-effect border-0 shadow-lg">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">
-                        Peak Hour
+                        Weekly Revenue
                       </p>
-                      <p className="text-xl font-bold mt-2">
-                        {analytics.peakHour}
-                      </p>
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {dashboardStats.loading ? "..." : dashboardStats.weeklyRevenue.toLocaleString()}
+                        </p>
+                      </div>
                       <p className="text-sm text-muted-foreground mt-2">
-                        Highest traffic time
+                        Last 7 days
                       </p>
                     </div>
-                    <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full">
-                      <Activity className="w-6 h-6 text-white" />
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full">
+                      <CalendarDays className="w-6 h-6 text-white" />
                     </div>
                   </div>
                 </CardContent>
@@ -1103,9 +1521,12 @@ export default function PassageHistoryPage() {
                       <p className="text-sm font-medium text-muted-foreground">
                         Avg Daily Revenue
                       </p>
-                      <p className="text-2xl font-bold mt-2">
-                        {formatCurrency(parseFloat(analytics.avgRevenue))}
-                      </p>
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground">Tsh</p>
+                        <p className="text-2xl font-bold text-pink-600">
+                          {parseFloat(analytics.avgRevenue).toLocaleString()}
+                        </p>
+                      </div>
                       <p className="text-sm text-muted-foreground mt-2">
                         Per day average
                       </p>
