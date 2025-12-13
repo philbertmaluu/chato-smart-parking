@@ -23,6 +23,7 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const previousDetectionIdsRef = useRef<Set<number>>(new Set());
+  const shownDetectionIdsRef = useRef<Set<number>>(new Set()); // Track IDs that have been shown to prevent re-showing
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isPageVisible = usePageVisibility();
@@ -76,25 +77,73 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
       // (fetch:camera-data), which keeps the queue up to date.
       const detections = await CameraDetectionService.getPendingVehicleTypeDetections();
       
+      // Debug logging to help troubleshoot
+      console.log('[usePendingDetections] Fetched detections:', {
+        count: detections.length,
+        detections: detections.map(d => ({ id: d.id, plate: d.numberplate, status: d.processing_status, gate_id: d.gate_id })),
+        enabled: enabledRef.current,
+        isPageVisible: isPageVisibleRef.current
+      });
+      
       // Always process the first (oldest) detection from queue if it exists
-      // Compare against current latestDetection to avoid re-showing the same detection
+      // Compare against current latestDetection and shown IDs to avoid re-showing the same detection
       if (detections.length > 0) {
-        const firstDetection = detections[0]; // Oldest (FIFO - backend returns ASC order)
-        
-        // Only show if it's different from what we're currently showing
-        // This ensures we don't re-show the same detection, but we do show the next one in queue
-        setLatestDetection((currentLatest) => {
-          if (!currentLatest || currentLatest.id !== firstDetection.id) {
-            // Trigger callback to show modal
-            onNewDetectionRef.current?.(firstDetection);
-            return firstDetection;
+        // Find the first detection that hasn't been shown yet
+        // This allows us to skip already-shown detections and move to new ones
+        let detectionToShow = null;
+        for (const detection of detections) {
+          if (!shownDetectionIdsRef.current.has(detection.id)) {
+            detectionToShow = detection;
+            break;
           }
-          // Same detection still pending, keep showing it
-          return currentLatest;
-        });
+        }
+        
+        if (detectionToShow) {
+          console.log('[usePendingDetections] New detection found, triggering callback:', {
+            id: detectionToShow.id,
+            plate: detectionToShow.numberplate,
+            gate_id: detectionToShow.gate_id,
+          });
+          
+          setLatestDetection((currentLatest) => {
+            if (!currentLatest || currentLatest.id !== detectionToShow.id) {
+              // Mark as shown BEFORE triggering callback to prevent duplicate triggers
+              shownDetectionIdsRef.current.add(detectionToShow.id);
+              // Trigger callback to show modal
+              onNewDetectionRef.current?.(detectionToShow);
+              return detectionToShow;
+            }
+            // Same detection still pending, keep showing it
+            return currentLatest;
+          });
+        } else {
+          // All detections in queue have been shown - they're still pending
+          // This means the operator hasn't processed them yet, or they're stuck
+          console.log('[usePendingDetections] All detections in queue have been shown, waiting for processing:', {
+            queueSize: detections.length,
+            shownIds: Array.from(shownDetectionIdsRef.current),
+          });
+          
+          // Clear latestDetection if it's not in the current queue (it was processed)
+          setLatestDetection((currentLatest) => {
+            if (currentLatest) {
+              const stillInQueue = detections.some(d => d.id === currentLatest.id);
+              if (!stillInQueue) {
+                // Detection was processed and removed from queue - clear it
+                shownDetectionIdsRef.current.delete(currentLatest.id);
+                console.log('[usePendingDetections] Detection was processed, removed from shown IDs:', currentLatest.id);
+                return null;
+              }
+            }
+            return currentLatest;
+          });
+        }
       } else {
-        // No pending detections, clear latest
+        // No pending detections, clear latest and reset shown IDs
+        console.log('[usePendingDetections] No pending detections found - queue is empty');
         setLatestDetection(null);
+        // Clear shown IDs when queue is empty - all detections have been processed
+        shownDetectionIdsRef.current.clear();
       }
       
       setPendingDetections(detections);
@@ -177,15 +226,25 @@ export const usePendingDetections = (options: UsePendingDetectionsOptions = {}) 
 
   // Clear latest detection after it's been handled
   // This allows the next detection in queue to be shown
+  // IMPORTANT: Remove the detection ID from shownDetectionIdsRef when it's processed
+  // This ensures that if the detection is still in the queue (shouldn't happen, but just in case),
+  // it won't block other detections, and if it's processed and removed from queue, we can show new ones
   const clearLatestDetection = useCallback(() => {
+    const currentLatest = latestDetection;
     setLatestDetection(null);
     // Clear the previous IDs ref so next detection can be shown
     previousDetectionIdsRef.current.clear();
+    // Remove the processed detection ID from shownDetectionIdsRef
+    // This allows the next detection in queue to be shown immediately
+    if (currentLatest?.id) {
+      shownDetectionIdsRef.current.delete(currentLatest.id);
+      console.log('[usePendingDetections] Removed processed detection from shown IDs:', currentLatest.id);
+    }
     // Immediately fetch next detection in queue
     setTimeout(() => {
       fetchPendingDetectionsInternal();
     }, 100);
-  }, [fetchPendingDetectionsInternal]);
+  }, [fetchPendingDetectionsInternal, latestDetection]);
 
   return {
     pendingDetections,

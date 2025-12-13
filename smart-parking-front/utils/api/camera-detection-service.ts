@@ -80,29 +80,44 @@ export class CameraDetectionService {
    * Get detections pending vehicle type selection
    */
   static async getPendingVehicleTypeDetections(): Promise<PendingVehicleTypeDetection[]> {
-    const response = await get<{
-      success: boolean;
-      data: PendingVehicleTypeDetection[];
-      messages: string;
-      status: number;
-    }>(API_ENDPOINTS.CAMERA_DETECTION.LOGS_PENDING_VEHICLE_TYPE);
+    try {
+      console.log('[CameraDetectionService] Fetching pending vehicle type detections from:', API_ENDPOINTS.CAMERA_DETECTION.LOGS_PENDING_VEHICLE_TYPE);
+      const response = await get<{
+        success: boolean;
+        data: PendingVehicleTypeDetection[];
+        messages: string;
+        status: number;
+      }>(API_ENDPOINTS.CAMERA_DETECTION.LOGS_PENDING_VEHICLE_TYPE);
 
-    if (response.success && response.data) {
-      return response.data;
+      console.log('[CameraDetectionService] API Response:', {
+        success: response.success,
+        dataCount: response.data?.length || 0,
+        messages: response.messages,
+        status: response.status,
+        data: response.data?.map(d => ({ id: d.id, plate: d.numberplate, gate_id: d.gate_id, status: d.processing_status }))
+      });
+
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('[CameraDetectionService] Error fetching pending detections:', error);
+      return [];
     }
-    return [];
   }
 
   /**
    * Process detection with vehicle type
+   * Body type is optional for existing vehicles
    */
   static async processWithVehicleType(
     detectionId: number,
-    bodyTypeId: number
+    bodyTypeId: number | null | undefined
   ): Promise<ProcessWithVehicleTypeResponse> {
     return post<ProcessWithVehicleTypeResponse>(
       API_ENDPOINTS.CAMERA_DETECTION.PROCESS_WITH_VEHICLE_TYPE(detectionId),
-      { body_type_id: bodyTypeId }
+      { body_type_id: bodyTypeId ?? null }
     );
   }
 

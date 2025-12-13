@@ -138,31 +138,11 @@ export const useActivePassages = () => {
         throw new Error('Invalid response format: passages data is not available');
       }
       
-      // For each passage, fetch server-side preview to ensure currentFee and base_amount are authoritative
-      const enrichedPassages = await Promise.allSettled(
-        passages.map(async (p) => {
-          try {
-            const previewResp: any = await VehiclePassageService.previewExit(p.id);
-            if (previewResp && previewResp.success && previewResp.data) {
-              const preview = previewResp.data;
-              // Merge server preview into passage
-              return {
-                ...p,
-                base_amount: preview.base_amount ?? p.base_amount,
-                total_amount: preview.amount ?? p.total_amount,
-                // Use preview.is_free_reentry to show paid state
-                _preview: preview,
-              } as VehiclePassage;
-            }
-            return p;
-          } catch (e) {
-            return p;
-          }
-        })
-      );
-
-      const resolvedPassages = enrichedPassages.map((r) => (r.status === 'fulfilled' ? (r.value as VehiclePassage) : (r as any).reason || r));
-      const transformedPassages = resolvedPassages.map(transformPassageForDisplay);
+      // OPTIMIZED: Removed automatic preview-exit fetching for all passages
+      // Preview-exit is only fetched when needed (e.g., when opening exit dialog)
+      // This reduces server load significantly - from N API calls to 0 for list view
+      // The currentFee is calculated client-side using calculateCurrentFee() which is sufficient for display
+      const transformedPassages = passages.map(transformPassageForDisplay);
       console.log('Transformed passages:', transformedPassages.length);
       setActivePassages(transformedPassages);
       setPagination(paginationData);

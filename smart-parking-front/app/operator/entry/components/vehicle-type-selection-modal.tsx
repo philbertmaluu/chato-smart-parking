@@ -49,7 +49,14 @@ export function VehicleTypeSelectionModal({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleSubmit = async () => {
-    if (!detection || !selectedBodyTypeId) {
+    if (!detection) {
+      toast.error("No detection provided");
+      return;
+    }
+    
+    // For existing vehicles, body type is optional
+    const vehicleExists = (detection as any).vehicle_exists === true;
+    if (!vehicleExists && !selectedBodyTypeId) {
       toast.error("Please select a vehicle body type");
       return;
     }
@@ -107,10 +114,13 @@ export function VehicleTypeSelectionModal({
         markLocalDetectionProcessed(localId);
       }
 
-      // Process with vehicle type
+      // Process with vehicle type (optional for existing vehicles)
+      const bodyTypeId: number | null | undefined = vehicleExists 
+        ? (selectedBodyTypeId || undefined) 
+        : selectedBodyTypeId;
       const result = await CameraDetectionService.processWithVehicleType(
         detectionId,
-        selectedBodyTypeId
+        bodyTypeId ?? undefined
       );
 
       if (result.success) {
@@ -147,10 +157,16 @@ export function VehicleTypeSelectionModal({
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gradient flex items-center space-x-3">
             <Camera className="w-6 h-6 text-blue-600" />
-            <span>🚗 New Vehicle Detected - Action Required</span>
+            <span>
+              {(detection as any)?.vehicle_exists 
+                ? "🚗 Vehicle Detected - Confirm Entry" 
+                : "🚗 New Vehicle Detected - Action Required"}
+            </span>
           </DialogTitle>
           <DialogDescription className="text-base mt-2 font-medium">
-            A vehicle has been detected by the camera. Please select the vehicle body type and process the entry.
+            {(detection as any)?.vehicle_exists 
+              ? "A known vehicle has been detected. You can process the entry directly without selecting body type."
+              : "A new vehicle has been detected by the camera. Please select the vehicle body type and process the entry."}
           </DialogDescription>
         </DialogHeader>
 
@@ -173,55 +189,111 @@ export function VehicleTypeSelectionModal({
               </div>
             </div>
 
-            {/* Vehicle Body Type Selection */}
-            <div className="space-y-3">
-              <Label htmlFor="bodyType" className="text-sm font-medium">
-                Vehicle Body Type *
-              </Label>
-              <Select
-                value={selectedBodyTypeId?.toString() || ""}
-                onValueChange={(value) => setSelectedBodyTypeId(parseInt(value))}
-                disabled={isProcessing || bodyTypesLoading}
-              >
-                <SelectTrigger className="h-12 w-full">
-                  <SelectValue placeholder="Select vehicle body type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicleBodyTypes.map((type: any) => {
-                    const vehicleIcon = getVehicleTypeIcon(type.name);
-                    return (
-                      <SelectItem
-                        key={type.id}
-                        value={type.id.toString()}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span
-                            className={`text-lg ${vehicleIcon.color}`}
-                          >
-                            {vehicleIcon.icon}
-                          </span>
-                          <div>
-                            <span className="font-medium">
-                              {type.name}
+            {/* Vehicle Body Type Selection - Only required for new vehicles */}
+            {!(detection as any)?.vehicle_exists && (
+              <div className="space-y-3">
+                <Label htmlFor="bodyType" className="text-sm font-medium">
+                  Vehicle Body Type *
+                </Label>
+                <Select
+                  value={selectedBodyTypeId?.toString() || ""}
+                  onValueChange={(value) => setSelectedBodyTypeId(parseInt(value))}
+                  disabled={isProcessing || bodyTypesLoading}
+                >
+                  <SelectTrigger className="h-12 w-full">
+                    <SelectValue placeholder="Select vehicle body type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicleBodyTypes.map((type: any) => {
+                      const vehicleIcon = getVehicleTypeIcon(type.name);
+                      return (
+                        <SelectItem
+                          key={type.id}
+                          value={type.id.toString()}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span
+                              className={`text-lg ${vehicleIcon.color}`}
+                            >
+                              {vehicleIcon.icon}
                             </span>
-                            {type.category && (
-                              <span className="text-xs text-muted-foreground ml-2">
-                                ({type.category})
+                            <div>
+                              <span className="font-medium">
+                                {type.name}
                               </span>
-                            )}
+                              {type.category && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({type.category})
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {!selectedBodyTypeId && (
-                <p className="text-sm text-red-500">
-                  Please select a vehicle body type to continue
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {!selectedBodyTypeId && (
+                  <p className="text-sm text-red-500">
+                    Please select a vehicle body type to continue
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Optional body type selection for existing vehicles */}
+            {(detection as any)?.vehicle_exists && (
+              <div className="space-y-3">
+                <Label htmlFor="bodyType" className="text-sm font-medium">
+                  Vehicle Body Type (Optional)
+                </Label>
+                <Select
+                  value={selectedBodyTypeId?.toString() || ""}
+                  onValueChange={(value) => {
+                    // Allow clearing selection by setting to null
+                    const parsed = value ? parseInt(value, 10) : null;
+                    setSelectedBodyTypeId(parsed);
+                  }}
+                  disabled={isProcessing || bodyTypesLoading}
+                >
+                  <SelectTrigger className="h-12 w-full">
+                    <SelectValue placeholder="Optional: Update body type (or leave empty to skip)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicleBodyTypes.map((type: any) => {
+                      const vehicleIcon = getVehicleTypeIcon(type.name);
+                      return (
+                        <SelectItem
+                          key={type.id}
+                          value={type.id.toString()}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span
+                              className={`text-lg ${vehicleIcon.color}`}
+                            >
+                              {vehicleIcon.icon}
+                            </span>
+                            <div>
+                              <span className="font-medium">
+                                {type.name}
+                              </span>
+                              {type.category && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({type.category})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Body type is optional for existing vehicles. Leave empty to skip, or select one to update. You can process entry directly.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Additional Info */}
             {(detection.make_str || detection.model_str || detection.color_str) && (
@@ -252,18 +324,35 @@ export function VehicleTypeSelectionModal({
               </div>
             )}
 
-            {/* Important Notice */}
-            <div className="flex items-start space-x-2 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-2 border-amber-300 dark:border-amber-700">
-              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                  ⚠️ Action Required
-                </p>
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  Please select the vehicle body type to process this entry. The vehicle will be registered and parking entry will be processed automatically once you click "Process Entry".
-                </p>
+            {/* Important Notice - Only show for new vehicles */}
+            {!(detection as any)?.vehicle_exists && (
+              <div className="flex items-start space-x-2 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-2 border-amber-300 dark:border-amber-700">
+                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    ⚠️ Action Required
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    Please select the vehicle body type to process this entry. The vehicle will be registered and parking entry will be processed automatically once you click "Process Entry".
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Info Notice for existing vehicles */}
+            {(detection as any)?.vehicle_exists && (
+              <div className="flex items-start space-x-2 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-700">
+                <AlertCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+                    ✓ Known Vehicle
+                  </p>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    This vehicle is already registered. You can process the entry directly without selecting body type.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex space-x-3 pt-4">
@@ -277,7 +366,7 @@ export function VehicleTypeSelectionModal({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={!selectedBodyTypeId || isProcessing || bodyTypesLoading}
+                disabled={(!selectedBodyTypeId && !(detection as any)?.vehicle_exists) || isProcessing || bodyTypesLoading}
                 className="flex-1 h-11 gradient-maroon"
               >
                 {isProcessing ? (

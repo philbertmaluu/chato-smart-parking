@@ -37,8 +37,8 @@ export const API_ENDPOINTS = {
 
   // Vehicle exemption endpoints
   VEHICLE_EXEMPTION: {
-    SET_EXEMPTION: (vehicleId: string | number) => `/toll-v1/vehicles/${vehicleId}/exempt`,
-    REMOVE_EXEMPTION: (vehicleId: string | number) => `/toll-v1/vehicles/${vehicleId}/exempt`,
+    SET_EXEMPTION: (vehicleId: string | number) => `/vehicles/${vehicleId}/exempt`,
+    REMOVE_EXEMPTION: (vehicleId: string | number) => `/vehicles/${vehicleId}/exempt`,
   },
 
   // Vehicle passage endpoints

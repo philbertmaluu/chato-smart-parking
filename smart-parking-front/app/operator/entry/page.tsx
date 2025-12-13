@@ -22,11 +22,11 @@ import { CameraDetection } from "@/hooks/use-detection-logs";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw, ScanLine, Loader2 } from "lucide-react";
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
-import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
-import { useLocalPendingDetections } from "@/hooks/use-local-pending-detections";
-import { RawCameraDetection } from "@/utils/camera-local-client";
-import { LocalPendingDetection } from "@/utils/local-detection-storage";
-import { formatTime, formatDate } from "@/utils/date-utils";
+// DISABLED: Client-side polling imports - now using Laravel cron job instead
+// import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
+// import { useLocalPendingDetections } from "@/hooks/use-local-pending-detections";
+// import { RawCameraDetection } from "@/utils/camera-local-client";
+// import { LocalPendingDetection } from "@/utils/local-detection-storage";
 
 export default function VehicleEntry() {
   const { availableGates, selectedGate, selectedGateDevices, loading: gatesLoading, error: gatesError, selectGate, deselectGate } = useOperatorGates();
@@ -39,9 +39,10 @@ export default function VehicleEntry() {
   const [capturedDetection, setCapturedDetection] = useState<any>(null);
   const isPageVisible = usePageVisibility();
   const { setLatestNewDetection } = useDetectionContext();
-  const [localDetections, setLocalDetections] = useState<
-    { plate: string; timestamp: string; gateName: string | null; status: "pushed" | "pending" }[]
-  >([]);
+  // REMOVED: Local detections state - now using backend database instead
+  // const [localDetections, setLocalDetections] = useState<
+  //   { plate: string; timestamp: string; gateName: string | null; status: "pushed" | "pending" }[]
+  // >([]);
 
   // Get camera device from gate devices - recalculate when devices or gate changes
   const cameraDevice = selectedGateDevices.find(device => device.device_type === 'camera' && device.status === 'active');
@@ -59,132 +60,34 @@ export default function VehicleEntry() {
         : null;
   const effectiveDirection = directionFromDevice ?? directionFromGate;
   
-  // Frontend-driven camera polling (runs only when feature flag is enabled)
-  const handleLocalDetections = useCallback(
-    (detections: RawCameraDetection[]) => {
-      if (!detections || detections.length === 0) return;
-      const latest = detections[detections.length - 1];
-      const normalized: CameraDetection = {
-        id: latest.id || 0,
-        camera_detection_id: latest.id || 0,
-        gate_id: selectedGate?.id || null,
-        gate: selectedGate
-          ? { id: selectedGate.id, name: selectedGate.name, station_id: selectedGate.station?.id || 0 }
-          : undefined,
-        numberplate: latest.numberplate || latest.originalplate || (latest as any).plate_number || '',
-        originalplate: latest.originalplate || latest.numberplate || null,
-        detection_timestamp:
-          (latest as any).detection_timestamp ||
-          latest.timestamp ||
-          latest.utc_time ||
-          new Date().toISOString(),
-        utc_time: latest.utc_time || latest.timestamp || '',
-        located_plate: Boolean((latest as any).locatedPlate ?? (latest as any).located_plate ?? true),
-        global_confidence: (latest as any).globalconfidence ?? (latest as any).global_confidence ?? '',
-        average_char_height: (latest as any).averagecharheight ?? '',
-        process_time: (latest as any).processtime ?? 0,
-        plate_format: (latest as any).plateformat ?? 0,
-        country: latest.country ?? 0,
-        country_str: (latest as any).country_str ?? '',
-        vehicle_left: (latest as any).vehicleleft ?? 0,
-        vehicle_top: (latest as any).vehicletop ?? 0,
-        vehicle_right: (latest as any).vehicleright ?? 0,
-        vehicle_bottom: (latest as any).vehiclebottom ?? 0,
-        result_left: (latest as any).resultleft ?? 0,
-        result_top: (latest as any).resulttop ?? 0,
-        result_right: (latest as any).resultright ?? 0,
-        result_bottom: (latest as any).resultbottom ?? 0,
-        speed: latest.speed ?? '0',
-        lane_id: (latest as any).laneid ?? (latest as any).lane_id ?? 0,
-        direction: latest.direction ?? 0,
-        make: latest.make ?? 0,
-        model: latest.model ?? 0,
-        color: latest.color ?? 0,
-        make_str: (latest as any).make_str ?? '',
-        model_str: (latest as any).model_str ?? '',
-        color_str: (latest as any).color_str ?? '',
-        veclass_str: (latest as any).veclass_str ?? '',
-        image_path: (latest as any).imagepath ?? '',
-        image_retail_path: (latest as any).imageretailpath ?? '',
-        width: latest.width ?? 0,
-        height: latest.height ?? 0,
-        list_id: (latest as any).listid ?? '',
-        name_list_id: (latest as any).namelistid ?? '',
-        evidences: latest.evidences ?? 0,
-        br_ocurr: latest.br_ocurr ?? 0,
-        br_time: latest.br_time ?? 0,
-        raw_data: latest,
-        processed: false,
-        processed_at: null,
-        processing_status: (latest as any).processing_status ?? 'pending',
-        processing_notes: (latest as any).processing_notes ?? null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+  // REMOVED: Frontend-driven camera polling callback
+  // Now using Laravel cron job (fetch:camera-data) to fetch from camera and store in database
+  // Frontend polls the backend API for new detections instead
 
-      setLatestNewDetection(normalized);
-      if (normalized.numberplate) {
-        toast.success(`📷 Local camera detected ${normalized.numberplate}`);
-        setLocalDetections((prev) => {
-          const next: { plate: string; timestamp: string; gateName: string | null; status: "pushed" | "pending" }[] = [
-            {
-              plate: normalized.numberplate,
-              timestamp: normalized.detection_timestamp,
-              gateName: normalized.gate?.name || null,
-              status: "pushed" as const,
-            },
-            ...prev,
-          ];
-          return next.slice(0, 10);
-        });
-      }
-    },
-    [selectedGate, setLatestNewDetection]
-  );
+  // DISABLED: Client-side camera polling - now using Laravel cron job instead
+  // The backend scheduler (fetch:camera-data) runs every 2 seconds to fetch from camera
+  // and store detections in the database. Frontend polls the backend API for new detections.
+  // const { featureEnabled: localPollingEnabled, lastError: localPollingError } = useCameraLocalPolling({
+  //   gateId: selectedGate?.id,
+  //   cameraDevice,
+  //   enabled: false, // DISABLED - using cron job instead
+  //   direction: effectiveDirection,
+  //   onNewDetections: handleLocalDetections,
+  // });
 
-  const { featureEnabled: localPollingEnabled, lastError: localPollingError } = useCameraLocalPolling({
-    gateId: selectedGate?.id,
-    cameraDevice,
-    enabled: true,
-    direction: effectiveDirection,
-    onNewDetections: handleLocalDetections,
-  });
-
-  // Monitor locally stored pending detections and show modal automatically
-  const {
-    latestDetection: localPendingDetection,
-    clearLatestDetection: clearLocalDetection,
-    markProcessed: markLocalProcessed,
-  } = useLocalPendingDetections({
-    gateId: selectedGate?.id,
-    enabled: isPageVisible && !!selectedGate,
-    pollInterval: 2000,
-    onNewDetection: (localDetection: LocalPendingDetection) => {
-      const det = localDetection.detection;
-      const normalized: any = {
-        id: `local-${localDetection.id}`,
-        localId: localDetection.id,
-        camera_detection_id: det.id || 0,
-        gate_id: localDetection.gateId,
-        gate: selectedGate
-          ? { id: selectedGate.id, name: selectedGate.name, station_id: selectedGate.station?.id || 0 }
-          : undefined,
-        numberplate: det.numberplate || det.originalplate || '',
-        originalplate: det.originalplate || det.numberplate || null,
-        detection_timestamp: det.detection_timestamp || det.timestamp || det.utc_time || new Date().toISOString(),
-        make_str: det.make_str || '',
-        model_str: det.model_str || '',
-        color_str: det.color_str || '',
-        processing_status: 'pending_vehicle_type',
-        isLocal: true,
-      };
-
-      setCapturedDetection(normalized);
-      setDetectedPlateNumber(normalized.numberplate);
-      setShowVehicleTypeModal(true);
-      toast.success(`📷 New vehicle detected: ${normalized.numberplate}`);
-    },
-  });
+  // DISABLED: Local storage-based detection system - now using backend database instead
+  // const {
+  //   latestDetection: localPendingDetection,
+  //   clearLatestDetection: clearLocalDetection,
+  //   markProcessed: markLocalProcessed,
+  // } = useLocalPendingDetections({
+  //   gateId: selectedGate?.id,
+  //   enabled: false, // DISABLED - using backend API instead
+  //   pollInterval: 2000,
+  //   onNewDetection: (localDetection: LocalPendingDetection) => {
+  //     // ... (removed)
+  //   },
+  // });
   
   // Log camera configuration for debugging
   useEffect(() => {
@@ -208,16 +111,32 @@ export default function VehicleEntry() {
     }
   }, [selectedGate, cameraDevice, cameraIp, cameraHttpPort, selectedGateDevices]);
 
-  // Check for pending detections with gentle polling
-  // Background processing is handled by Laravel scheduler (cron jobs)
-  // Polls every 2.5 seconds when page is visible to catch new detections quickly
-  // NOTE: Auto-opening of entry drawer/manual modals is disabled - operator must manually capture
+  // Check for pending detections from backend database
+  // Background processing is handled by Laravel scheduler (cron job: fetch:camera-data)
+  // The cron job runs every 2 seconds to fetch from camera and store in database
+  // Frontend polls the backend API every 2.5 seconds to get new detections
   const { latestDetection, fetchPendingDetections, clearLatestDetection, loading: detectionsLoading } = usePendingDetections({
-    enabled: false, // Disabled - no auto-polling, operator will manually capture
-    pollInterval: 2500,
+    enabled: isPageVisible, // Enabled when page is visible (don't require gate selection - show all detections from operator's assigned gates)
+    pollInterval: 2500, // Poll every 2.5 seconds
     onNewDetection: (detection) => {
-      // Disabled - no auto-opening of entry drawer
-      // Operator must manually click "Capture Vehicle" button
+      // Show vehicle type selection modal when new detection is found
+      console.log('[Entry Page] onNewDetection called:', {
+        detection: detection ? { id: detection.id, plate: detection.numberplate, gate_id: detection.gate_id } : null,
+        isPageVisible,
+        selectedGate: selectedGate?.id
+      });
+      if (isPageVisible && detection) {
+        console.log('[Entry Page] Showing vehicle type modal for detection:', detection.numberplate);
+        setCapturedDetection(detection);
+        setDetectedPlateNumber(detection.numberplate);
+        setShowVehicleTypeModal(true);
+        toast.success(`📷 New vehicle detected: ${detection.numberplate}`);
+      } else {
+        console.log('[Entry Page] Not showing modal - conditions not met:', {
+          isPageVisible,
+          hasDetection: !!detection
+        });
+      }
     },
   });
 
@@ -255,15 +174,17 @@ export default function VehicleEntry() {
     }
   }, [gatesLoading, selectedGate]);
 
-  // Disabled auto-fetching - operator will manually capture when needed
-  // Exit detections still auto-fetch for exit processing
+  // Auto-fetch pending detections when page becomes visible
+  // Entry detections are automatically fetched from backend (populated by cron job)
+  // Exit detections are also auto-fetched for exit processing
+  // Fetch even if no gate is selected - show all detections from operator's assigned gates
   useEffect(() => {
-    if (isPageVisible && selectedGate) {
-      // Only fetch exit detections automatically
+    if (isPageVisible) {
+      // Fetch both entry and exit detections automatically
+      fetchPendingDetections();
       fetchPendingExitDetections();
-      // Entry detections are handled manually via "Capture Vehicle" button
     }
-  }, [isPageVisible, selectedGate, fetchPendingExitDetections]);
+  }, [isPageVisible, fetchPendingDetections, fetchPendingExitDetections]);
 
   // Auto-refresh camera feed with direct camera endpoints (works in Tauri without proxy)
   useEffect(() => {
@@ -370,12 +291,9 @@ export default function VehicleEntry() {
 
   const handleVehicleTypeModalSuccess = () => {
     setShowVehicleTypeModal(false);
-    // Mark local detection as processed if it was a local detection
-    if (capturedDetection?.localId) {
-      markLocalProcessed(capturedDetection.localId);
-    }
+    // Clear the latest detection from backend API
+    clearLatestDetection();
     setCapturedDetection(null); // Clear captured detection
-    clearLocalDetection(); // Clear latest local detection
   };
 
   const handleGateSelect = async (gateId: number) => {
@@ -466,37 +384,7 @@ export default function VehicleEntry() {
           </div>
         </motion.div>
 
-        {/* Local Detection Logs (frontend polling) */}
-        {localPollingEnabled && (
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle className="text-sm font-semibold">Local Camera Detections</CardTitle>
-                <CardDescription>Seen on this operator machine (last 10)</CardDescription>
-              </div>
-              <Camera className="w-4 h-4 text-blue-500" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {localDetections.length === 0 && (
-                <p className="text-sm text-muted-foreground">Waiting for camera detections…</p>
-              )}
-              {localDetections.slice(0, 5).map((item, idx) => (
-                <div key={`${item.plate}-${idx}`} className="flex items-center justify-between text-sm border-b last:border-b-0 py-1">
-                  <div className="flex flex-col">
-                    <span className="font-mono font-semibold">{item.plate}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(item.timestamp)} {formatTime(item.timestamp)}
-                      {item.gateName ? ` • ${item.gateName}` : ""}
-                    </span>
-                  </div>
-                  <Badge variant="outline" className="text-green-600 border-green-500">
-                    {item.status === "pushed" ? "Pushed" : "Pending"}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+        {/* REMOVED: Local Detection Logs - Now using backend cron job instead */}
 
         {/* Camera Interface Section - Only show if gate is selected */}
         {selectedGate && (
