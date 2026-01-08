@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' http: https: data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 http: https: ws: wss:;"
+      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://192.168.0.112 http://127.0.0.1:8000 http://157.245.191.111 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' http: https: data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 http: https: ws: wss:;"
     }
   },
   "bundle": {
