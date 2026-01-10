@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { motion } from "framer-motion";
 import {
@@ -35,17 +35,9 @@ import { usePendingDetections } from "@/hooks/use-pending-detections";
 import { usePendingExitDetections } from "@/hooks/use-pending-exit-detections";
 import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { VehicleTypeSelectionModal } from "@/app/operator/entry/components/vehicle-type-selection-modal";
-// CameraDetectionService import removed - no longer needed for polling
 import { toast } from "sonner";
 import { useDetectionContext } from "@/contexts/detection-context";
 import { CameraDetection } from "@/hooks/use-detection-logs";
-import { useRef } from "react";
-// DISABLED: Client-side polling imports - now using Laravel cron job instead
-// import { useCameraLocalPolling } from "@/hooks/use-camera-local-polling";
-// import { RawCameraDetection } from "@/utils/camera-local-client";
-
-// Fixed polling interval: 1.5 seconds as requested
-// Polling removed - background processing handled by Laravel scheduler
 
 export default function ParkedVehicles() {
   const { t } = useLanguage();
@@ -61,6 +53,7 @@ export default function ParkedVehicles() {
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [contextDetection, setContextDetection] = useState<CameraDetection | null>(null);
   const isPageVisible = usePageVisibility();
+  
   const cameraDevice = selectedGateDevices?.find(
     (device) => device.device_type === "camera" && device.status === "active"
   );
@@ -73,12 +66,47 @@ export default function ParkedVehicles() {
         : null;
   const effectiveDirection = directionFromDevice ?? directionFromGate;
 
+  // ── NOTIFICATION SOUND ─────────────────────────────────────────────────────
+  const notificationSound = useRef<HTMLAudioElement | null>(null);
+  const lastSoundPlayed = useRef(0);
+
+  const playDetectionSound = useCallback(() => {
+    const now = Date.now();
+    // Prevent sound spam - minimum 2.2 seconds between plays
+    if (now - lastSoundPlayed.current < 2200) return;
+
+    if (notificationSound.current) {
+      notificationSound.current.currentTime = 0;
+      notificationSound.current.play().catch(err => {
+        console.log("Sound playback blocked - needs user interaction first", err);
+      });
+      lastSoundPlayed.current = now;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      notificationSound.current = new Audio('/sounds/detectionsound.mp3');
+      notificationSound.current.preload = "auto";
+      notificationSound.current.volume = 0.8; // Adjust 0.3–0.8 as needed
+    }
+
+    return () => {
+      if (notificationSound.current) {
+        notificationSound.current.pause();
+        notificationSound.current = null;
+      }
+    };
+  }, []);
+  // ───────────────────────────────────────────────────────────────────────────
+
   // Check for pending detections - NO POLLING
-  // Background processing is handled by Laravel scheduler (cron jobs)
-  // Only checks on page load and when page becomes visible
   const { latestDetection: pendingDetection, fetchPendingDetections, clearLatestDetection } = usePendingDetections({
-    enabled: true, // Enabled but no polling - only checks on mount
+    enabled: true,
     onNewDetection: (detection) => {
+      // Play sound when new detection arrives
+      playDetectionSound();
+      
       // Only show modal if page is visible
       if (isPageVisible) {
         setShowVehicleTypeModal(true);
@@ -87,11 +115,12 @@ export default function ParkedVehicles() {
   });
 
   // Check for pending exit detections - NO POLLING
-  // Background processing is handled by Laravel scheduler (cron jobs)
-  // Only checks on page load and when page becomes visible
   const { latestDetection: latestExitDetection, fetchPendingExitDetections, clearLatestDetection: clearLatestExitDetection } = usePendingExitDetections({
-    enabled: true, // Enabled but no polling - only checks on mount
+    enabled: true,
     onNewDetection: (detection) => {
+      // Play sound when new exit detection arrives
+      playDetectionSound();
+      
       // Only show dialog if page is visible
       if (isPageVisible) {
         setShowCameraExitDialog(true);
@@ -99,27 +128,7 @@ export default function ParkedVehicles() {
     },
   });
 
-  // DISABLED: Client-side camera polling - now using Laravel cron job instead
-  // The backend scheduler (fetch:camera-data) runs every 2 seconds to fetch from camera
-  // and store detections in the database. Frontend polls the backend API for new detections.
-  // const handleLocalDetections = useCallback(
-  //   (detections: RawCameraDetection[]) => {
-  //     // ... (removed)
-  //   },
-  //   [selectedGate]
-  // );
-
-  // DISABLED: Client-side polling
-  // useCameraLocalPolling({
-  //   gateId: selectedGate?.id,
-  //   cameraDevice,
-  //   enabled: false, // DISABLED - using cron job instead
-  //   direction: effectiveDirection,
-  //   onNewDetections: handleLocalDetections,
-  // });
-
   // Show modal if there's a pending detection on initial load or when pendingDetection changes
-  // Show immediately when page becomes visible if there's a pending detection
   useEffect(() => {
     if (pendingDetection) {
       if (isPageVisible) {
@@ -129,7 +138,6 @@ export default function ParkedVehicles() {
   }, [pendingDetection, isPageVisible]);
 
   // Show exit dialog if there's a pending exit detection
-  // Show immediately when page becomes visible if there's a pending exit detection
   useEffect(() => {
     if (latestExitDetection) {
       if (isPageVisible) {
@@ -150,8 +158,6 @@ export default function ParkedVehicles() {
   // Fetch pending detections when page becomes visible (no continuous polling)
   useEffect(() => {
     if (isPageVisible) {
-      // Fetch both types of pending detections when page becomes visible
-      // Background processing is handled by Laravel scheduler
       fetchPendingDetections();
       fetchPendingExitDetections();
     }
@@ -162,6 +168,9 @@ export default function ParkedVehicles() {
     if (!latestNewDetection || !isPageVisible) return;
 
     const detection = latestNewDetection;
+
+    // Play sound for context detections too
+    playDetectionSound();
 
     // Store detection for modal use
     setContextDetection(detection);
@@ -180,7 +189,6 @@ export default function ParkedVehicles() {
     }
 
     // Fallback: Check if vehicle has active passage
-    // Check if plate number matches any active passage
     const hasActivePassage = activePassages.some(
       (passage) => passage.vehicle?.plate_number?.toLowerCase() === detection.numberplate?.toLowerCase()
     );
@@ -192,7 +200,7 @@ export default function ParkedVehicles() {
       setShowVehicleTypeModal(true);
       clearContextDetection();
     }
-  }, [latestNewDetection, isPageVisible, activePassages, clearContextDetection]);
+  }, [latestNewDetection, isPageVisible, activePassages, clearContextDetection, playDetectionSound]);
 
   // Filter passages based on search term
   const filteredPassages = useMemo(() => {
@@ -221,14 +229,12 @@ export default function ParkedVehicles() {
 
   // Handle vehicle type modal success
   const handleVehicleTypeModalSuccess = () => {
-    clearLatestDetection(); // Clear first to allow next in queue
-    // Refresh after a short delay to allow next detection to be fetched
+    clearLatestDetection();
     setTimeout(() => {
-      fetchPendingDetections(); // This will fetch next in queue
-      fetchActivePassages(); // Also refresh active passages
+      fetchPendingDetections();
+      fetchActivePassages();
     }, 200);
   };
-
 
   return (
     <MainLayout>
@@ -587,15 +593,14 @@ export default function ParkedVehicles() {
           }}
           detection={latestExitDetection || (contextDetection ? contextDetection as any : null)}
           onExitProcessed={() => {
-            clearLatestExitDetection(); // Clear first to allow next in queue
+            clearLatestExitDetection();
             if (contextDetection) {
               setContextDetection(null);
               clearContextDetection();
             }
-            // Refresh after a short delay to allow next detection to be fetched
             setTimeout(() => {
-              fetchPendingExitDetections(); // This will fetch next in queue
-              fetchActivePassages(); // Refresh active passages list
+              fetchPendingExitDetections();
+              fetchActivePassages();
             }, 200);
           }}
         />
