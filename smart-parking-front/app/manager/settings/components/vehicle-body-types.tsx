@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +60,7 @@ import {
   Download,
   FileText,
   FileSpreadsheet,
+  FileDown,
   MoreHorizontal,
 } from "lucide-react";
 
@@ -76,6 +80,7 @@ export function VehicleBodyTypes() {
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedVehicleType, setSelectedVehicleType] =
     useState<VehicleBodyType | null>(null);
   const [formData, setFormData] = useState<CreateVehicleBodyTypeData>({
@@ -84,6 +89,164 @@ export function VehicleBodyTypes() {
     category: "light",
     is_active: true,
   });
+
+  // PDF Export Handler
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      let yPosition = margin;
+
+      // Header
+      doc.setFillColor(153, 51, 102);
+      doc.rect(0, 0, pageWidth, 30, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont(undefined, "bold");
+      doc.text("Vehicle Body Types Report", margin, 20);
+
+      // Timestamp
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+      doc.text(
+        `Generated on ${new Date().toLocaleString()}`,
+        pageWidth - margin - 80,
+        20
+      );
+
+      yPosition = 40;
+
+      // Summary boxes
+      const summaryBoxWidth = (pageWidth - margin * 2 - 10) / 3;
+      const summaryBoxHeight = 25;
+      const summaryBoxY = yPosition;
+
+      // Total vehicle types box
+      doc.setFillColor(230, 230, 250);
+      doc.rect(margin, summaryBoxY, summaryBoxWidth, summaryBoxHeight, "F");
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(11);
+      doc.setFont(undefined, "bold");
+      doc.text("Total Types", margin + 5, summaryBoxY + 8);
+      doc.setFontSize(16);
+      doc.text(vehicleBodyTypes.length.toString(), margin + 5, summaryBoxY + 18);
+
+      // Active types box
+      const activeCount = vehicleBodyTypes.filter((v) => v.is_active).length;
+      doc.setFillColor(200, 230, 201);
+      doc.rect(
+        margin + summaryBoxWidth + 5,
+        summaryBoxY,
+        summaryBoxWidth,
+        summaryBoxHeight,
+        "F"
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(11);
+      doc.setFont(undefined, "bold");
+      doc.text("Active", margin + summaryBoxWidth + 10, summaryBoxY + 8);
+      doc.setFontSize(16);
+      doc.text(
+        activeCount.toString(),
+        margin + summaryBoxWidth + 10,
+        summaryBoxY + 18
+      );
+
+      // Inactive types box
+      const inactiveCount = vehicleBodyTypes.length - activeCount;
+      doc.setFillColor(255, 205, 210);
+      doc.rect(
+        margin + summaryBoxWidth * 2 + 10,
+        summaryBoxY,
+        summaryBoxWidth,
+        summaryBoxHeight,
+        "F"
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(11);
+      doc.setFont(undefined, "bold");
+      doc.text(
+        "Inactive",
+        margin + summaryBoxWidth * 2 + 15,
+        summaryBoxY + 8
+      );
+      doc.setFontSize(16);
+      doc.text(
+        inactiveCount.toString(),
+        margin + summaryBoxWidth * 2 + 15,
+        summaryBoxY + 18
+      );
+
+      yPosition = summaryBoxY + summaryBoxHeight + 10;
+
+      // Prepare table data
+      const tableData = vehicleBodyTypes.map((type) => [
+        type.id.toString(),
+        type.name,
+        type.description || "-",
+        type.category,
+        type.is_active ? "Active" : "Inactive",
+        new Date(type.created_at).toLocaleDateString(),
+      ]);
+
+      // Generate table
+      autoTable(doc, {
+        head: [["ID", "Name", "Description", "Category", "Status", "Created"]],
+        body: tableData,
+        startY: yPosition,
+        margin: margin,
+        theme: "grid",
+        headStyles: {
+          fillColor: [153, 51, 102],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "left",
+          valign: "middle",
+        },
+        bodyStyles: {
+          textColor: [0, 0, 0],
+          halign: "left",
+          valign: "middle",
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245],
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 15 },
+        },
+        didDrawPage: (data) => {
+          const pageCount = (doc as any).internal.pages.length - 1;
+          if (pageCount > 0) {
+            doc.setFontSize(10);
+            doc.setTextColor(128, 128, 128);
+            doc.text(
+              `Page ${data.pageNumber} of ${pageCount}`,
+              pageWidth - margin - 30,
+              pageHeight - 10
+            );
+          }
+        },
+      });
+
+      // Save the PDF
+      doc.save("vehicle-body-types.pdf");
+
+      // Show modal for 1.5 seconds
+      setTimeout(() => setIsExporting(false), 1500);
+    } catch (error) {
+      setIsExporting(false);
+      alert("Error exporting PDF. Check console for details.");
+      console.error(error);
+    }
+  };
 
   // Define table columns
   const columns: TableColumn<VehicleBodyType>[] = [
@@ -323,6 +486,7 @@ export function VehicleBodyTypes() {
         loading={loading}
         searchable={true}
         exportable={true}
+        onExportPDF={handleExportPDF}
         searchPlaceholder="Search vehicle types..."
         exportFileName="vehicle-body-types"
         searchFields={["name", "description", "category"]}
@@ -347,6 +511,50 @@ export function VehicleBodyTypes() {
           </Button>
         }
       />
+
+      {/* Exporting PDF Modal */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl p-8 w-full max-w-md mx-4"
+          >
+            <div className="flex flex-col items-center space-y-4">
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                <FileDown className="w-12 h-12 text-maroon animate-bounce" />
+              </motion.div>
+
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Exporting PDF...
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Please wait while we generate your report
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                <motion.div
+                  className="bg-gradient-to-r from-maroon to-maroon-dark h-full"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1.5,
+                    ease: "linear",
+                  }}
+                  style={{ width: "30%" }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Create Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

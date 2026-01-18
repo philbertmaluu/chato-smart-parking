@@ -1,5 +1,5 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "Smart Parking System",
   "version": "1.1.0",
   "identifier": "com.smartparking.desktop",
@@ -23,7 +23,13 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://192.168.0.112 http://127.0.0.1:8000 http://157.245.191.111 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' http: https: data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 http: https: ws: wss:;"
+      "csp": "default-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://192.168.0.112 http://127.0.0.1:8000 http://157.245.191.111 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' http: https: data: blob:; connect-src 'self' http://localhost:3000 http://127.0.0.1:3000 http://127.0.0.1:8000 http://157.245.191.111 http: https: ws: wss:;",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
     }
   },
   "bundle": {
@@ -55,6 +61,6 @@
     "publisher": "Smart Parking",
     "category": "Business",
     "shortDescription": "Smart Parking Management System v1.1.0",
-    "longDescription": "A comprehensive parking management system with advanced vehicle detection, intelligent toll calculation, and automated receipt printing capabilities.\n\n✨ New Features in v1.1.0:\n• Flexible Vehicle Entry - Enter vehicles without body type, set on exit\n• Exit-Based Pricing - Calculate fees based on actual time spent\n• 24-Hour Rolling Periods - Fair daily charging model\n• Paid Pass Tracking - Automatic free exit for vehicles with active passes\n• Gate Control Integration - Seamless hardware integration\n• Thermal Printer Support - Zy-Q822 receipt printing\n• Enhanced Camera Detection - Improved vehicle type handling\n\n🔧 Core Features:\n• Real-time vehicle plate detection\n• Automated entry/exit processing\n• Multiple payment methods\n• Operator and Manager dashboards\n• Comprehensive reporting and analytics\n• Multi-station support\n• Bundle subscription management\n\n📋 System Requirements:\n• Windows 10/11 (64-bit)\n• Internet connection for API access\n• Camera support (optional)\n• Thermal printer (optional)\n\nFor support and updates, visit our website."
+    "longDescription": "A comprehensive parking management system"
   }
 }

@@ -17,8 +17,11 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  FileDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 // Types for table configuration
 export interface TableColumn<T = any> {
@@ -45,6 +48,7 @@ export interface DataTableProps<T = any> {
   actionButtons?: React.ReactNode;
   searchFields?: (keyof T)[];
   className?: string;
+  onExportPDF?: () => void;
   pagination?: {
     currentPage: number;
     total: number;
@@ -258,6 +262,70 @@ const exportToJSON = <T extends Record<string, any>>(
   document.body.removeChild(link);
 };
 
+const exportToPDF = <T extends Record<string, any>>(
+  dataSource: T[],
+  columns: TableColumn<T>[],
+  filename: string = "table-data"
+) => {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Header
+  doc.setFillColor(30, 58, 95);
+  doc.rect(0, 0, pageWidth, 20, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("TABLE REPORT", 14, 12);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 18);
+
+  // Table data
+  const headers = columns.map((col) => col.title);
+  const data = dataSource.map((item) =>
+    columns.map((col) => {
+      const value = col.dataIndex ? item[col.dataIndex] : "";
+      return String(value || "");
+    })
+  );
+
+  // Add table
+  (doc as any).autoTable({
+    head: [headers],
+    body: data,
+    startY: 28,
+    theme: "grid",
+    headStyles: {
+      fillColor: [30, 58, 95],
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: 9,
+      halign: "center",
+    },
+    bodyStyles: { fontSize: 8, cellPadding: 2 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left: 14, right: 14 },
+    didDrawPage: (data) => {
+      // Footer
+      doc.setFillColor(30, 58, 95);
+      doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text("Smart Parking System", 14, pageHeight - 4);
+      doc.text(
+        `Page ${doc.getCurrentPageInfo().pageNumber}`,
+        pageWidth - 14,
+        pageHeight - 4,
+        { align: "right" }
+      );
+    },
+  });
+
+  doc.save(`${filename}.pdf`);
+};
+
 const exportToExcel = <T extends Record<string, any>>(
   dataSource: T[],
   columns: TableColumn<T>[],
@@ -421,6 +489,7 @@ function DataTable<T extends Record<string, any>>({
   actionButtons,
   searchFields,
   className,
+  onExportPDF,
   pagination,
 }: DataTableProps<T>) {
   const [searchText, setSearchText] = React.useState("");
@@ -507,6 +576,20 @@ function DataTable<T extends Record<string, any>>({
     );
   };
 
+  const handleExportPDF = () => {
+    if (onExportPDF) {
+      onExportPDF();
+    } else {
+      exportToPDF(
+        filteredData,
+        columns,
+        exportFileName ||
+          title?.toLowerCase().replace(/\s+/g, "-") ||
+          "table-data"
+      );
+    }
+  };
+
   const exportMenuItems = [
     {
       key: "excel",
@@ -525,6 +608,12 @@ function DataTable<T extends Record<string, any>>({
       icon: <FileText className="mr-2 h-4 w-4" />,
       label: "JSON",
       onClick: handleExportJSON,
+    },
+    {
+      key: "pdf",
+      icon: <FileDown className="mr-2 h-4 w-4 text-red-600" />,
+      label: "PDF",
+      onClick: handleExportPDF,
     },
   ];
 

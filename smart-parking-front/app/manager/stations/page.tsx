@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { motion } from "framer-motion";
+import { MainLayout } from "@/components/layout/main-layout";
 import {
   Card,
   CardContent,
@@ -63,6 +65,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  FileDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -241,6 +244,7 @@ export default function StationsManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState("All Regions");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isExporting, setIsExporting] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -280,6 +284,211 @@ export default function StationsManagement() {
       return matchesSearch && matchesRegion && matchesStatus;
     });
   }, [searchTerm, regionFilter, statusFilter]);
+
+  // PDF Export Handler
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      let yPosition = margin;
+
+      // Header
+      doc.setFillColor(153, 51, 102);
+      doc.rect(0, 0, pageWidth, 30, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont(undefined, "bold");
+      doc.text("Parking Stations Report", margin, 20);
+
+      // Timestamp
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+      doc.text(
+        `Generated on ${new Date().toLocaleString()}`,
+        pageWidth - margin - 80,
+        20
+      );
+
+      yPosition = 40;
+
+      // Summary boxes
+      const summaryBoxWidth = (pageWidth - margin * 2 - 15) / 4;
+      const summaryBoxHeight = 25;
+      const summaryBoxY = yPosition;
+
+      // Total stations box
+      doc.setFillColor(230, 230, 250);
+      doc.rect(margin, summaryBoxY, summaryBoxWidth, summaryBoxHeight, "F");
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.text("Total Stations", margin + 3, summaryBoxY + 8);
+      doc.setFontSize(16);
+      doc.text(analytics.totalStations.toString(), margin + 3, summaryBoxY + 18);
+
+      // Active stations box
+      doc.setFillColor(200, 230, 201);
+      doc.rect(
+        margin + summaryBoxWidth + 5,
+        summaryBoxY,
+        summaryBoxWidth,
+        summaryBoxHeight,
+        "F"
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.text(
+        "Active Stations",
+        margin + summaryBoxWidth + 8,
+        summaryBoxY + 8
+      );
+      doc.setFontSize(16);
+      doc.text(
+        analytics.activeStations.toString(),
+        margin + summaryBoxWidth + 8,
+        summaryBoxY + 18
+      );
+
+      // Total spots box
+      doc.setFillColor(221, 214, 254);
+      doc.rect(
+        margin + summaryBoxWidth * 2 + 10,
+        summaryBoxY,
+        summaryBoxWidth,
+        summaryBoxHeight,
+        "F"
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.text(
+        "Total Spots",
+        margin + summaryBoxWidth * 2 + 13,
+        summaryBoxY + 8
+      );
+      doc.setFontSize(16);
+      doc.text(
+        analytics.totalSpots.toString(),
+        margin + summaryBoxWidth * 2 + 13,
+        summaryBoxY + 18
+      );
+
+      // Total revenue box
+      doc.setFillColor(255, 243, 205);
+      doc.rect(
+        margin + summaryBoxWidth * 3 + 15,
+        summaryBoxY,
+        summaryBoxWidth,
+        summaryBoxHeight,
+        "F"
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.text(
+        "Total Revenue",
+        margin + summaryBoxWidth * 3 + 18,
+        summaryBoxY + 8
+      );
+      doc.setFontSize(14);
+      doc.text(
+        `Tsh. ${analytics.totalRevenue}`,
+        margin + summaryBoxWidth * 3 + 18,
+        summaryBoxY + 18
+      );
+
+      yPosition = summaryBoxY + summaryBoxHeight + 10;
+
+      // Prepare table data
+      const tableData = filteredStations.map((station) => [
+        station.id,
+        station.name,
+        station.location,
+        station.totalGates.toString(),
+        station.operators.toString(),
+        `${getCapacityPercentage(station.occupiedSpots, station.totalSpots)}%`,
+        `${station.occupiedSpots}/${station.totalSpots}`,
+        station.todayRevenue,
+        station.status.charAt(0).toUpperCase() + station.status.slice(1),
+      ]);
+
+      // Generate table
+      autoTable(doc, {
+        head: [
+          [
+            "ID",
+            "Station Name",
+            "Location",
+            "Gates",
+            "Operators",
+            "Occupancy",
+            "Spots Used",
+            "Revenue",
+            "Status",
+          ],
+        ],
+        body: tableData,
+        startY: yPosition,
+        margin: margin,
+        theme: "grid",
+        headStyles: {
+          fillColor: [153, 51, 102],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "left",
+          valign: "middle",
+        },
+        bodyStyles: {
+          textColor: [0, 0, 0],
+          halign: "left",
+          valign: "middle",
+          fontSize: 9,
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245],
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 12 },
+          3: { halign: "center", cellWidth: 15 },
+          4: { halign: "center", cellWidth: 18 },
+          5: { halign: "center", cellWidth: 18 },
+          6: { halign: "center", cellWidth: 18 },
+          8: { halign: "center", cellWidth: 18 },
+        },
+        didDrawPage: (data) => {
+          const pageCount = (doc as any).internal.pages.length - 1;
+          if (pageCount > 0) {
+            doc.setFontSize(10);
+            doc.setTextColor(128, 128, 128);
+            doc.text(
+              `Page ${data.pageNumber} of ${pageCount}`,
+              pageWidth - margin - 30,
+              pageHeight - 10
+            );
+          }
+        },
+      });
+
+      // Save the PDF
+      doc.save("parking-stations.pdf");
+
+      // Show modal for 1.5 seconds
+      setTimeout(() => setIsExporting(false), 1500);
+    } catch (error) {
+      setIsExporting(false);
+      alert("Error exporting PDF. Check console for details.");
+      console.error(error);
+    }
+  };
 
   // Calculate analytics
   const analytics = useMemo(() => {
@@ -435,13 +644,23 @@ export default function StationsManagement() {
               Manage multiple parking locations across different regions
             </p>
           </div>
-          <Button
-            onClick={() => setShowCreateDialog(true)}
-            className="gradient-maroon hover:opacity-90"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Station
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleExportPDF}
+              variant="outline"
+              className="border-maroon text-maroon hover:bg-maroon/10"
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              className="gradient-maroon hover:opacity-90"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Station
+            </Button>
+          </div>
         </motion.div>
 
         {/* Analytics Cards */}
@@ -800,6 +1019,50 @@ export default function StationsManagement() {
           ))}
         </motion.div>
       </div>
+
+      {/* Exporting PDF Modal */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl p-8 w-full max-w-md mx-4"
+          >
+            <div className="flex flex-col items-center space-y-4">
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                <FileDown className="w-12 h-12 text-maroon animate-bounce" />
+              </motion.div>
+
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Exporting PDF...
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Please wait while we generate your report
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                <motion.div
+                  className="bg-gradient-to-r from-maroon to-maroon-dark h-full"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1.5,
+                    ease: "linear",
+                  }}
+                  style={{ width: "30%" }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Create Station Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

@@ -2,7 +2,7 @@
 name = "app"
 version = "1.1.0"
 description = "Smart Parking System - Desktop Application"
-authors = ["you"]
+authors = ["Smart Parking Team"]
 license = ""
 repository = ""
 edition = "2021"
@@ -13,14 +13,15 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5", features = [] }  # Latest v2.5 series
+tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.5", features = [] }  # Latest v2.5 series core
-tauri-plugin-log = "2.5"  # Match the core minor
+tauri = { version = "2.5", features = ["protocol-asset"] }
+tauri-plugin-log = "2.5"
+serialport = "4.8.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winspool", "winuser", "winerror", "handleapi", "fileapi"] }

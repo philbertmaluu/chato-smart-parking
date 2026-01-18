@@ -38,7 +38,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Car, Plus, Edit, Trash2, MoreHorizontal, Search, Filter, Download, RefreshCw, TrendingUp, Users, Clock, DollarSign, Activity, BarChart3, PieChart } from "lucide-react";
+import { Car, Plus, Edit, Trash2, MoreHorizontal, Search, Filter, Download, RefreshCw, TrendingUp, Users, Clock, DollarSign, Activity, BarChart3, PieChart, FileDown } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { getVehicleTypeIcon } from "@/utils/utils";
 import { formatDate } from "@/utils/date-utils";
 import { useVehicles } from "@/hooks/use-vehicles";
@@ -75,6 +77,7 @@ export default function VehiclesPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "registered" | "unregistered">("all");
+  const [isExporting, setIsExporting] = useState(false);
   
   // Analytics state
   const [analytics, setAnalytics] = useState({
@@ -397,6 +400,130 @@ export default function VehiclesPage() {
     }
   };
 
+  // Handle PDF Export
+  const handleExportPDF = async () => {
+    if (isExporting || filteredVehicles.length === 0) return;
+    
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let currentY = 15;
+
+      // Header
+      doc.setFillColor(30, 58, 95);
+      doc.rect(10, currentY, pageWidth - 20, 20, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text('Vehicle Fleet Report', pageWidth / 2, currentY + 8, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, currentY + 15, { align: 'center' });
+      currentY += 25;
+
+      // Summary stats
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+      const summaryBoxWidth = (pageWidth - 30) / 3;
+      const boxHeight = 15;
+
+      // Total vehicles
+      doc.setFillColor(240, 240, 240);
+      doc.rect(10, currentY, summaryBoxWidth, boxHeight, 'F');
+      doc.setFont(undefined, 'bold');
+      doc.text('Total Vehicles:', 12, currentY + 5);
+      doc.setFont(undefined, 'normal');
+      doc.text(filteredVehicles.length.toString(), 12, currentY + 10);
+
+      // Registered vehicles
+      doc.setFillColor(240, 240, 240);
+      doc.rect(12 + summaryBoxWidth, currentY, summaryBoxWidth, boxHeight, 'F');
+      doc.setFont(undefined, 'bold');
+      doc.text('Registered:', 14 + summaryBoxWidth, currentY + 5);
+      doc.setFont(undefined, 'normal');
+      doc.text(filteredVehicles.filter(v => v.is_registered).length.toString(), 14 + summaryBoxWidth, currentY + 10);
+
+      // Unregistered vehicles
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14 + summaryBoxWidth * 2, currentY, summaryBoxWidth, boxHeight, 'F');
+      doc.setFont(undefined, 'bold');
+      doc.text('Unregistered:', 16 + summaryBoxWidth * 2, currentY + 5);
+      doc.setFont(undefined, 'normal');
+      doc.text(filteredVehicles.filter(v => !v.is_registered).length.toString(), 16 + summaryBoxWidth * 2, currentY + 10);
+
+      currentY += 20;
+
+      // Prepare table data
+      const tableHeaders = ['ID', 'Plate', 'Make', 'Model', 'Year', 'Color', 'Owner', 'Body Type', 'Registered', 'Added'];
+      const tableData = filteredVehicles.map(v => [
+        String(v.id),
+        v.plate_number,
+        v.make || '-',
+        v.model || '-',
+        v.year ? String(v.year) : '-',
+        v.color || '-',
+        v.owner_name || '-',
+        bodyTypeById.get(v.body_type_id)?.name || 'Unknown',
+        v.is_registered ? 'Yes' : 'No',
+        formatDate(v.created_at)
+      ]);
+
+      // Add table using autoTable
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableData,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [30, 58, 95],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center'
+        },
+        bodyStyles: {
+          fontSize: 7,
+          halign: 'left',
+          textColor: 0
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        margin: { left: 10, right: 10, top: 10, bottom: 10 },
+        didDrawPage: (data: any) => {
+          // Footer
+          const pageCount = (doc as any).internal.getNumberOfPages();
+          const pageSize = (doc as any).internal.pageSize;
+          const pageHeight = pageSize.getHeight();
+          doc.setFontSize(8);
+          doc.setTextColor(128, 128, 128);
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            pageHeight - 10,
+            { align: 'center' }
+          );
+        }
+      });
+
+      // Save PDF
+      const filename = `vehicle-fleet-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      console.log('PDF exported successfully:', filename);
+      
+      // Keep loading state visible for a moment before hiding
+      setTimeout(() => {
+        setIsExporting(false);
+      }, 1500);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Error exporting PDF. Check console for details.');
+      setIsExporting(false);
+    }
+  };
+
 
 
   return (
@@ -556,8 +683,50 @@ export default function VehiclesPage() {
               lastPage: pagination.last_page,
               onPageChange: handlePageChange,
             }}
+            onExportPDF={handleExportPDF}
           />
         </motion.div>
+
+        {/* Exporting PDF Modal */}
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white dark:bg-slate-900 rounded-lg shadow-2xl p-8 max-w-sm mx-4"
+            >
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-pulse" />
+                  <div className="relative bg-blue-100 dark:bg-blue-900/30 rounded-full p-4">
+                    <FileDown className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-bounce" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Exporting PDF...
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Please wait while we prepare your vehicle fleet report
+                  </p>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <motion.div
+                    animate={{ x: ['0%', '100%', '0%'] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                    style={{ width: '30%' }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </div>
 
       {/* Create Dialog */}

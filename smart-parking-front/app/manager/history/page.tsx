@@ -721,7 +721,7 @@ export default function PassageHistoryPage() {
         } else {
           doc.setFillColor(241, 245, 249);
         }
-        doc.roundedRect(x, summaryY, boxWidth, boxHeight, 2, 2, 'F');
+        doc.rect(x, summaryY, boxWidth, boxHeight, 'F');
         doc.setFontSize(7);
         doc.setTextColor(item.highlight ? 255 : 100, item.highlight ? 255 : 100, item.highlight ? 255 : 100);
         doc.text(item.label, x + boxWidth / 2, summaryY + 6, { align: 'center' });
@@ -734,7 +734,7 @@ export default function PassageHistoryPage() {
 
       // Filters info
       doc.setFillColor(248, 250, 252);
-      doc.roundedRect(startX + (4 * (boxWidth + 8)), summaryY, 70, boxHeight, 2, 2, 'F');
+      doc.rect(startX + (4 * (boxWidth + 8)), summaryY, 70, boxHeight, 'F');
       doc.setFontSize(7);
       doc.setTextColor(100, 100, 100);
       doc.text('APPLIED FILTERS', startX + (4 * (boxWidth + 8)) + 5, summaryY + 6);
@@ -1703,11 +1703,11 @@ export default function PassageHistoryPage() {
                             )
                           )}
                         </Pie>
-                        <Tooltip formatter={(value: any, name: string) => {
+                        <Tooltip formatter={(value: any, name?: string) => {
                           const entry = analytics.vehicleTypeChartData.find((e: any) => e.value === value);
                           return [
                             `${value} vehicles (${formatCurrency((entry as any)?.revenue || 0)})`,
-                            name
+                            name || ''
                           ];
                         }} />
                       </PieChart>

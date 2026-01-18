@@ -24,6 +24,7 @@ import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
 import Echo from "laravel-echo";
 import Pusher from "pusher-js";
+import { OpenGateButton } from "@/components/open-gate-button";
 
 // Declare Pusher on window for Laravel Echo
 declare global {
@@ -433,6 +434,14 @@ export default function VehicleEntry() {
                           </>
                         )}
                       </Button>
+                    )}
+
+                    {/* Open Gate Button */}
+                    {selectedGate && (
+                      <OpenGateButton 
+                        selectedGate={selectedGate}
+                        size="lg"
+                      />
                     )}
 
                     {selectedGate && cameraIp && (
