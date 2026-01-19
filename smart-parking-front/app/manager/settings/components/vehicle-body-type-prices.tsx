@@ -63,6 +63,7 @@ import {
   MoreHorizontal,
   Calendar,
   TrendingUp,
+  FileDown,
 } from "lucide-react";
 
 export function VehicleBodyTypePrices() {
@@ -120,12 +121,12 @@ export function VehicleBodyTypePrices() {
       doc.rect(0, 0, pageWidth, 30, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Vehicle Pricing Report", margin, 20);
 
       // Timestamp
       doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
+      doc.setFont("helvetica", "normal");
       doc.text(
         `Generated on ${new Date().toLocaleString()}`,
         pageWidth - margin - 80,
@@ -144,7 +145,7 @@ export function VehicleBodyTypePrices() {
       doc.rect(margin, summaryBoxY, summaryBoxWidth, summaryBoxHeight, "F");
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Total Pricing Config", margin + 5, summaryBoxY + 8);
       doc.setFontSize(16);
       doc.text(vehicleBodyTypePrices.length.toString(), margin + 5, summaryBoxY + 18);
@@ -161,7 +162,7 @@ export function VehicleBodyTypePrices() {
       );
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Active", margin + summaryBoxWidth + 10, summaryBoxY + 8);
       doc.setFontSize(16);
       doc.text(
@@ -185,7 +186,7 @@ export function VehicleBodyTypePrices() {
       );
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text(
         "Avg Price",
         margin + summaryBoxWidth * 2 + 15,

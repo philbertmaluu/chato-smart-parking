@@ -57,27 +57,18 @@ export function VehicleExitDialog({
   const { vehicleBodyTypes, loading: bodyTypesLoading } = useVehicleBodyTypes();
   const [updatedVehicle, setUpdatedVehicle] = useState<ActivePassage | null>(null);
 
-  // ── AUTO GATE OPENING FUNCTION ────────────────────────────────────────────
+  // ── AUTO GATE OPENING ─────────────────────────────────────────────────────
   const openGateAutomatically = useCallback(async () => {
     try {
-      // Check if Tauri is available
       const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
-
-      if (!isTauri) {
-        console.log('[VehicleExitDialog] Not in Tauri, skipping gate control');
-        return;
-      }
+      if (!isTauri) return;
 
       console.log('[VehicleExitDialog] Opening gate after exit...');
 
-      // Import Tauri invoke
       const { invoke } = await import('@tauri-apps/api/core');
-
       const result: any = await invoke('open_gate_all_ports', {
         command: 'hell'
       });
-
-      console.log('[VehicleExitDialog] Gate opened:', result);
 
       toast.success("🚧 Gate opened automatically!", {
         description: result.successful_port 
@@ -85,10 +76,8 @@ export function VehicleExitDialog({
           : `Command sent to ${result.ports_tried?.length || 0} port(s)`,
         duration: 3000,
       });
-
     } catch (error: any) {
       console.error('[VehicleExitDialog] Gate control error:', error);
-      // Don't show error toast for gate - exit is already processed
       console.warn('[VehicleExitDialog] Gate failed to open, but exit was successful');
     }
   }, []);
@@ -152,19 +141,34 @@ export function VehicleExitDialog({
               return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
             };
 
-            // Calculate actual duration in days
-            const entryDate = passageData.entry_time ? new Date(passageData.entry_time) : new Date();
-            const exitDate = passageData.exit_time ? new Date(passageData.exit_time) : new Date();
-            const durationMs = exitDate.getTime() - entryDate.getTime();
-            const durationHours = durationMs / (1000 * 60 * 60);
-            const durationDays = durationHours / 24;
-            const quantityDisplay = durationDays.toFixed(1);
+            // ── BILLING CALCULATION ───────────────────────────────────────────
+            const entryTime = new Date(passageData.entry_time);
+            const exitTime = new Date(passageData.exit_time || new Date());
+
+            const durationMs = exitTime.getTime() - entryTime.getTime();
+            const durationMinutes = Math.max(1, Math.ceil(durationMs / (1000 * 60)));
+            const durationHours = durationMinutes / 60;
+
+            let billableDays = Math.ceil(durationHours / 12) * 0.5;
+            if (billableDays < 0.5) billableDays = 0.5;
+
+            const siku = billableDays.toFixed(1);
+            // ─────────────────────────────────────────────────────────────────
+
+            const receiptId = passageData.passage_number || `EXIT-${passageData.id}`;
+
+            // ── KUMBUKUMBU NA PREPARATION ────────────────────────────────────
+            const kumbukumbuNa = passageData.passage_number
+              ? `Kumb. Na ${passageData.passage_number}`
+              : receiptId;
+            // ─────────────────────────────────────────────────────────────────
 
             const receiptData = {
               company_name: "CHATO DISTRICT COUNCIL",
               company_subtitle: "STAKABADHI YA MALIPO",
               receipt_type: "EXIT RECEIPT",
-              receipt_id: passageData.passage_number || `EXIT-${passageData.id}`,
+              receipt_id: receiptId,
+              passage_number: passageData.passage_number,
               plate_number: passageData.vehicle?.plate_number || vehicle?.vehicle?.plate_number || "N/A",
               vehicle_type: passageData.vehicle?.body_type?.name ||
                 updatedVehicle?.vehicle?.body_type?.name ||
@@ -181,21 +185,26 @@ export function VehicleExitDialog({
                 passageData.entry_gate?.name ||
                 selectedGate?.name ||
                 "JOHANUTA",
-              item_quantity: quantityDisplay,
+              item_quantity: siku,
               item_day: "Day",
-              footer: "*** MWISHO WA STAKABADHI ***",
+
+              // ── NEW: KUMBUKUMBU NA FIELDS ────────────────────────────────
+              kumbukumbu_na: kumbukumbuNa,
+              kumbukumbu_label: "Kumbukumbu Na",
+              // ──────────────────────────────────────────────────────────────
+
+              tigopesa_number: "45107230",
             };
 
             console.log("Receipt data sent to printer:", receiptData);
 
             await printReceiptDirect(receiptData);
-            toast.success("🖨️ Exit receipt printed!", { id: "print-exit-receipt" });
+            toast.success("🖨️ Exit receipt printed with TigoPesa QR!", { id: "print-exit-receipt" });
 
-            // ✅ AUTOMATICALLY OPEN GATE AFTER PRINTING
-            console.log('[VehicleExitDialog] Receipt printed, opening gate...');
+            // Automatic gate opening after printing
             setTimeout(() => {
               openGateAutomatically();
-            }, 500); // Small delay to ensure receipt finishes printing
+            }, 500);
 
           } catch (printError: any) {
             console.error("Direct print error:", printError);
@@ -496,7 +505,7 @@ export function VehicleExitDialog({
 
               {!selectedBodyTypeId && (
                 <p className="text-sm text-red-500">
-                  Tafadhali chagua aina ya mwili wa gari ili kuendelea
+                  Tafadhali chagua aina ya gari ili kuendelea
                 </p>
               )}
             </div>
@@ -519,7 +528,7 @@ export function VehicleExitDialog({
                   if (selectedBodyTypeId) {
                     handleVehicleTypeSelected(selectedBodyTypeId);
                   } else {
-                    toast.error("Tafadhali chagua aina ya mwili wa gari");
+                    toast.error("Tafadhali chagua aina ya gari");
                   }
                 }}
                 disabled={!selectedBodyTypeId || isProcessing || bodyTypesLoading}

@@ -122,11 +122,6 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       icon: ParkingCircle,
     },
     {
-      title: "Detection Logs",
-      href: "/operator/detection-logs",
-      icon: Camera,
-    },
-    {
       title: "Profile",
       href: "/operator/profile",
       icon: User,

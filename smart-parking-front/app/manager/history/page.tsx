@@ -1817,8 +1817,6 @@ export default function PassageHistoryPage() {
                 </Card>
                       </motion.div>
                 </div>
-
-
           </TabsContent>
         </Tabs>
               </div>

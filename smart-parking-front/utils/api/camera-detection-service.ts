@@ -186,7 +186,7 @@ export class CameraDetectionService {
    * Quick capture - optimized for operator real-time vehicle capture
    * Only fetches recent detections (last 2 minutes) for faster response
    */
-  static async quickCapture(): Promise<FetchAndStoreResponse> {
+  static async quickCapture(p0: { direction: number; }): Promise<FetchAndStoreResponse> {
     return post<FetchAndStoreResponse>(
       API_ENDPOINTS.CAMERA_DETECTION.QUICK_CAPTURE,
       {}

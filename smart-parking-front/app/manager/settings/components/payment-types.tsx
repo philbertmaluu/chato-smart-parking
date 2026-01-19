@@ -99,12 +99,12 @@ export function PaymentTypes() {
       doc.rect(0, 0, pageWidth, 30, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Payment Methods Report", margin, 20);
 
       // Timestamp
       doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
+      doc.setFont("helvetica", "normal");
       doc.text(
         `Generated on ${new Date().toLocaleString()}`,
         pageWidth - margin - 80,
@@ -123,7 +123,7 @@ export function PaymentTypes() {
       doc.rect(margin, summaryBoxY, summaryBoxWidth, summaryBoxHeight, "F");
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Total Payment Methods", margin + 5, summaryBoxY + 8);
       doc.setFontSize(16);
       doc.text(paymentTypes.length.toString(), margin + 5, summaryBoxY + 18);
@@ -140,7 +140,7 @@ export function PaymentTypes() {
       );
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(11);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("Active", margin + summaryBoxWidth + 10, summaryBoxY + 8);
       doc.setFontSize(16);
       doc.text(

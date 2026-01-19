@@ -416,10 +416,10 @@ export default function VehiclesPage() {
       doc.rect(10, currentY, pageWidth - 20, 20, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Vehicle Fleet Report', pageWidth / 2, currentY + 8, { align: 'center' });
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, currentY + 15, { align: 'center' });
       currentY += 25;
 
@@ -432,25 +432,25 @@ export default function VehiclesPage() {
       // Total vehicles
       doc.setFillColor(240, 240, 240);
       doc.rect(10, currentY, summaryBoxWidth, boxHeight, 'F');
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Total Vehicles:', 12, currentY + 5);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(filteredVehicles.length.toString(), 12, currentY + 10);
 
       // Registered vehicles
       doc.setFillColor(240, 240, 240);
       doc.rect(12 + summaryBoxWidth, currentY, summaryBoxWidth, boxHeight, 'F');
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Registered:', 14 + summaryBoxWidth, currentY + 5);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(filteredVehicles.filter(v => v.is_registered).length.toString(), 14 + summaryBoxWidth, currentY + 10);
 
       // Unregistered vehicles
       doc.setFillColor(240, 240, 240);
       doc.rect(14 + summaryBoxWidth * 2, currentY, summaryBoxWidth, boxHeight, 'F');
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('Unregistered:', 16 + summaryBoxWidth * 2, currentY + 5);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(filteredVehicles.filter(v => !v.is_registered).length.toString(), 16 + summaryBoxWidth * 2, currentY + 10);
 
       currentY += 20;

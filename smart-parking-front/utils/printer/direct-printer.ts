@@ -1,21 +1,39 @@
-import { invoke } from '@tauri-apps/api/core';
-import { PRINTER_CONFIG } from './printer-config';
+import { invoke } from "@tauri-apps/api/core";
+import { PRINTER_CONFIG } from "./printer-config";
+
+/* ===================== TYPES ===================== */
 
 interface ReceiptData {
   company_name?: string;
   company_subtitle?: string;
+
   receipt_type?: string;
   receipt_id?: string;
+  receipt_number?: string;
+
   plate_number?: string;
   vehicle_type?: string;
+
   operator?: string;
   entry_time?: string;
   exit_time?: string;
-  total_amount?: string;
+
   gate?: string;
-  footer?: string;
+
+  total_amount?: string;
+
+  // TABLE
+  item_description?: string;
   item_quantity?: string;
   item_day?: string;
+  item_amount?: string;
+
+  duration_minutes?: number;
+
+  // QR
+  qr_code_data?: string;
+  tigopesa_number?: string;
+
   [key: string]: any;
 }
 
@@ -24,102 +42,113 @@ interface PrintReceiptRequest {
   receipt_data: ReceiptData;
 }
 
-/**
- * Sends formatted receipt data to the Tauri backend for direct printing
- */
+/* ===================== PUBLIC API ===================== */
+
 export async function printReceiptDirect(
   receiptData: ReceiptData,
   printerName?: string
 ): Promise<void> {
   const printer = printerName || PRINTER_CONFIG.defaultPrinterName;
-
   const formattedReceipt = formatReceiptForPrinting(receiptData);
 
-  try {
-    const request: PrintReceiptRequest = {
-      printer_name: printer,
-      receipt_data: formattedReceipt,
-    };
+  const request: PrintReceiptRequest = {
+    printer_name: printer,
+    receipt_data: formattedReceipt,
+  };
 
-    const result = await invoke<string>('print_receipt', { request });
-    console.log('Print result:', result);
-  } catch (error: any) {
-    console.error('Direct print error:', error);
-    throw new Error(`Failed to print receipt: ${error?.message || error}`);
-  }
+  await invoke("print_receipt", { request });
 }
 
-/**
- * Formats receipt data for professional ESC/POS printing
- * - Clean, structured layout
- * - Prevents negative days
- * - Proper alignment and spacing
- * - Tanzanian-style receipt formatting
- */
+/* ===================== FORMATTER ===================== */
+
 function formatReceiptForPrinting(data: ReceiptData): ReceiptData {
   const now = new Date();
-  const formattedDateTime = `${now.getDate().toString().padStart(2, '0')}/${(
-    now.getMonth() + 1
-  ).toString().padStart(2, '0')}/${now.getFullYear()} ${now
+
+  const formattedDateTime = `${now
+    .getDate()
+    .toString()
+    .padStart(2, "0")}/${(now.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}/${now.getFullYear()} ${now
     .getHours()
     .toString()
-    .padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now
+    .padStart(2, "0")}:${now
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}:${now
     .getSeconds()
     .toString()
-    .padStart(2, '0')}`;
+    .padStart(2, "0")}`;
 
-  // Clean amount (only digits + comma)
-  const cleanAmount = extractNumericAmount(data.total_amount || "3000");
+  const cleanAmount = extractNumericAmount(data.total_amount || "0");
 
-  // Fix negative/zero days
-  let quantity = "1.0";
-  if (data.item_quantity) {
+  /* ========= BILLING RULE =========
+     • Minimum = 0.5 Day
+     • Every 12 hours = +0.5 Day
+  ================================= */
+
+  let billableDays = 0.5;
+
+  if (typeof data.duration_minutes === "number") {
+    const hours = data.duration_minutes / 60;
+    billableDays = Math.ceil(hours / 12) * 0.5;
+    if (billableDays < 0.5) billableDays = 0.5;
+  } else if (data.item_quantity) {
     const parsed = parseFloat(data.item_quantity);
-    quantity = Math.max(0, parsed).toFixed(1); // never negative
+    billableDays = parsed < 0.5 ? 0.5 : parsed;
   }
 
+  const quantity = billableDays.toFixed(1);
+
+  /* ================= QR ================= */
+
+  const tigopesaNumber = data.tigopesa_number || "45107230";
+  const qrCodeData =
+    data.qr_code_data ||
+    generateTigoPesaQRCode(tigopesaNumber, cleanAmount);
+
+  /* ================= FINAL DATA ================= */
+
   return {
-    // Header
     company_name: "CHATO DISTRICT COUNCIL",
     company_subtitle: "STAKABADHI YA MALIPO",
 
-    // Document identifiers
-    receipt_number: data.receipt_id 
-      ? `Na. ${data.receipt_id}` 
-      : "Na. 6076449C8T-3740B8BC",
-
-    receipt_ref: data.receipt_ref || "Kumb. Na. MC1060120203000320252600000180",
+    receipt_number: data.receipt_id
+      ? `Na. ${data.receipt_id}`
+      : "Na. AUTO",
 
     date_time: `Tarehe: ${formattedDateTime}`,
 
-    // Main content
     maelezo_title: "Maelezo",
     kiasi_title: "Kiasi (TZS)",
 
-    item_description: data.vehicle_type || "Large Buses Stand Fee (Bus)",
+    item_description: data.vehicle_type || "Parking Fee",
     item_quantity: quantity,
     item_day: "Day",
     item_amount: cleanAmount,
 
-    // Footer & operator info
     total_label: "JUMLA:",
     total_amount: cleanAmount,
 
     operator_label: "Mpokea Fedha:",
-    operator_name: data.operator || "LINDA B. SARTAA",
+    operator_name: data.operator || "N/A",
 
-    location_label: "Mipaji:",
-    location: data.gate || "JOHANUTA",
+    location_label: "Mahali:",
+    location: data.gate || "N/A",
 
-    footer: "*** MWISHO WA STAKABADHI ***",
+    qr_code_data: qrCodeData,
+    tigopesa_number: tigopesaNumber,
   };
 }
 
-/**
- * Extracts numeric value with comma formatting (removes everything except digits & comma)
- */
-function extractNumericAmount(amount?: string): string {
-  if (!amount) return "0";
-  const cleaned = amount.replace(/[^\d,]/g, '');
+/* ===================== HELPERS ===================== */
+
+function generateTigoPesaQRCode(phoneNumber: string, amount: string): string {
+  const cleanAmount = amount.replace(/[^\d]/g, "");
+  return `*150*01*${phoneNumber}*${cleanAmount}#`;
+}
+
+function extractNumericAmount(amount: string): string {
+  const cleaned = amount.replace(/[^\d,]/g, "");
   return cleaned || "0";
 }

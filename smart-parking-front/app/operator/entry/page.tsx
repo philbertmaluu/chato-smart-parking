@@ -119,7 +119,7 @@ export default function VehicleEntry() {
     if (!selectedGate) return;
 
     const reverbAppKey = process.env.NEXT_PUBLIC_REVERB_APP_KEY;
-    const reverbHost = process.env.NEXT_PUBLIC_REVERB_HOST || 'localhost';
+    const reverbHost = process.env.NEXT_PUBLIC_REVERB_HOST || '192.168.0.112';
     const reverbPort = process.env.NEXT_PUBLIC_REVERB_PORT || '8080';
     const reverbScheme = process.env.NEXT_PUBLIC_REVERB_SCHEME || 'http';
     
@@ -140,7 +140,7 @@ export default function VehicleEntry() {
         wssPort: reverbPort,
         forceTLS: reverbScheme === 'https',
         enabledTransports: ['ws', 'wss'],
-        authEndpoint: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/broadcasting/auth`,
+        authEndpoint: `${process.env.NEXT_PUBLIC_API_URL || 'http://192.168.0.112'}/broadcasting/auth`,
         auth: {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
