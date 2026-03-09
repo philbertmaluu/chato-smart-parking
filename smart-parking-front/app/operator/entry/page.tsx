@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VehicleEntryDrawer } from "./components/vehicleEntrydrawer";
-import { CameraInterface } from "./components/camera-interface";
 import { VehicleTypeSelectionModal } from "./components/vehicle-type-selection-modal";
 import { CameraExitDialog } from "./components/camera-exit-dialog";
 import { useOperatorGates } from "@/hooks/use-operator-gates";
@@ -18,7 +17,6 @@ import { usePageVisibility } from "@/hooks/use-page-visibility";
 import { zktecoConfig } from "@/utils/config/zkteco-config";
 import { GateSelectionModal } from "@/components/operator/gate-selection-modal";
 import { useDetectionContext } from "@/contexts/detection-context";
-import { CameraDetection } from "@/hooks/use-detection-logs";
 import { ChevronDown, MapPin, Pencil, Camera, Video, CheckCircle, AlertCircle, Building2, X, RotateCcw, RefreshCw, ScanLine, Loader2, Wifi, WifiOff } from "lucide-react";
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { toast } from "sonner";
