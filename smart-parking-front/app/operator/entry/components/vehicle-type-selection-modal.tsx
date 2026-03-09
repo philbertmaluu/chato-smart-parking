@@ -272,63 +272,75 @@ export function VehicleTypeSelectionModal({
 
             {/* Vehicle Body Type Selection - Only required for new vehicles */}
             {!(detection as any)?.vehicle_exists && (
-              <div className="space-y-3">
-                <Label htmlFor="bodyType" className="text-sm font-medium">
-                  Vehicle Body Type *
-                </Label>
+              <div className="space-y-3 p-4 rounded-lg border-2 border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-600 font-bold text-lg">1</span>
+                  <Label htmlFor="bodyType" className="text-sm font-bold text-purple-900 dark:text-purple-200">
+                    Vehicle Body Type <span className="text-red-500">*</span>
+                  </Label>
+                </div>
+                <p className="text-xs text-purple-700 dark:text-purple-300">
+                  This is a new vehicle. Please select the appropriate body type.
+                </p>
                 <Select
                   value={selectedBodyTypeId?.toString() || ""}
                   onValueChange={(value) => setSelectedBodyTypeId(parseInt(value))}
                   disabled={isProcessing || bodyTypesLoading}
                 >
-                  <SelectTrigger className="h-10 sm:h-12 w-full text-sm">
-                    <SelectValue placeholder="Select vehicle body type" />
+                  <SelectTrigger className="h-12 w-full text-sm border-2 border-purple-400 bg-white dark:bg-gray-900 hover:border-purple-600 font-semibold">
+                    <SelectValue placeholder="👆 Click to select vehicle body type..." />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] z-[9999] min-w-[200px]">
-                    {vehicleBodyTypes.map((type: any) => {
-                      const vehicleIcon = getVehicleTypeIcon(type.name);
-                      return (
-                        <SelectItem
-                          key={type.id}
-                          value={type.id.toString()}
-                          className="text-sm"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <span
-                              className={`text-lg ${vehicleIcon.color}`}
-                            >
-                              {vehicleIcon.icon}
-                            </span>
-                            <div>
-                              <span className="font-medium">
-                                {type.name}
+                  <SelectContent className="max-h-[280px] z-[9999] min-w-[250px] border-purple-300">
+                    {bodyTypesLoading ? (
+                      <div className="p-4 text-center">
+                        <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                        Loading...
+                      </div>
+                    ) : vehicleBodyTypes.length === 0 ? (
+                      <div className="p-4 text-center text-red-500 text-sm">
+                        No vehicle types available
+                      </div>
+                    ) : (
+                      vehicleBodyTypes.map((type: any) => {
+                        const vehicleIcon = getVehicleTypeIcon(type.name);
+                        return (
+                          <SelectItem
+                            key={type.id}
+                            value={type.id.toString()}
+                            className="text-sm py-2 cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xl ${vehicleIcon.color}`}>
+                                {vehicleIcon.icon}
                               </span>
-                              {type.category && (
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  ({type.category})
-                                </span>
-                              )}
+                              <span className="font-medium">{type.name}</span>
                             </div>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
                 {!selectedBodyTypeId && (
-                  <p className="text-xs sm:text-sm text-red-500">
-                    Please select a vehicle body type to continue
+                  <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                    ⚠️ Required: Please select a vehicle body type to continue
                   </p>
                 )}
               </div>
             )}
             
-            {/* Optional body type selection for existing vehicles */}
+            {/* Optional Body Type Update - For existing vehicles */}
             {(detection as any)?.vehicle_exists && (
-              <div className="space-y-3">
-                <Label htmlFor="bodyType" className="text-sm font-medium">
-                  Vehicle Body Type (Optional)
-                </Label>
+              <div className="space-y-3 p-4 rounded-lg border-2 border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 font-bold text-lg">2</span>
+                  <Label htmlFor="bodyType" className="text-sm font-bold text-green-900 dark:text-green-200">
+                    Vehicle Body Type <span className="text-gray-500">(Optional)</span>
+                  </Label>
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  This vehicle already exists. You can optionally update its body type.
+                </p>
                 <Select
                   value={selectedBodyTypeId?.toString() || ""}
                   onValueChange={(value) => {
@@ -338,42 +350,42 @@ export function VehicleTypeSelectionModal({
                   }}
                   disabled={isProcessing || bodyTypesLoading}
                 >
-                  <SelectTrigger className="h-10 sm:h-12 w-full text-sm">
-                    <SelectValue placeholder="Optional: Update body type (or leave empty to skip)" />
+                  <SelectTrigger className="h-12 w-full text-sm border-2 border-green-400 bg-white dark:bg-gray-900 hover:border-green-600 font-semibold">
+                    <SelectValue placeholder="✓ Optionally select body type..." />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] z-[9999] min-w-[200px]">
-                    {vehicleBodyTypes.map((type: any) => {
-                      const vehicleIcon = getVehicleTypeIcon(type.name);
-                      return (
-                        <SelectItem
-                          key={type.id}
-                          value={type.id.toString()}
-                          className="text-sm"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <span
-                              className={`text-lg ${vehicleIcon.color}`}
-                            >
-                              {vehicleIcon.icon}
-                            </span>
-                            <div>
-                              <span className="font-medium">
-                                {type.name}
+                  <SelectContent className="max-h-[280px] z-[9999] min-w-[250px] border-green-300">
+                    {bodyTypesLoading ? (
+                      <div className="p-4 text-center">
+                        <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                        Loading...
+                      </div>
+                    ) : vehicleBodyTypes.length === 0 ? (
+                      <div className="p-4 text-center text-red-500 text-sm">
+                        No vehicle types available
+                      </div>
+                    ) : (
+                      vehicleBodyTypes.map((type: any) => {
+                        const vehicleIcon = getVehicleTypeIcon(type.name);
+                        return (
+                          <SelectItem
+                            key={type.id}
+                            value={type.id.toString()}
+                            className="text-sm py-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xl ${vehicleIcon.color}`}>
+                                {vehicleIcon.icon}
                               </span>
-                              {type.category && (
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  ({type.category})
-                                </span>
-                              )}
+                              <span className="font-medium">{type.name}</span>
                             </div>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  Body type is optional for existing vehicles. Leave empty to skip, or select one to update. You can process entry directly.
+                <p className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20 p-2 rounded">
+                  ℹ️ Optional field - Leave blank to skip body type update
                 </p>
               </div>
             )}
@@ -471,9 +483,3 @@ export function VehicleTypeSelectionModal({
     </Dialog>
   );
 }
-
-
-
-
-
-
