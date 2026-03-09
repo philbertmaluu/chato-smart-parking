@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/components/language-provider";
 import { useAuth } from "@/components/auth-provider";
-import { ZKTecoCameraWidget } from "@/components/camera/zkteco-camera-widget";
 import { Car, ScanLine, ParkingCircle, DollarSign, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { get } from "@/utils/api/api";
