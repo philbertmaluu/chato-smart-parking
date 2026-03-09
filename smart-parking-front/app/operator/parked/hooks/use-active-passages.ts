@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { VehiclePassageService, type VehiclePassage } from '@/utils/api/vehicle-passage-service';
 import { toast } from 'sonner';
 
@@ -29,8 +29,18 @@ export const useActivePassages = () => {
     const now = new Date();
     const diffMs = now.getTime() - entry.getTime();
     
+    // Ensure duration is never negative (handle future timestamps or timezone issues)
+    if (diffMs < 0) {
+      return '0m';
+    }
+    
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    // If both hours and minutes are 0, show minimum 1 minute
+    if (hours === 0 && minutes === 0) {
+      return '1m';
+    }
     
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
@@ -65,7 +75,14 @@ export const useActivePassages = () => {
     // Calculate normally
     const entry = new Date(passage.entry_time);
     const now = new Date();
-    const diffHours = (now.getTime() - entry.getTime()) / (1000 * 60 * 60);
+    const diffMs = now.getTime() - entry.getTime();
+    
+    // Ensure duration is never negative (handle future timestamps or timezone issues)
+    if (diffMs < 0) {
+      return 'Tsh. 0.00';
+    }
+    
+    const diffHours = diffMs / (1000 * 60 * 60);
     const daysToCharge = calculateDaysToCharge(diffHours);
     const currentFee = dailyRate * daysToCharge;
     
@@ -253,6 +270,24 @@ export const useActivePassages = () => {
       totalRevenue: `Tsh. ${totalRevenue.toFixed(2)}`,
     };
   };
+
+  // Real-time duration update
+  const updateDurations = useCallback(() => {
+    setActivePassages(prevPassages => 
+      prevPassages.map(passage => ({
+        ...passage,
+        duration: calculateDuration(passage.entry_time),
+        currentFee: calculateCurrentFee(passage),
+      }))
+    );
+  }, []);
+
+  // Set up real-time updates
+  useEffect(() => {
+    const interval = setInterval(updateDurations, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [updateDurations]);
 
   // Load active passages on mount
   useEffect(() => {

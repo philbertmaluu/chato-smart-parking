@@ -120,11 +120,12 @@ export default function OperatorDashboard() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
+            className="px-2 sm:px-0"
           >
-            <h1 className="text-3xl font-bold text-gradient">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gradient break-words">
               {t("dashboard.welcome")}, {user?.username}!
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base">
               Operator Dashboard - Manage vehicle entries and parking
             </p>
           </motion.div>
@@ -178,30 +179,31 @@ export default function OperatorDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
+            className="px-2 sm:px-0"
           >
             <Card className="glass-effect border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Recent Vehicles</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg sm:text-xl">Recent Vehicles</CardTitle>
+                <CardDescription className="text-sm sm:text-base">
                   Parked and exited vehicles that you processed
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 sm:px-6">
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
                 ) : error ? (
                   <div className="text-center py-8 text-red-600">
-                    <p>{error}</p>
+                    <p className="text-sm sm:text-base">{error}</p>
                   </div>
                 ) : recentVehicles.parked.length === 0 && recentVehicles.exited.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    <Car className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No recent vehicles</p>
+                    <Car className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm sm:text-base">No recent vehicles</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {(() => {
                       // Combine and sort by time (most recent first)
                       const allVehicles = [
@@ -215,11 +217,11 @@ export default function OperatorDashboard() {
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: 0.3 + index * 0.05 }}
-                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors gap-2 sm:gap-0"
                         >
-                          <div className="flex items-center space-x-3">
-                            <span className="text-xl">{vehicle.type === 'parked' ? '🟢' : '🔴'}</span>
-                            <div>
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                            <span className="text-lg sm:text-xl">{vehicle.type === 'parked' ? '🟢' : '🔴'}</span>
+                            <div className="min-w-0 flex-1">
                               <p className="font-medium">{vehicle.vehicle?.plate_number || 'N/A'}</p>
                               <p className="text-sm text-muted-foreground">
                                 {vehicle.type === 'parked' 
@@ -229,23 +231,20 @@ export default function OperatorDashboard() {
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            {vehicle.type === 'parked' ? (
-                              <>
-                                <p className="text-sm font-medium text-muted-foreground">
-                                  {vehicle.vehicle?.body_type?.name || 'Unknown'}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {vehicle.passage_number}
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="font-medium">Tsh. {parseFloat(vehicle.total_amount || '0').toFixed(2)}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {vehicle.payment_type?.name || 'N/A'}
-                                </p>
-                              </>
+                          <div className="text-right sm:text-left mt-2 sm:mt-0">
+                            <p className="text-sm sm:text-base font-medium">
+                              {vehicle.type === 'parked' ? 'Parked' : 'Exited'}
+                            </p>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              {vehicle.type === 'parked' 
+                                ? `${formatDateTime(vehicle.entry_time)}` 
+                                : `${formatDateTime(vehicle.exit_time || vehicle.entry_time)}` 
+                              }
+                            </p>
+                            {vehicle.total_amount && (
+                              <p className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                                {vehicle.total_amount}
+                              </p>
                             )}
                           </div>
                         </motion.div>

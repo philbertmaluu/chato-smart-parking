@@ -34,8 +34,7 @@ import {
   Shield,
   Camera,
 } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -50,6 +49,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -64,8 +64,12 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Close sidebar when clicking a link on mobile
-  const handleLinkClick = () => {
+  // Close sidebar when clicking a link on mobile and handle navigation
+  const handleLinkClick = (href: string) => {
+    // Use router.push for navigation to ensure compatibility with desktop app
+    router.push(href);
+    
+    // Close sidebar on mobile after navigation
     if (isMobile && onClose) {
       onClose();
     }
@@ -208,7 +212,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             e.stopPropagation();
             if (onClose) onClose();
           }}
-          className="fixed inset-0 bg-black/50 z-[35] md:hidden"
+          className="fixed inset-0 bg-black/50 z-[40] md:hidden"
           style={{ pointerEvents: 'auto' }}
         />
       )}
@@ -219,7 +223,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         className={cn(
-          "fixed left-0 top-0 z-[45] h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
+          "fixed left-0 top-0 z-[50] h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shadow-lg",
           className
         )}
         onClick={(e) => e.stopPropagation()}
@@ -272,18 +276,17 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <Link href={item.href} onClick={handleLinkClick}>
-                  <Button
-                    variant={isActive ? "default" : "ghost"}
-                    className={cn(
-                      "w-full justify-start space-x-3 h-12",
-                      isActive && "gradient-maroon text-white shadow-lg"
-                    )}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span>{item.title}</span>
-                  </Button>
-                </Link>
+                <Button
+                  variant={isActive ? "default" : "ghost"}
+                  className={cn(
+                    "w-full justify-start space-x-3 h-12",
+                    isActive && "gradient-maroon text-white shadow-lg"
+                  )}
+                  onClick={() => handleLinkClick(item.href)}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.title}</span>
+                </Button>
               </motion.div>
             );
           })}

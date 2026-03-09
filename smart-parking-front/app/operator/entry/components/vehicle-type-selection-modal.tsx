@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -20,6 +20,15 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useVehicleBodyTypes } from "@/app/manager/settings/hooks/use-vehicle-body-types";
+import { get } from "@/utils/api/api";
+import { API_ENDPOINTS } from "@/utils/api/endpoints";
+
+interface ApiResponse {
+  success: boolean;
+  data: any[] | { data: any[] };
+  messages?: string;
+  status?: number;
+}
 import { CameraDetectionService } from "@/utils/api/camera-detection-service";
 import { PendingVehicleTypeDetection } from "@/utils/api/camera-detection-service";
 import { markLocalDetectionProcessed } from "@/utils/local-detection-storage";
@@ -44,9 +53,35 @@ export function VehicleTypeSelectionModal({
   detection,
   onSuccess,
 }: VehicleTypeSelectionModalProps) {
-  const { vehicleBodyTypes, loading: bodyTypesLoading } = useVehicleBodyTypes();
+  const [vehicleBodyTypes, setVehicleBodyTypes] = useState<any[]>([]);
+  const [bodyTypesLoading, setBodyTypesLoading] = useState(false);
   const [selectedBodyTypeId, setSelectedBodyTypeId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch active vehicle body types when modal opens
+  useEffect(() => {
+    if (open) {
+      const fetchActiveBodyTypes = async () => {
+        setBodyTypesLoading(true);
+        try {
+          const response = await get<ApiResponse>(API_ENDPOINTS.VEHICLE_BODY_TYPES.ACTIVE_LIST);
+          if (response?.success && response?.data) {
+            const responseData = response.data;
+            setVehicleBodyTypes(Array.isArray(responseData) ? responseData : responseData.data || []);
+          } else {
+            setVehicleBodyTypes([]);
+          }
+        } catch (error) {
+          console.error('Error fetching active vehicle body types:', error);
+          setVehicleBodyTypes([]);
+        } finally {
+          setBodyTypesLoading(false);
+        }
+      };
+
+      fetchActiveBodyTypes();
+    }
+  }, [open]);
 
   const handleSubmit = async () => {
     if (!detection) {
@@ -139,6 +174,29 @@ export function VehicleTypeSelectionModal({
     }
   };
 
+  // Calculate duration since detection
+  const calculateDetectionDuration = (detectionTime: string): string => {
+    const detection = new Date(detectionTime);
+    const now = new Date();
+    const diffMs = now.getTime() - detection.getTime();
+    
+    if (diffMs < 0) {
+      return '0s';
+    }
+    
+    const seconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
   const handleClose = () => {
     if (!isProcessing) {
       setSelectedBodyTypeId(null);
@@ -148,22 +206,22 @@ export function VehicleTypeSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose} modal={true}>
-      <DialogContent className="sm:max-w-[500px] z-50" onInteractOutside={(e) => {
+      <DialogContent className="sm:max-w-[600px] z-[9999] fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] lg:w-full max-h-[90vh] overflow-hidden flex flex-col" onInteractOutside={(e) => {
         // Prevent closing by clicking outside when processing
         if (isProcessing) {
           e.preventDefault();
         }
       }}>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-gradient flex items-center space-x-3">
-            <Camera className="w-6 h-6 text-blue-600" />
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-gradient flex items-center space-x-3 flex-wrap gap-2">
+            <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 flex-shrink-0" />
             <span>
               {(detection as any)?.vehicle_exists 
                 ? "🚗 Vehicle Detected - Confirm Entry" 
                 : "🚗 New Vehicle Detected - Action Required"}
             </span>
           </DialogTitle>
-          <DialogDescription className="text-base mt-2 font-medium">
+          <DialogDescription className="text-sm sm:text-base mt-2 font-medium">
             {(detection as any)?.vehicle_exists 
               ? "A known vehicle has been detected. You can process the entry directly without selecting body type."
               : "A new vehicle has been detected by the camera. Please select the vehicle body type and process the entry."}
@@ -171,18 +229,41 @@ export function VehicleTypeSelectionModal({
         </DialogHeader>
 
         {detection && (
-          <div className="space-y-6 mt-4">
+          <div className="flex-1 overflow-y-auto space-y-4 sm:space-y-6 mt-4 pr-2">
+            {/* Detection Time and Duration */}
+            <div className="flex gap-3 sm:gap-4 flex-wrap">
+              <div className="flex-1 p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800 min-w-[150px]">
+                <Label className="text-xs sm:text-sm font-medium text-muted-foreground uppercase">
+                  Detection Time
+                </Label>
+                <p className="text-sm sm:text-base font-medium mt-1 text-purple-800 dark:text-purple-200">
+                  {new Date(detection.detection_timestamp).toLocaleTimeString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {new Date(detection.detection_timestamp).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex-1 p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 min-w-[150px]">
+                <Label className="text-xs sm:text-sm font-medium text-muted-foreground uppercase">
+                  Time Since Detection
+                </Label>
+                <p className="text-sm sm:text-base font-bold text-green-800 dark:text-green-200 mt-1">
+                  {calculateDetectionDuration(detection.detection_timestamp)}
+                </p>
+              </div>
+            </div>
+
             {/* Detected Plate Number */}
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
-                  <Car className="w-5 h-5 text-blue-600" />
+            <div className="p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center space-x-3 flex-wrap">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Car className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">
+                <div className="min-w-0">
+                  <Label className="text-xs sm:text-sm font-medium text-muted-foreground">
                     Detected Plate Number
                   </Label>
-                  <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">
+                  <p className="text-lg sm:text-2xl font-bold text-blue-800 dark:text-blue-200 break-all">
                     {detection.numberplate}
                   </p>
                 </div>
@@ -200,16 +281,17 @@ export function VehicleTypeSelectionModal({
                   onValueChange={(value) => setSelectedBodyTypeId(parseInt(value))}
                   disabled={isProcessing || bodyTypesLoading}
                 >
-                  <SelectTrigger className="h-12 w-full">
+                  <SelectTrigger className="h-10 sm:h-12 w-full text-sm">
                     <SelectValue placeholder="Select vehicle body type" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[200px] z-[9999] min-w-[200px]">
                     {vehicleBodyTypes.map((type: any) => {
                       const vehicleIcon = getVehicleTypeIcon(type.name);
                       return (
                         <SelectItem
                           key={type.id}
                           value={type.id.toString()}
+                          className="text-sm"
                         >
                           <div className="flex items-center space-x-3">
                             <span
@@ -234,7 +316,7 @@ export function VehicleTypeSelectionModal({
                   </SelectContent>
                 </Select>
                 {!selectedBodyTypeId && (
-                  <p className="text-sm text-red-500">
+                  <p className="text-xs sm:text-sm text-red-500">
                     Please select a vehicle body type to continue
                   </p>
                 )}
@@ -256,16 +338,17 @@ export function VehicleTypeSelectionModal({
                   }}
                   disabled={isProcessing || bodyTypesLoading}
                 >
-                  <SelectTrigger className="h-12 w-full">
+                  <SelectTrigger className="h-10 sm:h-12 w-full text-sm">
                     <SelectValue placeholder="Optional: Update body type (or leave empty to skip)" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[200px] z-[9999] min-w-[200px]">
                     {vehicleBodyTypes.map((type: any) => {
                       const vehicleIcon = getVehicleTypeIcon(type.name);
                       return (
                         <SelectItem
                           key={type.id}
                           value={type.id.toString()}
+                          className="text-sm"
                         >
                           <div className="flex items-center space-x-3">
                             <span
@@ -289,7 +372,7 @@ export function VehicleTypeSelectionModal({
                     })}
                   </SelectContent>
                 </Select>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Body type is optional for existing vehicles. Leave empty to skip, or select one to update. You can process entry directly.
                 </p>
               </div>
@@ -297,27 +380,27 @@ export function VehicleTypeSelectionModal({
 
             {/* Additional Info */}
             {(detection.make_str || detection.model_str || detection.color_str) && (
-              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <Label className="text-xs font-medium text-muted-foreground uppercase">
                   Detected Vehicle Details
                 </Label>
-                <div className="mt-2 space-y-1 text-sm">
+                <div className="mt-2 space-y-1 text-xs sm:text-sm">
                   {detection.make_str && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Make:</span>
-                      <span className="font-medium">{detection.make_str}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground flex-shrink-0">Make:</span>
+                      <span className="font-medium text-right">{detection.make_str}</span>
                     </div>
                   )}
                   {detection.model_str && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Model:</span>
-                      <span className="font-medium">{detection.model_str}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground flex-shrink-0">Model:</span>
+                      <span className="font-medium text-right">{detection.model_str}</span>
                     </div>
                   )}
                   {detection.color_str && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Color:</span>
-                      <span className="font-medium">{detection.color_str}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground flex-shrink-0">Color:</span>
+                      <span className="font-medium text-right">{detection.color_str}</span>
                     </div>
                   )}
                 </div>
@@ -326,13 +409,13 @@ export function VehicleTypeSelectionModal({
 
             {/* Important Notice - Only show for new vehicles */}
             {!(detection as any)?.vehicle_exists && (
-              <div className="flex items-start space-x-2 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-2 border-amber-300 dark:border-amber-700">
-                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start space-x-2 p-3 sm:p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border-2 border-amber-300 dark:border-amber-700">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                  <p className="text-xs sm:text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
                     ⚠️ Action Required
                   </p>
-                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-200">
                     Please select the vehicle body type to process this entry. The vehicle will be registered and parking entry will be processed automatically once you click "Process Entry".
                   </p>
                 </div>
@@ -341,13 +424,13 @@ export function VehicleTypeSelectionModal({
             
             {/* Info Notice for existing vehicles */}
             {(detection as any)?.vehicle_exists && (
-              <div className="flex items-start space-x-2 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-700">
-                <AlertCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start space-x-2 p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-300 dark:border-green-700">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
+                  <p className="text-xs sm:text-sm font-semibold text-green-900 dark:text-green-100 mb-1">
                     ✓ Known Vehicle
                   </p>
-                  <p className="text-sm text-green-800 dark:text-green-200">
+                  <p className="text-xs sm:text-sm text-green-800 dark:text-green-200">
                     This vehicle is already registered. You can process the entry directly without selecting body type.
                   </p>
                 </div>
@@ -355,28 +438,28 @@ export function VehicleTypeSelectionModal({
             )}
 
             {/* Actions */}
-            <div className="flex space-x-3 pt-4">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-4 gap-2">
               <Button
                 variant="outline"
                 onClick={handleClose}
                 disabled={isProcessing}
-                className="flex-1 h-11"
+                className="flex-1 h-9 sm:h-11 text-sm"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={(!selectedBodyTypeId && !(detection as any)?.vehicle_exists) || isProcessing || bodyTypesLoading}
-                className="flex-1 h-11 gradient-maroon"
+                className="flex-1 h-9 sm:h-11 gradient-maroon text-sm"
               >
                 {isProcessing ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
                     Processing...
                   </>
                 ) : (
                   <>
-                    <Car className="w-4 h-4 mr-2" />
+                    <Car className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                     Process Entry
                   </>
                 )}
