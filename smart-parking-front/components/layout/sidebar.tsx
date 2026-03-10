@@ -38,6 +38,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
+// Type declaration for electronAPI
+declare global {
+  interface Window {
+    electronAPI?: any;
+  }
+}
+
 interface SidebarProps {
   className?: string;
   isOpen?: boolean;
@@ -52,26 +59,57 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
-  // Check if mobile on mount and resize
+  // Check if mobile on mount and resize with debouncing
   useEffect(() => {
+    let resizeTimer: NodeJS.Timeout;
+    
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 100);
     };
 
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   // Close sidebar when clicking a link on mobile and handle navigation
-  const handleLinkClick = (href: string) => {
-    // Use router.push for navigation to ensure compatibility with desktop app
-    router.push(href);
-    
-    // Close sidebar on mobile after navigation
-    if (isMobile && onClose) {
-      onClose();
+  const handleLinkClick = async (href: string) => {
+    // Prevent multiple rapid clicks and navigation when already navigating
+    if (pathname === href || isNavigating) {
+      return;
+    }
+
+    setIsNavigating(true);
+
+    try {
+      // Close sidebar immediately on mobile
+      if (isMobile && onClose) {
+        onClose();
+      }
+
+      // Use window.location for desktop app compatibility
+      if (window.electronAPI) {
+        // Electron/desktop app environment
+        window.location.href = href;
+      } else {
+        // Web environment
+        await router.push(href);
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback to window.location
+      window.location.href = href;
+    } finally {
+      // Reset navigation state after a delay
+      setTimeout(() => setIsNavigating(false), 500);
     }
   };
 
@@ -283,8 +321,13 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
                     isActive && "gradient-maroon text-white shadow-lg"
                   )}
                   onClick={() => handleLinkClick(item.href)}
+                  disabled={isNavigating}
                 >
-                  <item.icon className="w-5 h-5" />
+                  {isNavigating && pathname !== item.href ? (
+                    <div className="w-5 h-5 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
+                  ) : (
+                    <item.icon className="w-5 h-5" />
+                  )}
                   <span>{item.title}</span>
                 </Button>
               </motion.div>

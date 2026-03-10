@@ -27,21 +27,29 @@ export function MainLayout({ children }: MainLayoutProps) {
     }
   }, [isLoading, isAuthenticated, router]);
 
-  // Check if mobile on mount and resize
+  // Check if mobile on mount and resize with debouncing
   useEffect(() => {
+    let resizeTimer: NodeJS.Timeout;
+    
     const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setSidebarOpen(true);
-      } else {
-        setSidebarOpen(false);
-      }
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const mobile = window.innerWidth < 768;
+        setIsMobile(mobile);
+        if (!mobile) {
+          setSidebarOpen(true);
+        } else {
+          setSidebarOpen(false);
+        }
+      }, 100);
     };
 
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   if (isLoading) {

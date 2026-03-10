@@ -155,6 +155,23 @@ export default function ParkedVehicles() {
     searchActivePassages,
   } = useActivePassages();
 
+  // Load active passages on mount
+  useEffect(() => {
+    fetchActivePassages();
+  }, []);
+
+  // Safety timeout: if loading persists for more than 15 seconds, stop it
+  useEffect(() => {
+    if (!loading) return;
+    
+    const loadingTimeout = setTimeout(() => {
+      console.error('Loading timeout - stopping fetch');
+      toast.error('Loading timeout. Please refresh the page.');
+    }, 15000);
+    
+    return () => clearTimeout(loadingTimeout);
+  }, [loading]);
+
   // Fetch pending detections when page becomes visible (no continuous polling)
   useEffect(() => {
     if (isPageVisible) {

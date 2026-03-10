@@ -125,7 +125,17 @@ export const useActivePassages = () => {
     
     try {
       console.log('Fetching active passages...', { page, itemsPerPage });
-      const response = await VehiclePassageService.getActivePassages(page, itemsPerPage);
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000);
+      });
+      
+      const response = await Promise.race([
+        VehiclePassageService.getActivePassages(page, itemsPerPage),
+        timeoutPromise
+      ]) as any;
+      
       console.log('Active passages response:', response);
       
       // Handle the API response structure
@@ -167,8 +177,17 @@ export const useActivePassages = () => {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to fetch active passages';
       setError(errorMessage);
-      toast.error(errorMessage);
+      
+      // Only show toast if it's not a timeout (to avoid spam)
+      if (!errorMessage.includes('timeout')) {
+        toast.error(errorMessage);
+      }
+      
       console.error('Error fetching active passages:', err);
+      
+      // Set empty state on error to prevent infinite loading
+      setActivePassages([]);
+      setPagination(null);
     } finally {
       setLoading(false);
     }
